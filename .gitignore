@@ -1,0 +1,18 @@
+# Chặn thư viện Frontend
+/frontend/node_modules
+/node_modules
+*.log
+
+# Chặn thư viện Backend (Laravel)
+/backend/vendor
+/vendor
+
+# Chặn file môi trường (chứa mật khẩu) [cite: 82]
+.env
+.env.backup
+.env.production
+
+# Chặn file hệ thống & IDE
+.DS_Store
+.idea
+.vscode
