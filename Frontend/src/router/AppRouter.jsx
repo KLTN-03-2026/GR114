@@ -1,20 +1,44 @@
 import { Routes, Route } from "react-router-dom";
-import Home from "../pages/Home";
-import Booking from "../pages/Booking";
-import Legal from "../pages/Legal";
-import About from "../pages/About";
-import Contact from "../pages/Contact";
-import ResultPage from "../pages/ResultPage";
-
+import Home from "../pages/User/Home";
+import Booking from "../pages/User/Booking";
+import EditLegalRecord from "../pages/User/EditLegalRecord";
+import About from "../pages/User/About";
+import Contact from "../pages/User/Contact";
+import ResultPage from "../pages/User/ResultPage";
+import LegalRecordPage from "../pages/User/LegalRecordPage";
+import RecordDetailPage from "../pages/User/RecordDetailPage";
+import LegalDocuments from "../pages/User/LegalDocuments";
+import DocumentViewDetail from "../pages/User/DocumentViewDetail";
+import ProfilePage from "../pages/User/ProfilePage";
+import FeedbackPage from "../pages/User/FeedbackPage";
+import ForgotPassword from "../pages/User/ForgotPassword";
 export default function AppRouter() {
     return (
         <Routes>
+            {/* NHÓM TRANG CHỦ & THÔNG TIN CHUNG  */}
             <Route path="/" element={<Home />} />
-            <Route path="/dat-lich" element={<Booking />} />
-            <Route path="/phap-ly" element={<Legal />} />
-            <Route path="/ket-qua" element={<ResultPage />} />
             <Route path="/gioi-thieu" element={<About />} />
             <Route path="/lien-he" element={<Contact />} />
+            <Route path="/gui-phan-hoi" element={<FeedbackPage />} />
+
+            {/* NHÓM DỊCH VỤ (ĐẶT LỊCH & KẾT QUẢ AI) */}
+            <Route path="/dat-lich" element={<Booking />} />
+            <Route path="/ket-qua" element={<ResultPage />} />
+
+            {/* 
+                NHÓM TÀI KHOẢN (USER & AUTH)  */}
+            <Route path="/tai-khoan" element={<ProfilePage />} />
+            <Route path="/quen-mat-khau" element={<ForgotPassword />} />
+
+            {/* NHÓM HỒ SƠ PHÁP LÝ (QUẢN LÝ FILE) */}
+            <Route path="/ho-so-phap-ly" element={<LegalRecordPage />} />
+            <Route path="/ho-so/chi-tiet/:id" element={<RecordDetailPage />} />
+            <Route path="/ho-so/chinh-sua/:id" element={<EditLegalRecord />} />
+
+            {/* NHÓM VĂN BẢN PHÁP LUẬT (TRA CỨU) */}
+            <Route path="/van-ban-phap-luat" element={<LegalDocuments />} />
+            <Route path="/van-ban/chi-tiet/:id" element={<DocumentViewDetail />} />
+
         </Routes>
     );
 }
