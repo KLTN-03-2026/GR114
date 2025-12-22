@@ -43,3 +43,10 @@ npm-debug.log*
 # Đảm bảo chặn file .env của AI (nơi chứa Key Google)
 /AI_Engine/.env
 /AI_Engine/node_modules/
+# ========================
+# 5. DATA EXCLUSION (Chặn file nặng)
+# ========================
+# Chặn file Vector Cache (106MB - Quá nặng, không Push được, để máy tự sinh)
+AI_Engine/src/data/vector_store.json
+
+# (Lưu ý: Không chặn legal_data_old.json để cho phép Push file này)
