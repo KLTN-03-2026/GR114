@@ -1,63 +1,84 @@
-// AI_Engine/src/controllers/aiController.js
-const geminiService = require('../services/geminiService');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const pdf = require('pdf-parse');
+const mammoth = require('mammoth');
 const fs = require('fs');
-const path = require('path');
 
-// Nạp thư viện đọc file (như code cũ của bạn)
-let pdfParse, mammoth;
-try { pdfParse = require('pdf-parse'); } catch (e) { }
-try { mammoth = require('mammoth'); } catch (e) { }
+// Cấu hình Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 exports.analyzeContract = async (req, res) => {
     try {
-        // 1. Kiểm tra file
+        // 1. Kiểm tra xem có file gửi lên không
         if (!req.file) {
-            return res.status(400).json({ success: false, message: 'Vui lòng upload file hợp đồng.' });
+            return res.status(400).json({ error: "Vui lòng upload file hợp đồng!" });
         }
 
-        console.log(`📄 Đang phân tích file: ${req.file.originalname}`);
-        const filePath = req.file.path;
-        const ext = path.extname(req.file.originalname).toLowerCase();
         let contractText = "";
+        const filePath = req.file.path;
+        const mimeType = req.file.mimetype;
 
-        // 2. Đọc nội dung dựa trên đuôi file
-        try {
-            if (ext === '.pdf' && pdfParse) {
-                const dataBuffer = fs.readFileSync(filePath);
-                const data = await pdfParse(dataBuffer);
-                contractText = data.text;
-            }
-            else if (ext === '.docx' && mammoth) {
-                const result = await mammoth.extractRawText({ path: filePath });
-                contractText = result.value;
-            }
-            else {
-                // Mặc định đọc text
-                contractText = fs.readFileSync(filePath, 'utf8');
-            }
-        } catch (readErr) {
-            console.error("Lỗi đọc file:", readErr);
-            return res.status(400).json({ success: false, message: "Không đọc được nội dung file." });
+        // 2. Phân loại và Đọc file
+        console.log(`🕵️‍♂️ Đang đọc file: ${req.file.originalname} (${mimeType})`);
+
+        if (mimeType === 'application/pdf') {
+            const dataBuffer = fs.readFileSync(filePath);
+            const data = await pdf(dataBuffer);
+            contractText = data.text;
+        } 
+        else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // .docx
+            const result = await mammoth.extractRawText({ path: filePath });
+            contractText = result.value;
+        } 
+        else {
+            // Mặc định coi là file text (.txt)
+            contractText = fs.readFileSync(filePath, 'utf-8');
         }
 
-        // 3. Gửi cho Gemini phân tích (Kèm context rỗng hoặc lấy từ RAG nếu muốn xịn hơn)
-        const analysisResult = await geminiService.analyzeContractWithGemini(contractText, "");
+        // Xóa file tạm sau khi đọc xong để đỡ rác server
+        fs.unlinkSync(filePath);
 
-        // 4. Xóa file tạm (Code cũ bạn có xóa)
-        try { fs.unlinkSync(filePath); } catch (e) { }
+        if (!contractText || contractText.trim().length < 10) {
+            return res.status(400).json({ error: "Không đọc được nội dung file hoặc file quá ngắn." });
+        }
 
-        // 5. Trả kết quả
-        return res.json({
-            success: true,
-            data: analysisResult
-        });
+        // 3. Gửi cho Gemini phân tích
+        console.log("🤖 Đang gửi nội dung cho Gemini phân tích...");
+        
+        const prompt = `
+        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON (chỉ JSON, không có markdown).
+        
+        Nội dung hợp đồng:
+        """${contractText}"""
+
+        Yêu cầu output JSON format:
+        {
+            "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
+            "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
+            "risks": [
+                {
+                    "clause": "Trích dẫn điều khoản gốc gây rủi ro",
+                    "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
+                    "severity": "High" | "Medium" | "Low"
+                }
+            ],
+            "recommendation": "Lời khuyên tổng quan của luật sư"
+        }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+
+        // Làm sạch JSON (bỏ dấu ```json nếu có)
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        const analysisResult = JSON.parse(cleanJson);
+
+        console.log("✅ Phân tích xong!");
+        res.json(analysisResult);
 
     } catch (error) {
-        console.error('❌ Lỗi Analyze Controller:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Lỗi khi phân tích hợp đồng.',
-            error: error.message
-        });
+        console.error("❌ Lỗi phân tích:", error);
+        res.status(500).json({ error: "Lỗi hệ thống khi phân tích hợp đồng." });
     }
 };

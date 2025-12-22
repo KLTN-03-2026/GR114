@@ -1,6 +1,6 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom"; // <--- Đã thêm Navigate
 import Home from "../pages/User/Home";
-import Booking from "../pages/User/Booking";
+import ContractAnalysis from "../pages/User/ContractAnalysis";
 import EditLegalRecord from "../pages/User/EditLegalRecord";
 import About from "../pages/User/About";
 import Contact from "../pages/User/Contact";
@@ -12,6 +12,7 @@ import DocumentViewDetail from "../pages/User/DocumentViewDetail";
 import ProfilePage from "../pages/User/ProfilePage";
 import FeedbackPage from "../pages/User/FeedbackPage";
 import ForgotPassword from "../pages/User/ForgotPassword";
+
 export default function AppRouter() {
     return (
         <Routes>
@@ -21,12 +22,13 @@ export default function AppRouter() {
             <Route path="/lien-he" element={<Contact />} />
             <Route path="/gui-phan-hoi" element={<FeedbackPage />} />
 
-            {/* NHÓM DỊCH VỤ (ĐẶT LỊCH & KẾT QUẢ AI) */}
-            <Route path="/dat-lich" element={<Booking />} />
+            {/* NHÓM DỊCH VỤ KẾT QUẢ AI */}
+            <Route path="/contract-analysis" element={<ContractAnalysis />} />
+            {/* Dòng dưới đây sẽ hoạt động sau khi import Navigate */}
+            <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
             <Route path="/ket-qua" element={<ResultPage />} />
 
-            {/* 
-                NHÓM TÀI KHOẢN (USER & AUTH)  */}
+            {/* NHÓM TÀI KHOẢN (USER & AUTH)  */}
             <Route path="/tai-khoan" element={<ProfilePage />} />
             <Route path="/quen-mat-khau" element={<ForgotPassword />} />
 

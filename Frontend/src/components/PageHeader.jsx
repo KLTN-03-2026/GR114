@@ -43,7 +43,7 @@ export default function PageHeader() {
 
                     <nav className="hidden md:flex gap-6 text-sm font-medium">
                         <NavLink to="/" className={navClass}>Trang chủ</NavLink>
-                        <NavLink to="/dat-lich" className={navClass}>Đặt lịch</NavLink>
+                        <NavLink to="/dat-lich" className={navClass}>Rà soát Hợp đồng AI</NavLink>
                         <NavLink to="/ho-so-phap-ly" className={navClass}>Pháp lý</NavLink>
                         <NavLink to="/van-ban-phap-luat" className={navClass}>Văn bản</NavLink>
                         <NavLink to="/gioi-thieu" className={navClass}>Giới thiệu</NavLink>

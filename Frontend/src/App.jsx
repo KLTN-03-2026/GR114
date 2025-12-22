@@ -4,7 +4,7 @@ import ChatbotAI from "./components/ChatbotAI"; // 👇 1. Import Chatbot
 import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline"; // Icon nút chat
 
 export default function App() {
-   // 👇 2. Quản lý trạng thái Bật/Tắt Chatbot tại đây
+   //  2. Quản lý trạng thái Bật/Tắt Chatbot tại đây
    const [isChatOpen, setIsChatOpen] = useState(false);
 
    return (

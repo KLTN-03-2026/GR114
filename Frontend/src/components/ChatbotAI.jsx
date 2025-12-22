@@ -37,16 +37,20 @@ export default function ChatbotAI({ isOpen, onClose }) {
         try {
             // 2. GỌI API SANG AI ENGINE (PORT 8000)
             console.log("📡 Đang gửi câu hỏi:", question);
-            const res = await aiClient.post('/chat/ask', {
-                question: question
-            });
+            
+            // -----------------------------------------------------------
+            // ✅ ĐÃ SỬA: Gọi hàm .ask() thay vì .post()
+            const res = await aiClient.ask(question); 
+            // -----------------------------------------------------------
 
             console.log("✅ AI Trả lời:", res);
 
             // 3. Hiển thị câu trả lời của AI
             const botMsg = {
                 id: Date.now() + 1,
-                text: res.data.answer || "Xin lỗi, tôi không tìm thấy thông tin này.", // Lấy field 'answer' từ server
+                // ✅ ĐÃ SỬA: Dùng res.answer thay vì res.data.answer
+                // (Vì aiClient đã return response.data rồi)
+                text: res.answer || res.data || "Xin lỗi, tôi không tìm thấy thông tin này.", 
                 isBot: true
             };
             setMessages(prev => [...prev, botMsg]);
