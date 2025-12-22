@@ -1,18 +1,45 @@
-# Chặn thư viện Frontend
-/frontend/node_modules
-/node_modules
-*.log
+# ========================
+# 1. GLOBAL (TOÀN DỰ ÁN)
+# ========================
+# Chặn tất cả thư mục thư viện (cực nặng)
+node_modules/
+**/node_modules/
 
-# Chặn thư viện Backend (Laravel)
-/backend/vendor
-/vendor
-
-# Chặn file môi trường (chứa mật khẩu) [cite: 82]
+# Chặn tất cả file cấu hình chứa Key/Pass (CỰC QUAN TRỌNG)
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 
-# Chặn file hệ thống & IDE
+# Chặn file hệ thống & IDE (File rác)
 .DS_Store
-.idea
-.vscode
+Thumbs.db
+.idea/
+.vscode/
+*.log
+npm-debug.log*
+
+# ========================
+# 2. FRONTEND (React/Vite)
+# ========================
+# Chặn file build ra (không cần đẩy lên git)
+/Frontend/dist/
+/Frontend/build/
+/Frontend/coverage/
+
+# ========================
+# 3. BACKEND (Laravel)
+# ========================
+/vendor/
+/backend/vendor/
+/backend/storage/*.key
+/backend/public/hot
+/backend/public/storage
+/backend/phpunit.xml
+.phpunit.result.cache
+
+# ========================
+# 4. AI ENGINE (Node.js)
+# ========================
+# Đảm bảo chặn file .env của AI (nơi chứa Key Google)
+/AI_Engine/.env
+/AI_Engine/node_modules/
