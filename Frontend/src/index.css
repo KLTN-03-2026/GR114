@@ -17,3 +17,20 @@
 .animate-fadeIn {
     animation: fadeIn 0.2s ease-out;
 }
+/* Thêm vào cuối file index.css */
+@keyframes floatUp {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-130vh);
+    opacity: 0;
+  }
+}

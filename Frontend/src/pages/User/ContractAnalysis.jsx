@@ -15,7 +15,7 @@ export default function ContractAnalysis() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState(null);
 
-    // Hàm xử lý khi chọn file
+    // ✅ Hàm xử lý khi chọn file (ĐÃ ĐỊNH NGHĨA LẠI)
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
         if (selectedFile) {
@@ -23,13 +23,13 @@ export default function ContractAnalysis() {
         }
     };
 
-    // --- SỬA ĐỔI QUAN TRỌNG: GỬI FILE TRỰC TIẾP (KHÔNG DÙNG FILEREADER) ---
+    // ✅ Hàm xử lý phân tích
     const handleAnalyze = async () => {
         if (!file) return;
 
         setIsAnalyzing(true);
         try {
-            // Gửi nguyên file (PDF/Word/Txt) xuống Backend để Backend tự xử lý
+            // Gửi file trực tiếp xuống Backend
             const aiResult = await aiClient.analyzeContract(file);
             setResult(aiResult);
         } catch (error) {
@@ -39,8 +39,8 @@ export default function ContractAnalysis() {
             setIsAnalyzing(false);
         }
     };
-    // -----------------------------------------------------------------------
 
+    // Hàm xác định màu sắc dựa trên điểm số
     const getScoreColor = (score) => {
         if (score >= 80) return "text-green-600 bg-green-50 border-green-200";
         if (score >= 50) return "text-yellow-600 bg-yellow-50 border-yellow-200";
@@ -56,48 +56,46 @@ export default function ContractAnalysis() {
 
     return (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans pb-20">
+            {/* Header tự động nhận diện nền sáng */}
             <Header />
 
             <main className="max-w-6xl mx-auto px-4 py-12">
                 <div className="text-center mb-12">
-                    <h1 className="text-4xl font-black uppercase tracking-tighter italic text-slate-900">
-                        Thẩm định Hợp đồng AI
+                    <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">
+                        Thẩm định Hợp đồng <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">AI</span>
                     </h1>
                     <p className="text-slate-500 mt-3 font-medium text-lg">
-                        Phát hiện rủi ro pháp lý trong vài giây với công nghệ Gemini 2.5
+                        Phát hiện rủi ro pháp lý trong vài giây với công nghệ trí tuệ nhân tạo
                     </p>
                 </div>
 
                 {!result && (
-                    <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-fadeIn">
+                    <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100/20 border border-slate-100 overflow-hidden animate-fadeIn">
                         <div className="p-10 text-center">
-                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <DocumentTextIcon className="w-10 h-10 text-slate-400" />
+                            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <DocumentTextIcon className="w-10 h-10 text-blue-500" />
                             </div>
 
                             <h3 className="text-xl font-bold text-slate-800 mb-2">Tải lên bản hợp đồng của bạn</h3>
-                            <p className="text-slate-500 text-sm mb-8">Hỗ trợ định dạng .txt, .pdf, .doc, .docx</p>
+                            <p className="text-slate-400 text-sm mb-8">Hỗ trợ định dạng .txt, .pdf, .doc, .docx</p>
 
                             <label className="block w-full cursor-pointer group">
-                                {/*  ĐÃ SỬA: Cho phép chọn nhiều loại file */}
                                 <input
                                     type="file"
                                     className="hidden"
                                     accept=".txt,.pdf,.doc,.docx"
                                     onChange={handleFileChange}
                                 />
-                                {/* --------------------------------------- */}
-
-                                <div className={`border-2 border-dashed rounded-2xl p-8 transition-all ${file ? 'border-blue-500 bg-blue-50' : 'border-slate-300 group-hover:border-slate-400'}`}>
+                                <div className={`border-2 border-dashed rounded-2xl p-8 transition-all duration-300 ${file ? 'border-blue-500 bg-blue-50' : 'border-slate-300 group-hover:border-blue-400 group-hover:bg-blue-50/30'}`}>
                                     {file ? (
                                         <div className="flex items-center justify-center gap-3 text-blue-600">
-                                            <CheckBadgeIcon className="w-6 h-6" />
+                                            <CheckBadgeIcon className="w-6 h-6 animate-pulse" />
                                             <span className="font-bold">{file.name}</span>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center text-slate-400">
                                             <CloudArrowUpIcon className="w-8 h-8 mb-2" />
-                                            <span className="font-medium">Nhấn để chọn file (PDF, Word, TXT)</span>
+                                            <span className="font-medium">Nhấn để chọn file hệ thống</span>
                                         </div>
                                     )}
                                 </div>
@@ -107,17 +105,13 @@ export default function ContractAnalysis() {
                                 onClick={handleAnalyze}
                                 disabled={!file || isAnalyzing}
                                 className={`mt-8 w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2
-                                    ${!file || isAnalyzing ? 'bg-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800 active:scale-95'}
+                                    ${!file || isAnalyzing ? 'bg-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-200 active:scale-95'}
                                 `}
                             >
                                 {isAnalyzing ? (
-                                    <>
-                                        <ArrowPathIcon className="w-5 h-5 animate-spin" /> LegAI đang đọc và phân tích...
-                                    </>
+                                    <><ArrowPathIcon className="w-5 h-5 animate-spin" /> Đang phân tích...</>
                                 ) : (
-                                    <>
-                                        <ShieldCheckIcon className="w-5 h-5" /> BẮT ĐẦU THẨM ĐỊNH
-                                    </>
+                                    <><ShieldCheckIcon className="w-5 h-5" /> BẮT ĐẦU THẨM ĐỊNH</>
                                 )}
                             </button>
                         </div>
@@ -171,19 +165,13 @@ export default function ContractAnalysis() {
                                         </p>
                                     </div>
                                 ))}
-                                {result.risks && result.risks.length === 0 && (
-                                    <div className="p-12 text-center text-slate-400">
-                                        <CheckBadgeIcon className="w-16 h-16 mx-auto mb-4 text-green-500" />
-                                        <p>Tuyệt vời! Không tìm thấy rủi ro pháp lý rõ ràng nào.</p>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
                         <div className="text-center">
                             <button
                                 onClick={() => { setFile(null); setResult(null); }}
-                                className="text-slate-400 hover:text-slate-900 font-bold text-sm underline underline-offset-4"
+                                className="text-slate-400 hover:text-blue-600 font-bold text-sm underline underline-offset-4"
                             >
                                 Phân tích hợp đồng khác
                             </button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom"; // Thêm useLocation
 import {
     Bars3Icon,
     MagnifyingGlassIcon,
@@ -14,14 +14,31 @@ import logo from "../assets/icons/logo.png";
 export default function PageHeader() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation(); // Lấy thông tin trang hiện tại
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-    const navClass = ({ isActive }) =>
-        `relative px-1 py-2 transition
-        ${isActive ? "text-red-600 font-semibold" : "text-gray-700 hover:text-red-600"}
-        after:absolute after:left-0 after:-bottom-1 after:h-[2px] after:w-full
-        after:origin-left after:scale-x-0 after:bg-red-600 after:transition-transform
-        hover:after:scale-x-100`;
+    // Kiểm tra xem có đang ở trang chủ hay không
+    const isHomePage = location.pathname === "/";
+
+    // ✅ 1. Cập nhật navClass để đổi màu chữ linh hoạt
+    const navClass = ({ isActive }) => {
+        const baseClass = `relative px-1 py-2 transition-all duration-300 uppercase tracking-widest text-[11px]`;
+        
+        // Màu chữ mặc định và khi Active dựa trên trang
+        let stateColor = "";
+        if (isHomePage) {
+            stateColor = isActive ? "text-white font-bold" : "text-gray-400 hover:text-white";
+        } else {
+            stateColor = isActive ? "text-blue-600 font-bold" : "text-slate-600 hover:text-blue-600";
+        }
+
+        // Màu thanh gạch chân
+        const underlineColor = isActive 
+            ? "after:scale-x-100 after:bg-gradient-to-r after:from-pink-500 after:to-blue-500" 
+            : isHomePage ? "after:bg-white" : "after:bg-blue-600";
+
+        return `${baseClass} ${stateColor} after:absolute after:left-0 after:-bottom-1 after:h-[2px] after:w-full after:origin-left after:transition-transform after:duration-300 hover:after:scale-x-100 ${underlineColor}`;
+    };
 
     const handleLogout = () => {
         setIsLoggedIn(false);
@@ -31,74 +48,84 @@ export default function PageHeader() {
     };
 
     return (
-        <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
+        // ✅ 2. Sửa header: Tự động đổi Style dựa trên biến isHomePage
+        <header className={`sticky top-0 z-[100] transition-all duration-500 border-b ${
+            isHomePage 
+            ? "bg-black/20 backdrop-blur-lg border-white/10" 
+            : "bg-white/80 backdrop-blur-md border-slate-200 shadow-sm"
+        }`}>
             <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between relative">
                 <div className="flex items-center gap-10">
                     <img
                         src={logo}
                         alt="LegalAI"
-                        className="h-8 cursor-pointer"
+                        // ✅ Logo tự động trắng ở trang chủ, trở về bình thường ở trang con
+                        className={`h-8 cursor-pointer transition-all duration-500 ${isHomePage ? "brightness-0 invert" : ""}`}
                         onClick={() => navigate("/")}
                     />
 
-                    <nav className="hidden md:flex gap-6 text-sm font-medium">
+                    <nav className="hidden md:flex gap-8 text-sm font-medium">
                         <NavLink to="/" className={navClass}>Trang chủ</NavLink>
-                        <NavLink to="/dat-lich" className={navClass}>Rà soát Hợp đồng AI</NavLink>
+                        <NavLink to="/contract-analysis" className={navClass}>Rà soát Hợp đồng AI</NavLink>
                         <NavLink to="/ho-so-phap-ly" className={navClass}>Pháp lý</NavLink>
                         <NavLink to="/van-ban-phap-luat" className={navClass}>Văn bản</NavLink>
                         <NavLink to="/gioi-thieu" className={navClass}>Giới thiệu</NavLink>
                         <NavLink to="/lien-he" className={navClass}>Liên hệ</NavLink>
                     </nav>
                 </div>
-                <div className="flex items-center gap-5">
+
+                <div className="flex items-center gap-6">
+                    {/* ✅ Icon đổi màu linh hoạt */}
                     <button onClick={() => alert("Mở tìm kiếm")} title="Tìm kiếm">
-                        <MagnifyingGlassIcon className="h-6 w-6 text-gray-600 hover:text-red-600 transition hover:scale-110" />
+                        <MagnifyingGlassIcon className={`h-5 w-5 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
                     </button>
 
                     <button onClick={() => navigate("/tai-khoan")} title="Tài khoản">
-                        <UserIcon className="h-6 w-6 text-gray-600 hover:text-red-600 transition hover:scale-110" />
+                        <UserIcon className={`h-5 w-5 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
                     </button>
 
                     <div className="relative">
-                        <button
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="flex items-center focus:outline-none"
-                            title="Menu"
-                        >
-                            <Bars3Icon className="h-6 w-6 text-gray-600 hover:text-red-600 transition hover:scale-110" />
+                        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center focus:outline-none" title="Menu">
+                            <Bars3Icon className={`h-6 w-6 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
                         </button>
 
                         {isMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}></div>
 
-                                <div className="absolute right-0 mt-4 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl py-3 z-20 animate-fadeIn">
+                                {/* ✅ Dropdown Menu cũng đổi màu nền linh hoạt */}
+                                <div className={`absolute right-0 mt-6 w-60 border rounded-2xl shadow-2xl py-3 z-20 animate-fadeIn backdrop-blur-xl ${
+                                    isHomePage ? "bg-[#121212] border-white/10" : "bg-white border-slate-100"
+                                }`}>
                                     {!isLoggedIn ? (
                                         <button
                                             onClick={() => { navigate("/login"); setIsMenuOpen(false); }}
-                                            className="w-full text-left px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-3"
+                                            className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${
+                                                isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
+                                            }`}
                                         >
-                                            <ArrowLeftOnRectangleIcon className="h-5 w-5" />
-                                            Đăng nhập
+                                            <ArrowLeftOnRectangleIcon className="h-5 w-5" /> Đăng nhập
                                         </button>
                                     ) : (
                                         <button
                                             onClick={handleLogout}
-                                            className="w-full text-left px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-3"
+                                            className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${
+                                                isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
+                                            }`}
                                         >
-                                            <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                                            Đăng xuất
+                                            <ArrowRightOnRectangleIcon className="h-5 w-5" /> Đăng xuất
                                         </button>
                                     )}
 
-                                    <div className="border-t border-gray-50 my-1"></div>
+                                    <div className={`border-t my-2 ${isHomePage ? "border-white/5" : "border-slate-100"}`}></div>
 
                                     <button
                                         onClick={() => { navigate("/gui-phan-hoi"); setIsMenuOpen(false); }}
-                                        className="w-full text-left px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-3"
+                                        className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${
+                                            isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
+                                        }`}
                                     >
-                                        <ChatBubbleLeftEllipsisIcon className="h-5 w-5" />
-                                        Gửi phản hồi
+                                        <ChatBubbleLeftEllipsisIcon className="h-5 w-5" /> Gửi phản hồi
                                     </button>
                                 </div>
                             </>

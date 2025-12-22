@@ -5,36 +5,49 @@ const HeroSection = () => {
     const navigate = useNavigate();
 
     return (
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12 items-center w-full py-20">
+        <div className="relative z-10 max-w-6xl mx-auto px-6 text-center py-10">
             <div className="space-y-6">
-                <h3 className="text-gray-500 text-lg font-medium tracking-wide">
-                    Lựa chọn của bạn
+                {/* Badge nhỏ phía trên */}
+                <h3 className="text-gray-300 text-sm md:text-base font-medium tracking-[0.4em] uppercase opacity-80 drop-shadow-[0_2px_4px_rgba(0,0,0,1)]">
+                    Giải pháp công nghệ pháp lý hiện đại
                 </h3>
-                <h1 className="text-4xl md:text-6xl font-black text-gray-900 leading-[1.1] uppercase">
-                    Chào mừng đến <br />
-                    với pháp luật & <br />
-                    nhân văn
+                
+                {/* Tiêu đề chính */}
+                <h1 className="text-3xl md:text-6xl font-black leading-[1.1] uppercase tracking-tighter">
+                    <span className="text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
+                        Ứng dụng tư vấn pháp lý
+                    </span> <br />
+                    
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)]">
+                        Tích hợp AI
+                    </span> <br />
+                    
+                    <span className="text-white drop-shadow-[0_4px_12px_rgba(0,0,0,1)]">
+                        Phân tích hợp đồng
+                    </span>
                 </h1>
-                <p className="text-gray-600 max-w-md">
-                    Hệ thống cung cấp giải pháp tư vấn pháp lý và tra cứu tích hợp trí tuệ nhân tạo (AI) giúp bạn giải quyết vấn đề nhanh chóng.
+
+                {/* Dòng mô tả đã được đổi sang màu Gradient giống "Tích hợp AI" để tăng độ hiển thị */}
+                <p className="max-w-3xl mx-auto text-base md:text-lg font-bold leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,1)]">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300">
+                       
+                    </span>
                 </p>
 
-                <button
-                    onClick={() => navigate('/phap-ly')}
-                    className="group flex items-center justify-center w-14 h-14 border-2 border-black rounded-full hover:bg-black hover:text-white transition-all"
-                >
-                    <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                </button>
-            </div>
-
-            <div className="flex justify-center">
-                <img
-                    src="https://png.pngtree.com/thumb_back/fh260/background/20230704/pngtree-a-stack-of-legal-books-with-a-miniature-courtroom-balanced-on-image_3721827.jpg"
-                    alt="Legal AI Overview"
-                    className="w-full max-w-md rounded-2xl shadow-2xl grayscale-[0.2] hover:grayscale-0 transition-all duration-500"
-                />
+                {/* Nút bấm hành động */}
+                <div className="pt-8 flex justify-center">
+                    <button
+                        onClick={() => navigate('/contract-analysis')}
+                        className="group flex items-center gap-3 px-8 py-4 border border-white/40 text-white rounded-full bg-black/40 backdrop-blur-md hover:bg-white hover:text-black transition-all duration-500 hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                    >
+                        <span className="font-bold uppercase tracking-widest text-sm text-white group-hover:text-black">
+                            Bắt đầu phân tích
+                        </span>
+                        <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     );
