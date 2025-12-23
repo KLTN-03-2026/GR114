@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-// 👇 1. Import MainLayout vừa sửa
 import MainLayout from "../layouts/MainLayout";
 
 // Các trang (Pages)
@@ -8,7 +7,8 @@ import ContractAnalysis from "../pages/User/ContractAnalysis";
 import EditLegalRecord from "../pages/User/EditLegalRecord";
 import About from "../pages/User/About";
 import Contact from "../pages/User/Contact";
-import ResultPage from "../pages/User/ResultPage";
+// ❌ Đã xóa import ResultPage vì không dùng nữa
+
 import LegalRecordPage from "../pages/User/LegalRecordPage";
 import RecordDetailPage from "../pages/User/RecordDetailPage";
 import LegalDocuments from "../pages/User/LegalDocuments";
@@ -19,7 +19,6 @@ import ForgotPassword from "../pages/User/ForgotPassword";
 
 export default function AppRouter() {
     return (
-        /* 👇 2. Bọc MainLayout ở đây để Video nền chạy toàn cục */
         <MainLayout>
             <Routes>
                 {/* NHÓM TRANG CHỦ & THÔNG TIN CHUNG  */}
@@ -31,8 +30,9 @@ export default function AppRouter() {
                 {/* NHÓM DỊCH VỤ KẾT QUẢ AI */}
                 <Route path="/contract-analysis" element={<ContractAnalysis />} />
                 <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
-                <Route path="/ket-qua" element={<ResultPage />} />
-
+                
+                {/* ❌ Đã xóa Route /ket-qua vì kết quả giờ hiện ngay ở /contract-analysis */}
+                
                 {/* NHÓM TÀI KHOẢN (USER & AUTH)  */}
                 <Route path="/tai-khoan" element={<ProfilePage />} />
                 <Route path="/quen-mat-khau" element={<ForgotPassword />} />
