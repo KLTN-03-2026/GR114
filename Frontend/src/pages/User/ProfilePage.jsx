@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Header from "../../components/PageHeader";
 import EditProfileModal from "../../components/EditProfileModal";
 import { useNavigate } from 'react-router-dom';
 import {
@@ -214,7 +213,6 @@ export default function ProfilePage() {
 
     return (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
-            <Header />
             <main className="max-w-6xl mx-auto px-4 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <aside className="lg:col-span-4 space-y-6 text-center">

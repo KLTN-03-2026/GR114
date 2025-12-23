@@ -1,6 +1,5 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import Header from "../../components/PageHeader";
 import { PieChart, Pie, Cell, Legend, Tooltip } from "recharts";
 
 export default function ResultPage() {
@@ -19,7 +18,6 @@ export default function ResultPage() {
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
-            <Header />
             <h1 className="text-2xl font-bold mb-6">Kết quả phân tích hợp đồng</h1>
             <div className="mb-6 p-6 bg-white rounded-xl shadow">
                 <h2 className="font-semibold text-lg mb-2">Tóm tắt</h2>

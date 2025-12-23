@@ -16,35 +16,72 @@ export default function LegalRecordItem({ record }) {
     };
 
     return (
-        <div className="flex items-center justify-between p-5 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-all group">
-            <div className="flex items-center gap-4">
-                <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition">
-                    <DocumentIcon className="w-7 h-7 text-blue-600" />
+        // ✅ 1. CONTAINER: Nền kính mờ (bg-white/5), viền mờ, hover phát sáng viền Cyan
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 hover:border-cyan-500/30 hover:shadow-[0_0_20px_rgba(34,211,238,0.1)] transition-all duration-300 group">
+
+            <div className="flex items-center gap-5 mb-4 md:mb-0">
+                {/* Icon Folder: Gradient tối */}
+                <div className="p-3 bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/10 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                    <DocumentIcon className="w-8 h-8 text-cyan-400" />
                 </div>
+
                 <div>
-                    <h4 className="font-bold text-gray-800 uppercase text-sm tracking-tight">{record.name}</h4>
-                    <p className="text-xs text-gray-400">Ngày tạo: {record.date}</p>
+                    {/* Tên hồ sơ: Màu trắng */}
+                    <h4 className="font-bold text-white uppercase text-sm tracking-wide group-hover:text-cyan-400 transition-colors">
+                        {record.name}
+                    </h4>
+                    {/* Ngày tạo: Màu xám tối */}
+                    <p className="text-xs text-gray-500 mt-1 font-mono">
+                        Ngày tạo: <span className="text-gray-400">{record.date}</span>
+                    </p>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 md:gap-4 text-gray-500">
-                <button onClick={handleGoToDetail} className="p-2 hover:bg-blue-50 hover:text-blue-600 rounded-full transition">
+            {/* ACTION BUTTONS: Icon xám, hover lên màu Neon tương ứng */}
+            <div className="flex items-center gap-1 md:gap-2 text-gray-500 w-full md:w-auto justify-end border-t md:border-t-0 border-white/5 pt-3 md:pt-0">
+
+                {/* Xem chi tiết (Blue) */}
+                <button
+                    onClick={handleGoToDetail}
+                    title="Xem chi tiết"
+                    className="p-2 hover:bg-blue-500/20 hover:text-blue-400 rounded-lg transition-all"
+                >
                     <EyeIcon className="w-5 h-5" />
                 </button>
 
-                <button onClick={() => alert("Mở cửa sổ chia sẻ")} className="p-2 hover:bg-green-50 hover:text-green-600 rounded-full transition">
+                {/* Chia sẻ (Green) */}
+                <button
+                    onClick={() => alert("Mở cửa sổ chia sẻ")}
+                    title="Chia sẻ"
+                    className="p-2 hover:bg-green-500/20 hover:text-green-400 rounded-lg transition-all"
+                >
                     <ShareIcon className="w-5 h-5" />
                 </button>
 
-                <button onClick={() => alert("Mở phân tích AI")} className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-full transition">
+                {/* Phân tích AI (Cyan - Điểm nhấn) */}
+                <button
+                    onClick={() => alert("Mở phân tích AI")}
+                    title="Phân tích AI"
+                    className="p-2 hover:bg-cyan-500/20 hover:text-cyan-400 rounded-lg transition-all"
+                >
                     <CpuChipIcon className="w-5 h-5" />
                 </button>
 
-                <button onClick={handleGoToEdit} className="p-2 hover:bg-orange-50 hover:text-orange-600 rounded-full transition">
+                {/* Chỉnh sửa (Orange) */}
+                <button
+                    onClick={handleGoToEdit}
+                    title="Chỉnh sửa"
+                    className="p-2 hover:bg-orange-500/20 hover:text-orange-400 rounded-lg transition-all"
+                >
                     <PencilSquareIcon className="w-5 h-5" />
                 </button>
 
-                <button onClick={() => alert("Xóa hồ sơ")} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-full transition">
+                {/* Xóa (Red) */}
+                <button
+                    onClick={() => alert("Xóa hồ sơ")}
+                    title="Xóa hồ sơ"
+                    className="p-2 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-all"
+                >
                     <TrashIcon className="w-5 h-5" />
                 </button>
             </div>

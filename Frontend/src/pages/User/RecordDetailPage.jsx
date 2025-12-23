@@ -9,7 +9,6 @@ import {
     TrashIcon,
     DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import Header from "../../components/PageHeader";
 import AIAnalysisModal from "../../components/AIAnalysisModal";
 
 export default function RecordDetailPage() {
@@ -41,7 +40,6 @@ export default function RecordDetailPage() {
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
-            <Header />
 
             <main className="max-w-5xl mx-auto w-full px-6 py-10 flex-grow">
                 <div className="flex justify-between items-center mb-8">

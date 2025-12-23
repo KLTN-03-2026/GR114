@@ -9,7 +9,6 @@ import {
     MagnifyingGlassCircleIcon,
     DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import Header from "../../components/PageHeader";
 
 export default function DocumentViewDetail() {
     const navigate = useNavigate();
@@ -32,7 +31,6 @@ export default function DocumentViewDetail() {
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
-            <Header />
 
             <main className="max-w-6xl mx-auto w-full px-6 py-10 flex-grow">
                 <div className="mb-6">

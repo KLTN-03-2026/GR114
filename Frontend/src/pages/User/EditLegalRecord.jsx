@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Header from "../../components/PageHeader";
 import UploadBox from "../../components/UploadBox";
 import axiosClient from "../../api/axiosClient";
 
@@ -8,10 +7,10 @@ export default function EditLegalRecord() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const [title, setTitle] = useState(""); 
-    const [category, setCategory] = useState(""); 
-    const [description, setDescription] = useState(""); 
-    const [file, setFile] = useState(null); 
+    const [title, setTitle] = useState("");
+    const [category, setCategory] = useState("");
+    const [description, setDescription] = useState("");
+    const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -22,7 +21,7 @@ export default function EditLegalRecord() {
 
     const handleCancel = () => {
         if (window.confirm("Bạn có chắc muốn huỷ các thay đổi?")) {
-            navigate(-1); 
+            navigate(-1);
         }
     };
 
@@ -37,10 +36,10 @@ export default function EditLegalRecord() {
         if (file) formData.append("contract", file);
 
         try {
-          
-            
+
+
             alert("Hệ thống lưu thay đổi và hiển thị hồ sơ với bản đã chỉnh sửa thành công!");
-            navigate("/ho-so-phap-ly"); 
+            navigate("/ho-so-phap-ly");
         } catch (err) {
             alert("Lỗi: " + (err.response?.data?.message || err.message));
         } finally {
@@ -50,11 +49,10 @@ export default function EditLegalRecord() {
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
-            <Header />
 
             <main className="max-w-7xl mx-auto w-full px-6 py-10 flex-grow">
                 <div className="flex justify-between items-center mb-10">
-                    <button 
+                    <button
                         onClick={() => navigate(-1)}
                         className="px-6 py-1.5 bg-gray-100 rounded-full font-bold text-gray-600 hover:bg-gray-200"
                     >

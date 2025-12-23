@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Header from "../../components/PageHeader";
 import {
     BugAntIcon,
     LightBulbIcon,
@@ -40,7 +39,6 @@ export default function FeedbackPage() {
 
     return (
         <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
-            <Header />
 
             <main className="max-w-3xl mx-auto w-full px-4 py-8 flex-grow">
                 <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
@@ -88,8 +86,8 @@ export default function FeedbackPage() {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, type: item.id })}
                                         className={`flex items-center gap-2 justify-center py-2.5 border rounded-xl transition-all ${formData.type === item.id
-                                                ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-sm"
-                                                : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-300"
+                                            ? "border-purple-600 bg-purple-50 text-purple-700 font-bold shadow-sm"
+                                            : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-300"
                                             }`}
                                     >
                                         <item.icon className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate, useLocation } from "react-router-dom"; // Thêm useLocation
+import { NavLink, useNavigate, useLocation } from "react-router-dom"; 
 import {
     Bars3Icon,
     MagnifyingGlassIcon,
@@ -14,32 +14,19 @@ import logo from "../assets/icons/logo.png";
 export default function PageHeader() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
-    const location = useLocation(); // Lấy thông tin trang hiện tại
+    const location = useLocation();
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-    // Kiểm tra xem có đang ở trang chủ hay không
     const isHomePage = location.pathname === "/";
 
+    // Style Link: Giữ nguyên
     const navClass = ({ isActive }) => {
-        const baseClass = `relative px-1 py-2 transition-all duration-300 uppercase tracking-widest text-[11px] group`; // Thêm group để quản lý hover tốt hơn
-
-        // 1. Quản lý màu sắc Text
-        let stateColor = "";
-        if (isHomePage) {
-            stateColor = isActive ? "text-white font-bold" : "text-gray-400 hover:text-white";
-        } else {
-            stateColor = isActive ? "text-blue-600 font-bold" : "text-slate-600 hover:text-blue-600";
-        }
-
-        // 2. Quản lý màu sắc/hiệu ứng đường gạch chân (Pseudo-element 'after')
-        // Chuyển origin-left thành origin-center để giống bản tham khảo
+        const baseClass = `relative px-1 py-2 transition-all duration-300 uppercase tracking-widest text-[11px] group`; 
+        const stateColor = isActive ? "text-cyan-400 font-bold" : "text-gray-300 hover:text-white";
         const underlineBase = "after:absolute after:left-0 after:-bottom-1 after:h-[2px] after:w-full after:transition-transform after:duration-500 after:origin-center";
-
-        // Scale và Color
         const underlineState = isActive
-            ? "after:scale-x-100 after:bg-gradient-to-r after:from-pink-500 after:to-blue-500"
-            : `after:scale-x-0 group-hover:after:scale-x-100 ${isHomePage ? "after:bg-white/70" : "after:bg-blue-600/70"}`;
-
+            ? "after:scale-x-100 after:bg-gradient-to-r after:from-cyan-400 after:to-blue-500"
+            : "after:scale-x-0 group-hover:after:scale-x-100 after:bg-cyan-400/70";
         return `${baseClass} ${stateColor} ${underlineBase} ${underlineState}`;
     };
 
@@ -51,18 +38,20 @@ export default function PageHeader() {
     };
 
     return (
-        // ✅ 2. Sửa header: Tự động đổi Style dựa trên biến isHomePage
-        <header className={`sticky top-0 z-[100] transition-all duration-500 border-b ${isHomePage
-                ? "bg-black/20 backdrop-blur-lg border-white/10"
-                : "bg-white/80 backdrop-blur-md border-slate-200 shadow-sm"
-            }`}>
-            <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between relative">
+        // ✅ FIX 1: Thêm 'h-20' (80px) để khớp tuyệt đối với padding-top của MainLayout
+        // ✅ FIX 2: Tăng độ đậm 'bg-black/40' để kính trông dày dặn, sang trọng hơn
+        <header className={`transition-all duration-500 w-full h-20 flex items-center border-b ${
+            isHomePage 
+                ? "bg-transparent border-white/5" 
+                : "bg-black/40 backdrop-blur-xl border-white/10 shadow-lg" // Kính tối màu xóa tan khoảng cách
+        }`}>
+            <div className="max-w-7xl mx-auto px-6 w-full flex items-center justify-between relative">
                 <div className="flex items-center gap-10">
                     <img
                         src={logo}
                         alt="LegalAI"
-                        // ✅ Logo tự động trắng ở trang chủ, trở về bình thường ở trang con
-                        className={`h-8 cursor-pointer transition-all duration-500 ${isHomePage ? "brightness-0 invert" : ""}`}
+                        // Logo hơi mờ nhẹ khi hover tạo cảm giác tương tác
+                        className="h-9 cursor-pointer transition-all duration-300 brightness-0 invert hover:opacity-80"
                         onClick={() => navigate("/")}
                     />
 
@@ -77,51 +66,45 @@ export default function PageHeader() {
                 </div>
 
                 <div className="flex items-center gap-6">
-                    {/* ✅ Icon đổi màu linh hoạt */}
                     <button onClick={() => alert("Mở tìm kiếm")} title="Tìm kiếm">
-                        <MagnifyingGlassIcon className={`h-5 w-5 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
+                        <MagnifyingGlassIcon className="h-5 w-5 transition-all hover:scale-110 text-gray-300 hover:text-cyan-400" />
                     </button>
 
                     <button onClick={() => navigate("/tai-khoan")} title="Tài khoản">
-                        <UserIcon className={`h-5 w-5 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
+                        <UserIcon className="h-5 w-5 transition-all hover:scale-110 text-gray-300 hover:text-cyan-400" />
                     </button>
 
                     <div className="relative">
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center focus:outline-none" title="Menu">
-                            <Bars3Icon className={`h-6 w-6 transition-all hover:scale-110 ${isHomePage ? "text-gray-300 hover:text-white" : "text-slate-600 hover:text-blue-600"}`} />
+                            <Bars3Icon className="h-6 w-6 transition-all hover:scale-110 text-gray-300 hover:text-cyan-400" />
                         </button>
 
+                        {/* Menu Dropdown */}
                         {isMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}></div>
-
-                                {/* ✅ Dropdown Menu cũng đổi màu nền linh hoạt */}
-                                <div className={`absolute right-0 mt-6 w-60 border rounded-2xl shadow-2xl py-3 z-20 animate-fadeIn backdrop-blur-xl ${isHomePage ? "bg-[#121212] border-white/10" : "bg-white border-slate-100"
-                                    }`}>
+                                <div className="absolute right-0 mt-8 w-64 border rounded-2xl shadow-2xl py-3 z-20 animate-fadeIn backdrop-blur-2xl bg-[#0a0a0a]/95 border-white/10 text-gray-200">
                                     {!isLoggedIn ? (
                                         <button
                                             onClick={() => { navigate("/login"); setIsMenuOpen(false); }}
-                                            className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
-                                                }`}
+                                            className="w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 hover:bg-white/10 hover:text-cyan-400"
                                         >
                                             <ArrowLeftOnRectangleIcon className="h-5 w-5" /> Đăng nhập
                                         </button>
                                     ) : (
                                         <button
                                             onClick={handleLogout}
-                                            className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
-                                                }`}
+                                            className="w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 hover:bg-white/10 hover:text-red-400"
                                         >
                                             <ArrowRightOnRectangleIcon className="h-5 w-5" /> Đăng xuất
                                         </button>
                                     )}
 
-                                    <div className={`border-t my-2 ${isHomePage ? "border-white/5" : "border-slate-100"}`}></div>
+                                    <div className="border-t my-2 border-white/10"></div>
 
                                     <button
                                         onClick={() => { navigate("/gui-phan-hoi"); setIsMenuOpen(false); }}
-                                        className={`w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 ${isHomePage ? "text-gray-300 hover:bg-white/5 hover:text-white" : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
-                                            }`}
+                                        className="w-full text-left px-5 py-3 text-sm font-semibold transition flex items-center gap-3 hover:bg-white/10 hover:text-cyan-400"
                                     >
                                         <ChatBubbleLeftEllipsisIcon className="h-5 w-5" /> Gửi phản hồi
                                     </button>

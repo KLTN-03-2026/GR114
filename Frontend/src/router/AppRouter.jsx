@@ -1,4 +1,8 @@
-import { Routes, Route, Navigate } from "react-router-dom"; // <--- Đã thêm Navigate
+import { Routes, Route, Navigate } from "react-router-dom";
+// 👇 1. Import MainLayout vừa sửa
+import MainLayout from "../layouts/MainLayout";
+
+// Các trang (Pages)
 import Home from "../pages/User/Home";
 import ContractAnalysis from "../pages/User/ContractAnalysis";
 import EditLegalRecord from "../pages/User/EditLegalRecord";
@@ -15,32 +19,34 @@ import ForgotPassword from "../pages/User/ForgotPassword";
 
 export default function AppRouter() {
     return (
-        <Routes>
-            {/* NHÓM TRANG CHỦ & THÔNG TIN CHUNG  */}
-            <Route path="/" element={<Home />} />
-            <Route path="/gioi-thieu" element={<About />} />
-            <Route path="/lien-he" element={<Contact />} />
-            <Route path="/gui-phan-hoi" element={<FeedbackPage />} />
+        /* 👇 2. Bọc MainLayout ở đây để Video nền chạy toàn cục */
+        <MainLayout>
+            <Routes>
+                {/* NHÓM TRANG CHỦ & THÔNG TIN CHUNG  */}
+                <Route path="/" element={<Home />} />
+                <Route path="/gioi-thieu" element={<About />} />
+                <Route path="/lien-he" element={<Contact />} />
+                <Route path="/gui-phan-hoi" element={<FeedbackPage />} />
 
-            {/* NHÓM DỊCH VỤ KẾT QUẢ AI */}
-            <Route path="/contract-analysis" element={<ContractAnalysis />} />
-            {/* Dòng dưới đây sẽ hoạt động sau khi import Navigate */}
-            <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
-            <Route path="/ket-qua" element={<ResultPage />} />
+                {/* NHÓM DỊCH VỤ KẾT QUẢ AI */}
+                <Route path="/contract-analysis" element={<ContractAnalysis />} />
+                <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
+                <Route path="/ket-qua" element={<ResultPage />} />
 
-            {/* NHÓM TÀI KHOẢN (USER & AUTH)  */}
-            <Route path="/tai-khoan" element={<ProfilePage />} />
-            <Route path="/quen-mat-khau" element={<ForgotPassword />} />
+                {/* NHÓM TÀI KHOẢN (USER & AUTH)  */}
+                <Route path="/tai-khoan" element={<ProfilePage />} />
+                <Route path="/quen-mat-khau" element={<ForgotPassword />} />
 
-            {/* NHÓM HỒ SƠ PHÁP LÝ (QUẢN LÝ FILE) */}
-            <Route path="/ho-so-phap-ly" element={<LegalRecordPage />} />
-            <Route path="/ho-so/chi-tiet/:id" element={<RecordDetailPage />} />
-            <Route path="/ho-so/chinh-sua/:id" element={<EditLegalRecord />} />
+                {/* NHÓM HỒ SƠ PHÁP LÝ (QUẢN LÝ FILE) */}
+                <Route path="/ho-so-phap-ly" element={<LegalRecordPage />} />
+                <Route path="/ho-so/chi-tiet/:id" element={<RecordDetailPage />} />
+                <Route path="/ho-so/chinh-sua/:id" element={<EditLegalRecord />} />
 
-            {/* NHÓM VĂN BẢN PHÁP LUẬT (TRA CỨU) */}
-            <Route path="/van-ban-phap-luat" element={<LegalDocuments />} />
-            <Route path="/van-ban/chi-tiet/:id" element={<DocumentViewDetail />} />
+                {/* NHÓM VĂN BẢN PHÁP LUẬT (TRA CỨU) */}
+                <Route path="/van-ban-phap-luat" element={<LegalDocuments />} />
+                <Route path="/van-ban/chi-tiet/:id" element={<DocumentViewDetail />} />
 
-        </Routes>
+            </Routes>
+        </MainLayout>
     );
 }
