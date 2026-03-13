@@ -1,88 +1,84 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
-    EyeIcon, ShareIcon, CpuChipIcon,
+    EyeIcon, ShareIcon, 
     PencilSquareIcon, TrashIcon, DocumentIcon
 } from '@heroicons/react/24/outline';
 
 export default function LegalRecordItem({ record }) {
     const navigate = useNavigate();
 
-    const handleGoToEdit = () => {
-        navigate(`/ho-so/chinh-sua/${record.id}`);
+    // Chuyển sang trang chi tiết
+    const handleView = () => navigate(`/ho-so/chi-tiet/${record.id}`);
+    
+    // Copy link chia sẻ
+    const handleShare = async () => {
+        try {
+            const url = `${window.location.origin}/ho-so/chi-tiet/${record.id}`;
+            await navigator.clipboard.writeText(url);
+            alert('Đã sao chép link hồ sơ vào bộ nhớ tạm!');
+        } catch (err) {
+            alert('Lỗi khi sao chép link.');
+        }
     };
-    const handleGoToDetail = () => {
-        navigate(`/ho-so/chi-tiet/${record.id}`);
+
+    // Xóa hồ sơ
+    const handleDelete = async () => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn hồ sơ: ${record.name}?`)) return;
+        try {
+            await axios.delete(`http://localhost:8000/api/history/delete/${record.id}`);
+            window.location.reload();
+        } catch (err) {
+            console.error('Delete error', err);
+            alert('Xóa thất bại. Vui lòng thử lại.');
+        }
+    };
+
+    // Logic hiển thị màu Badge
+    const badgeClass = (score) => {
+        const s = Number(score ?? 0);
+        return s >= 80
+            ? 'px-3 py-1 rounded-full text-xs font-bold bg-green-800 text-green-300 border border-green-700'
+            : 'px-3 py-1 rounded-full text-xs font-bold bg-red-900 text-red-300 border border-red-700';
     };
 
     return (
-        // ✅ 1. CONTAINER: Nền kính mờ (bg-white/5), viền mờ, hover phát sáng viền Cyan
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 hover:border-cyan-500/30 hover:shadow-[0_0_20px_rgba(34,211,238,0.1)] transition-all duration-300 group">
-
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 hover:border-cyan-500/30 transition-all duration-300 group">
             <div className="flex items-center gap-5 mb-4 md:mb-0">
-                {/* Icon Folder: Gradient tối */}
-                <div className="p-3 bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/10 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <div className="p-3 bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/10 rounded-xl">
                     <DocumentIcon className="w-8 h-8 text-cyan-400" />
                 </div>
-
                 <div>
-                    {/* Tên hồ sơ: Màu trắng */}
-                    <h4 className="font-bold text-white uppercase text-sm tracking-wide group-hover:text-cyan-400 transition-colors">
-                        {record.name}
-                    </h4>
-                    {/* Ngày tạo: Màu xám tối */}
-                    <p className="text-xs text-gray-500 mt-1 font-mono">
-                        Ngày tạo: <span className="text-gray-400">{record.date}</span>
-                    </p>
+                    <h4 className="font-bold text-white uppercase text-sm tracking-wide">{record.name}</h4>
+                    <p className="text-xs text-gray-400 mt-1 font-mono">Ngày tạo: <span className="text-gray-300">{record.date}</span></p>
                 </div>
             </div>
 
-            {/* ACTION BUTTONS: Icon xám, hover lên màu Neon tương ứng */}
-            <div className="flex items-center gap-1 md:gap-2 text-gray-500 w-full md:w-auto justify-end border-t md:border-t-0 border-white/5 pt-3 md:pt-0">
+            <div className="flex items-center gap-3">
+                {/* Badge Rủi ro/An toàn */}
+                <span className={badgeClass(record.riskScore ?? record.RiskScore ?? 0)}>
+                    { (record.riskScore ?? record.RiskScore ?? 0) >= 80 ? 'AN TOÀN' : 'RỦI RO' }
+                </span>
 
-                {/* Xem chi tiết (Blue) */}
-                <button
-                    onClick={handleGoToDetail}
-                    title="Xem chi tiết"
-                    className="p-2 hover:bg-blue-500/20 hover:text-blue-400 rounded-lg transition-all"
-                >
-                    <EyeIcon className="w-5 h-5" />
+                {/* Nút Xem chi tiết */}
+                <button onClick={handleView} title="Xem chi tiết" className="p-2 hover:bg-blue-500/10 rounded-lg transition">
+                    <EyeIcon className="w-5 h-5 text-gray-300 hover:text-blue-400" />
                 </button>
 
-                {/* Chia sẻ (Green) */}
-                <button
-                    onClick={() => alert("Mở cửa sổ chia sẻ")}
-                    title="Chia sẻ"
-                    className="p-2 hover:bg-green-500/20 hover:text-green-400 rounded-lg transition-all"
-                >
-                    <ShareIcon className="w-5 h-5" />
+                {/* Nút Chia sẻ */}
+                <button onClick={handleShare} title="Chia sẻ" className="p-2 hover:bg-green-500/10 rounded-lg transition">
+                    <ShareIcon className="w-5 h-5 text-gray-300 hover:text-green-400" />
                 </button>
 
-                {/* Phân tích AI (Cyan - Điểm nhấn) */}
-                <button
-                    onClick={() => alert("Mở phân tích AI")}
-                    title="Phân tích AI"
-                    className="p-2 hover:bg-cyan-500/20 hover:text-cyan-400 rounded-lg transition-all"
-                >
-                    <CpuChipIcon className="w-5 h-5" />
+                {/* Nút Sửa (Navigate sang trang sửa) */}
+                <button onClick={() => navigate(`/ho-so/chinh-sua/${record.id}`)} title="Chỉnh sửa" className="p-2 hover:bg-orange-500/10 rounded-lg transition">
+                    <PencilSquareIcon className="w-5 h-5 text-gray-300 hover:text-orange-400" />
                 </button>
 
-                {/* Chỉnh sửa (Orange) */}
-                <button
-                    onClick={handleGoToEdit}
-                    title="Chỉnh sửa"
-                    className="p-2 hover:bg-orange-500/20 hover:text-orange-400 rounded-lg transition-all"
-                >
-                    <PencilSquareIcon className="w-5 h-5" />
-                </button>
-
-                {/* Xóa (Red) */}
-                <button
-                    onClick={() => alert("Xóa hồ sơ")}
-                    title="Xóa hồ sơ"
-                    className="p-2 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-all"
-                >
-                    <TrashIcon className="w-5 h-5" />
+                {/* Nút Xóa */}
+                <button onClick={handleDelete} title="Xóa hồ sơ" className="p-2 hover:bg-red-500/10 rounded-lg transition">
+                    <TrashIcon className="w-5 h-5 text-gray-300 hover:text-red-500" />
                 </button>
             </div>
         </div>

@@ -14,6 +14,7 @@ import {
 // Đường dẫn import CSS từ thư mục src
 import '../FloatingLines.css';
 
+// --- PHẦN 1: SHADERS (Giữ nguyên bản gốc siêu đẹp của bạn) ---
 const vertexShader = `
 precision highp float;
 void main() {
@@ -69,7 +70,6 @@ vec3 background_color(vec2 uv) {
   vec3 col = vec3(0.0);
   float y = sin(uv.x - 0.2) * 0.3 - 0.1;
   float m = uv.y - y;
-  // ĐÃ SỬA: Loại bỏ * 0.5 để màu sắc rực rỡ như bản gốc
   col += mix(BLUE, BLACK, smoothstep(0.0, 1.0, abs(m)));
   col += mix(PINK, BLACK, smoothstep(0.0, 1.0, abs(m - 0.8)));
   return col; 
@@ -154,7 +154,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
       col += getLineColor(t, b) * wave(ruv + vec2(topLineDistance * fi + topWavePosition.x, topWavePosition.y), 1.0 + 0.2 * fi, baseUv, mouseUv, interactive) * 0.1;
     }
   }
-  fragColor = vec4(col, 1.0);
+  fragColor = vec4(col * 0.5, 1.0);
 }
 
 void main() {
@@ -180,8 +180,9 @@ function hexToVec3(hex) {
   return new Vector3(r / 255, g / 255, b / 255);
 }
 
+// --- PHẦN 2: COMPONENT CHÍNH ---
 export default function FloatingLines({
-  linesGradient = [], // Đã sửa: Để rỗng mặc định để dùng màu PINK/BLUE gốc
+  linesGradient = [],
   enabledWaves = ['top', 'middle', 'bottom'],
   lineCount = [10, 15, 20],
   lineDistance = [8, 6, 4],
@@ -198,6 +199,11 @@ export default function FloatingLines({
   mixBlendMode = 'normal'
 }) {
   const containerRef = useRef(null);
+  const rendererRef = useRef(null);
+  const materialRef = useRef(null);
+  const rafRef = useRef(null);
+  const clockRef = useRef(new Clock());
+
   const targetMouseRef = useRef(new Vector2(-1000, -1000));
   const currentMouseRef = useRef(new Vector2(-1000, -1000));
   const targetInfluenceRef = useRef(0);
@@ -205,18 +211,22 @@ export default function FloatingLines({
   const targetParallaxRef = useRef(new Vector2(0, 0));
   const currentParallaxRef = useRef(new Vector2(0, 0));
 
+  const getVal = (arr, idx, def) => (Array.isArray(arr) ? (arr[idx] ?? def) : arr);
+
+  // 1. SETUP WEBGL (Chỉ chạy 1 lần duy nhất)
   useEffect(() => {
     if (!containerRef.current) return;
+
     const scene = new Scene();
     const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
     camera.position.z = 1;
 
-    const renderer = new WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const renderer = new WebGLRenderer({ antialias: false, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
-    const getVal = (arr, idx, def) => (Array.isArray(arr) ? (arr[idx] ?? def) : arr);
-
+    // Đã khai báo TRỌN VẸN 100% các biến Uniforms ở đây
     const uniforms = {
       iTime: { value: 0 },
       iResolution: { value: new Vector3(1, 1, 1) },
@@ -245,21 +255,16 @@ export default function FloatingLines({
       lineGradientCount: { value: 0 }
     };
 
-    if (linesGradient?.length > 0) {
-      const stops = linesGradient.slice(0, MAX_GRADIENT_STOPS);
-      uniforms.lineGradientCount.value = stops.length;
-      stops.forEach((hex, i) => {
-        const color = hexToVec3(hex);
-        uniforms.lineGradient.value[i].set(color.x, color.y, color.z);
-      });
-    }
-
     const material = new ShaderMaterial({ uniforms, vertexShader, fragmentShader, transparent: true });
-    const mesh = new Mesh(new PlaneGeometry(2, 2), material);
+    materialRef.current = material;
+
+    // Đã khai báo geometry để lát nữa cleanup không bị lỗi
+    const geometry = new PlaneGeometry(2, 2);
+    const mesh = new Mesh(geometry, material);
     scene.add(mesh);
 
-    const clock = new Clock();
     const setSize = () => {
+      if (!containerRef.current) return;
       const { clientWidth: w, clientHeight: h } = containerRef.current;
       renderer.setSize(w, h, false);
       uniforms.iResolution.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio(), 1);
@@ -269,46 +274,104 @@ export default function FloatingLines({
     const ro = new ResizeObserver(setSize);
     ro.observe(containerRef.current);
 
-    const onPointerMove = (e) => {
+    const handlePointerMove = (e) => {
+      if (!interactive) return;
       const rect = renderer.domElement.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      targetMouseRef.current.set(x * renderer.getPixelRatio(), (rect.height - y) * renderer.getPixelRatio());
+
+      targetMouseRef.current.set(
+        x * renderer.getPixelRatio(),
+        (rect.height - y) * renderer.getPixelRatio()
+      );
       targetInfluenceRef.current = 1.0;
+
       if (parallax) {
-        targetParallaxRef.current.set(((x - rect.width/2)/rect.width) * parallaxStrength, -((y - rect.height/2)/rect.height) * parallaxStrength);
+        targetParallaxRef.current.set(
+          ((x - rect.width / 2) / rect.width) * parallaxStrength,
+          -((y - rect.height / 2) / rect.height) * parallaxStrength
+        );
       }
     };
 
-    if (interactive) {
-      window.addEventListener('pointermove', onPointerMove);
-      containerRef.current.addEventListener('pointerleave', () => targetInfluenceRef.current = 0);
-    }
+    const handlePointerLeave = () => {
+      targetInfluenceRef.current = 0;
+    };
 
-    let raf;
+    window.addEventListener('pointermove', handlePointerMove);
+    containerRef.current.addEventListener('pointerleave', handlePointerLeave);
+
     const animate = () => {
-      uniforms.iTime.value = clock.getElapsedTime();
+      uniforms.iTime.value = clockRef.current.getElapsedTime();
+
       currentMouseRef.current.lerp(targetMouseRef.current, mouseDamping);
       uniforms.iMouse.value.copy(currentMouseRef.current);
+
       currentInfluenceRef.current += (targetInfluenceRef.current - currentInfluenceRef.current) * mouseDamping;
       uniforms.bendInfluence.value = currentInfluenceRef.current;
-      if (parallax) {
-        currentParallaxRef.current.lerp(targetParallaxRef.current, mouseDamping);
-        uniforms.parallaxOffset.value.copy(currentParallaxRef.current);
-      }
+
+      currentParallaxRef.current.lerp(targetParallaxRef.current, mouseDamping);
+      uniforms.parallaxOffset.value.copy(currentParallaxRef.current);
+
       renderer.render(scene, camera);
-      raf = requestAnimationFrame(animate);
+      rafRef.current = requestAnimationFrame(animate);
     };
     animate();
 
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafRef.current);
       ro.disconnect();
-      window.removeEventListener('pointermove', onPointerMove);
-      renderer.dispose();
+      window.removeEventListener('pointermove', handlePointerMove);
+      if (containerRef.current) {
+        containerRef.current.removeEventListener('pointerleave', handlePointerLeave);
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      geometry.dispose(); // Hết báo lỗi!
       material.dispose();
+      renderer.dispose();
     };
-  }, [linesGradient, enabledWaves, lineCount, lineDistance, animationSpeed, interactive, bendRadius, bendStrength, mouseDamping, parallax, parallaxStrength]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  return <div ref={containerRef} className="floating-lines-container" style={{ mixBlendMode }} />;
+  // 2. CẬP NHẬT UNIFORMS KHI PROPS THAY ĐỔI
+  useEffect(() => {
+    if (!materialRef.current) return;
+    const uniforms = materialRef.current.uniforms;
+
+    uniforms.animationSpeed.value = animationSpeed;
+    uniforms.enableTop.value = enabledWaves.includes('top');
+    uniforms.enableMiddle.value = enabledWaves.includes('middle');
+    uniforms.enableBottom.value = enabledWaves.includes('bottom');
+    uniforms.topLineCount.value = getVal(lineCount, 0, 10);
+    uniforms.middleLineCount.value = getVal(lineCount, 1, 15);
+    uniforms.bottomLineCount.value = getVal(lineCount, 2, 20);
+    uniforms.topLineDistance.value = getVal(lineDistance, 0, 8) * 0.01;
+    uniforms.middleLineDistance.value = getVal(lineDistance, 1, 6) * 0.01;
+    uniforms.bottomLineDistance.value = getVal(lineDistance, 2, 4) * 0.01;
+
+    uniforms.topWavePosition.value.set(topWavePosition?.x ?? 10.0, topWavePosition?.y ?? 0.5, topWavePosition?.rotate ?? -0.4);
+    uniforms.middleWavePosition.value.set(middleWavePosition?.x ?? 5.0, middleWavePosition?.y ?? 0.0, middleWavePosition?.rotate ?? 0.2);
+    uniforms.bottomWavePosition.value.set(bottomWavePosition?.x ?? 2.0, bottomWavePosition?.y ?? -0.7, bottomWavePosition?.rotate ?? 0.4);
+
+    uniforms.interactive.value = interactive;
+    uniforms.bendRadius.value = bendRadius;
+    uniforms.bendStrength.value = bendStrength;
+    uniforms.parallax.value = parallax;
+    uniforms.parallaxStrength.value = parallaxStrength;
+
+    if (linesGradient?.length > 0) {
+      const stops = linesGradient.slice(0, MAX_GRADIENT_STOPS);
+      uniforms.lineGradientCount.value = stops.length;
+      stops.forEach((hex, i) => {
+        const color = hexToVec3(hex);
+        uniforms.lineGradient.value[i].set(color.x, color.y, color.z);
+      });
+    } else {
+      uniforms.lineGradientCount.value = 0;
+    }
+
+  }, [linesGradient, enabledWaves, lineCount, lineDistance, animationSpeed, interactive, bendRadius, bendStrength, parallax, parallaxStrength, topWavePosition, middleWavePosition, bottomWavePosition]);
+
+  // Đã thêm width 100%, height 100% và position absolute để đảm bảo thẻ div không bị xẹp lại thành 0x0 pixel
+  return <div ref={containerRef} className="floating-lines-container" style={{ mixBlendMode, width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />;
 }

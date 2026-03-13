@@ -8,8 +8,9 @@ import {
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import aiClient from "../../api/aiClient";
+import axios from "axios"; // ✅ Đã thêm thư viện gọi API
 
-// 👇 1. Import Recharts để vẽ biểu đồ
+// Import Recharts (Giữ nguyên của bạn)
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 export default function ContractAnalysis() {
@@ -18,28 +19,76 @@ export default function ContractAnalysis() {
     const [result, setResult] = useState(null);
     const [progress, setProgress] = useState(0);
 
+    // 👇 1. LOGIC MỚI: Kiểm tra đuôi file PDF/TXT
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
-        if (selectedFile) setFile(selectedFile);
+        if (!selectedFile) return;
+
+        const ext = (selectedFile.name.split('.').pop() || '').toLowerCase();
+        if (!['pdf', 'txt', 'doc', 'docx'].includes(ext)) {
+            alert("Vui lòng chọn file văn bản (.pdf, .txt, .doc)");
+            return;
+        }
+        setFile(selectedFile);
     };
 
+    // 👇 2. LOGIC MỚI: Phân tích xong -> Tự động LƯU VÀO SQL
     const handleAnalyze = async () => {
         if (!file) return;
         setIsAnalyzing(true);
         setResult(null);
         setProgress(0);
 
-        // Giả lập thanh chạy (Giữ nguyên logic của bạn)
+        // Giả lập thanh chạy
         const interval = setInterval(() => {
             setProgress((prev) => (prev < 90 ? prev + Math.random() * 10 : prev));
         }, 300);
 
         try {
+            // Gọi AI Engine
             const aiResult = await aiClient.analyzeContract(file);
+            // Xử lý dữ liệu trả về (đề phòng format khác nhau)
+            const analysis = aiResult?.data ?? aiResult;
+
             setProgress(100);
-            setTimeout(() => {
-                setResult(aiResult);
+            
+            // Hiện kết quả sau 0.5s
+            setTimeout(async () => {
+                setResult(analysis);
+
+                // --- 🟢 BẮT ĐẦU ĐOẠN LƯU VÀO CSDL ---
+                try {
+                    const userStr = localStorage.getItem("user");
+                    if (userStr) {
+                        const user = JSON.parse(userStr);
+                        // Lấy ID an toàn (chấp nhận cả Id hoa thường)
+                        const userId = user.id ?? user.Id ?? user.ID; 
+                        
+                        // Lấy điểm an toàn (Safety Check)
+                        const riskScore = analysis?.risk_score ?? analysis?.riskScore ?? 0;
+
+                        const payload = {
+                            userId,
+                            fileName: file.name,
+                            riskScore, 
+                            content: JSON.stringify(analysis) // Lưu JSON kết quả
+                        };
+
+                        // Gọi API Backend
+                        await axios.post('http://localhost:8000/api/history/save', payload);
+                        // Thông báo nhỏ (Console hoặc Alert tùy chọn, ở đây tôi dùng alert cho chắc)
+                        alert("✅ Kết quả đã được lưu vào Hồ sơ pháp lý!");
+                    } else {
+                        alert("⚠️ Bạn đang xem với tư cách Khách. Hãy đăng nhập để lưu kết quả.");
+                    }
+                } catch (saveErr) {
+                    console.error("Lỗi lưu SQL:", saveErr);
+                    // Không báo lỗi to để tránh làm phiền trải nghiệm xem kết quả
+                }
+                // --- 🔴 KẾT THÚC ĐOẠN LƯU ---
+
             }, 500);
+
         } catch (error) {
             console.error("Lỗi phân tích:", error);
             alert("Có lỗi khi kết nối với LegAI. Vui lòng thử lại!");
@@ -49,7 +98,7 @@ export default function ContractAnalysis() {
         }
     };
 
-    // Helper: Badge mức độ nghiêm trọng (Đã update style Dark Mode)
+    // Helper: Badge (Giữ nguyên style của bạn)
     const getSeverityBadge = (severity) => {
          const level = severity ? severity.toLowerCase() : 'medium';
          if (level === 'high') return <span className="px-2 py-1 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">NGHIÊM TRỌNG</span>;
@@ -57,12 +106,13 @@ export default function ContractAnalysis() {
          return <span className="px-2 py-1 rounded text-[10px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">LƯU Ý</span>;
     };
 
-    // 👇 2. Cấu hình dữ liệu cho Biểu đồ (Dựa trên kết quả thực tế)
+    // Cấu hình Biểu đồ (Logic an toàn hơn để tránh crash)
     const chartData = result ? [
-        { name: 'An toàn', value: result.risk_score, color: '#06b6d4' }, // Cyan
-        { name: 'Rủi ro', value: 100 - result.risk_score, color: '#ef4444' } // Red
+        { name: 'An toàn', value: result.risk_score ?? result.riskScore ?? 0, color: '#06b6d4' },
+        { name: 'Rủi ro', value: 100 - (result.risk_score ?? result.riskScore ?? 0), color: '#ef4444' }
     ] : [];
 
+    // 👇 3. GIAO DIỆN: Giữ nguyên gốc thẻ <div className="w-full">
     return (
         <div className="w-full">
             {/* --- THANH TIẾN TRÌNH (Loading Bar) --- */}
@@ -89,7 +139,7 @@ export default function ContractAnalysis() {
                         </p>
                     </div>
 
-                    {/* Hộp Upload (Dark Glassmorphism) */}
+                    {/* Hộp Upload (Giữ nguyên) */}
                     <div className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] p-1 border border-white/10 shadow-2xl overflow-hidden relative group">
                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="bg-[#0a0a0a]/80 rounded-[2.3rem] p-8 text-center text-white relative z-10">
@@ -130,7 +180,6 @@ export default function ContractAnalysis() {
                                     </button>
                                 </>
                             ) : (
-                                /* Nút thử lại khi đã có kết quả (Reset State) */
                                 <button
                                     onClick={() => { setFile(null); setResult(null); }}
                                     className="w-full py-4 rounded-2xl border border-white/10 hover:bg-white/5 text-cyan-400 font-bold tracking-widest transition-all flex items-center justify-center gap-2"
@@ -142,7 +191,7 @@ export default function ContractAnalysis() {
                     </div>
                 </div>
 
-                {/* 🔵 CỘT PHẢI: HIỂN THỊ KẾT QUẢ (Thay thế khoảng trống cũ) */}
+                {/* 🔵 CỘT PHẢI: HIỂN THỊ KẾT QUẢ (Giữ nguyên) */}
                 {result && (
                     <div className="w-full md:w-7/12 animate-slideUp">
                         <div className="bg-[#0a0a0a]/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
@@ -150,7 +199,7 @@ export default function ContractAnalysis() {
                             {/* Header Kết quả: Biểu đồ + Tóm tắt */}
                             <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-white/10 pb-8">
                                 
-                                {/* 👇 3. BIỂU ĐỒ TRÒN (Pie Chart) */}
+                                {/* BIỂU ĐỒ TRÒN */}
                                 <div className="relative w-48 h-48 flex-shrink-0">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
@@ -172,10 +221,9 @@ export default function ContractAnalysis() {
                                         </PieChart>
                                     </ResponsiveContainer>
                                     
-                                    {/* Số điểm nằm giữa biểu đồ */}
                                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                        <span className={`text-4xl font-black ${result.risk_score >= 80 ? 'text-cyan-400' : 'text-red-500'}`}>
-                                            {result.risk_score}
+                                        <span className={`text-4xl font-black ${(result.risk_score ?? result.riskScore ?? 0) >= 80 ? 'text-cyan-400' : 'text-red-500'}`}>
+                                            {result.risk_score ?? result.riskScore ?? 0}
                                         </span>
                                         <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Điểm an toàn</span>
                                     </div>
@@ -185,7 +233,7 @@ export default function ContractAnalysis() {
                                 <div className="flex-grow text-center md:text-left">
                                     <h3 className="text-xl font-bold text-white mb-2">Đánh giá tổng quan</h3>
                                     <p className="text-gray-400 text-sm leading-relaxed">
-                                        {result.summary}
+                                        {result.summary ?? result.summaryText ?? "Đang cập nhật..."}
                                     </p>
                                 </div>
                             </div>
