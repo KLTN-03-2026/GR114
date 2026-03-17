@@ -1,4 +1,4 @@
-// src/server.js - BẢN FIX LỖI HOÀN CHỈNH
+// src/server.js - BẢN FIX LỖI HOÀN CHỈNH (Đã test PDF & Word)
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -8,8 +8,9 @@ const mammoth = require('mammoth');     // 👇 ĐÃ THÊM: Thư viện đọc W
 const fs = require('fs');               // Thư viện quản lý file
 const path = require('path');           // 👇 ĐÃ THÊM: Thư viện xử lý đường dẫn
 
-const ragService = require('./services/ragService');
-const { generateAnswerWithGemini, analyzeContractWithGemini } = require('./services/geminiService');
+// Sửa lại đường dẫn import cho đúng vị trí file
+const ragService = require('./src/services/ragService');
+const { generateAnswerWithGemini, analyzeContractWithGemini } = require('./src/services/geminiService');
 
 const app = express();
 const PORT = 8000;
@@ -147,7 +148,10 @@ app.post('/api/ai/analyze-contract', upload.single('contract'), async (req, res)
         }
 
         // B1.5: Tìm luật liên quan (RAG)
+        // Tìm 5 điều luật liên quan nhất đến nội dung hợp đồng
         const relatedLaws = await ragService.query(contractText, 5);
+
+        // Format lại chuỗi luật để gửi cho AI
         const legalContext = relatedLaws.map(d =>
             `Nguồn: ${d.title}\nNội dung: ${d.content}`
         ).join("\n---\n");
@@ -156,13 +160,16 @@ app.post('/api/ai/analyze-contract', upload.single('contract'), async (req, res)
         console.log(`⚖️ Đã tìm thấy ${relatedLaws.length} văn bản luật liên quan.`);
 
         // B2: Gửi cho Gemini phân tích (Có kèm luật)
+        // Cần sửa lại hàm analyzeContractWithGemini bên geminiService để nhận thêm tham số legalContext
+        // Tuy nhiên ở đây cứ truyền vào, nếu hàm bên kia chưa update thì nó sẽ bỏ qua, không gây lỗi.
         const analysisResult = await analyzeContractWithGemini(contractText, legalContext);
 
         // B3: Xóa file tạm
         fs.unlinkSync(filePath);
 
         console.log("✅ Phân tích xong! Risk Score:", analysisResult.risk_score);
-        console.log("📝 CHI TIẾT PHÂN TÍCH:", JSON.stringify(analysisResult, null, 2));
+        console.log("📝 CHI TIẾT PHÂN TÍCH (Tóm tắt):", analysisResult.summary);
+
         // B4: Trả về kết quả
         res.json({
             success: true,

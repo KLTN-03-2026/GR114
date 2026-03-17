@@ -5,18 +5,25 @@ const fs = require('fs');
 
 // Cấu hình Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+// Dùng bản 2.5-flash và bật chế độ ép trả về JSON 100%
+const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.5-flash",
+    generationConfig: { responseMimeType: "application/json" }
+});
 
 exports.analyzeContract = async (req, res) => {
+    let filePath = null;
+
     try {
         // 1. Kiểm tra xem có file gửi lên không
         if (!req.file) {
             return res.status(400).json({ error: "Vui lòng upload file hợp đồng!" });
         }
 
-        let contractText = "";
-        const filePath = req.file.path;
+        filePath = req.file.path;
         const mimeType = req.file.mimetype;
+        let contractText = "";
 
         // 2. Phân loại và Đọc file
         console.log(`🕵️‍♂️ Đang đọc file: ${req.file.originalname} (${mimeType})`);
@@ -26,23 +33,19 @@ exports.analyzeContract = async (req, res) => {
             const data = await pdf(dataBuffer);
             contractText = data.text;
         } 
-        else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // .docx
+        else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { 
             const result = await mammoth.extractRawText({ path: filePath });
             contractText = result.value;
         } 
         else {
-            // Mặc định coi là file text (.txt)
             contractText = fs.readFileSync(filePath, 'utf-8');
         }
-
-        // Xóa file tạm sau khi đọc xong để đỡ rác server
-        fs.unlinkSync(filePath);
 
         if (!contractText || contractText.trim().length < 10) {
             return res.status(400).json({ error: "Không đọc được nội dung file hoặc file quá ngắn." });
         }
 
-        // 3. Gửi cho Gemini phân tích
+        // 3. Gửi cho Gemini phân tích (GIỮ NGUYÊN PROMPT GỐC CỦA BẠN)
         console.log("🤖 Đang gửi nội dung cho Gemini phân tích...");
         
         const prompt = `
@@ -69,16 +72,20 @@ exports.analyzeContract = async (req, res) => {
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
 
-        // Làm sạch JSON (bỏ dấu ```json nếu có)
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        const analysisResult = JSON.parse(cleanJson);
+        // Parse thẳng vì API đã đảm bảo format JSON
+        const analysisResult = JSON.parse(responseText);
 
         console.log("✅ Phân tích xong!");
         res.json(analysisResult);
 
     } catch (error) {
         console.error("❌ Lỗi phân tích:", error);
-        res.status(500).json({ error: "Lỗi hệ thống khi phân tích hợp đồng." });
+        res.status(500).json({ error: "Lỗi hệ thống khi phân tích hợp đồng. Chi tiết: " + error.message });
+    } finally {
+        // Luôn dọn rác ổ cứng dù thành công hay thất bại
+        if (filePath && fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("🧹 Đã dọn dẹp file tạm.");
+        }
     }
 };
