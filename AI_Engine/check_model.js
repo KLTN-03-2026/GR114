@@ -24,8 +24,8 @@ async function listAvailableModels() {
       console.log("------------------------------------------------");
       data.models.forEach(m => {
         // Chỉ hiện các model tạo nội dung (generateContent)
-        if (m.supportedGenerationMethods.includes("generateContent")) {
-            console.log(`🔹 Tên chuẩn: ${m.name.replace('models/', '')}`);
+        if (m.supportedGenerationMethods.includes("embedContent")) {
+          console.log(`🔹 Tên chuẩn: ${m.name.replace('models/', '')}`);
         }
       });
       console.log("------------------------------------------------");

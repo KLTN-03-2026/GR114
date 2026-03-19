@@ -18,8 +18,8 @@ app.use(cors({
         'http://localhost:5173',
         'http://127.0.0.1:5173'
     ],
-    methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-    allowedHeaders: ['Content-Type','Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -44,8 +44,7 @@ const startServer = async () => {
     try {
         console.log("⏳ Đang khởi động AI Engine & Kết nối SQL...");
 
-        // 🟢 GIỮ LẠI: Logic nạp dữ liệu luật vào RAM
-        await ragService.createVectorStore(false);
+        console.log("☁️  Hệ thống đã sẵn sàng kết nối Pinecone Cloud.");
 
         app.listen(PORT, () => {
             console.log(`\n========================================`);
