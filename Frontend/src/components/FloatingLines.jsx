@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useEffect, useRef } from 'react';
 import {
   Scene,
   OrthographicCamera,
@@ -214,7 +214,7 @@ export default function FloatingLines({
   const getVal = (arr, idx, def) => (Array.isArray(arr) ? (arr[idx] ?? def) : arr);
 
   // 1. SETUP WEBGL (Chỉ chạy 1 lần duy nhất)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
 
     const scene = new Scene();
@@ -263,16 +263,30 @@ export default function FloatingLines({
     const mesh = new Mesh(geometry, material);
     scene.add(mesh);
 
+    const getViewportSize = () => {
+      const doc = document.documentElement;
+      return {
+        width: doc?.clientWidth ?? window.innerWidth,
+        height: doc?.clientHeight ?? window.innerHeight
+      };
+    };
+
     const setSize = () => {
       if (!containerRef.current) return;
-      const { clientWidth: w, clientHeight: h } = containerRef.current;
-      renderer.setSize(w, h, false);
-      uniforms.iResolution.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio(), 1);
+      const { width, height } = getViewportSize();
+      renderer.setSize(width, height, false);
+      renderer.domElement.style.width = '100%';
+      renderer.domElement.style.height = '100%';
+      uniforms.iResolution.value.set(width * renderer.getPixelRatio(), height * renderer.getPixelRatio(), 1);
     };
 
     setSize();
-    const ro = new ResizeObserver(setSize);
+    const ro = new ResizeObserver(() => {
+      setSize();
+    });
+    ro.observe(document.documentElement);
     ro.observe(containerRef.current);
+    window.addEventListener('resize', setSize);
 
     const handlePointerMove = (e) => {
       if (!interactive) return;
@@ -322,6 +336,7 @@ export default function FloatingLines({
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
       window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('resize', setSize);
       if (containerRef.current) {
         containerRef.current.removeEventListener('pointerleave', handlePointerLeave);
         containerRef.current.removeChild(renderer.domElement);
@@ -373,5 +388,5 @@ export default function FloatingLines({
   }, [linesGradient, enabledWaves, lineCount, lineDistance, animationSpeed, interactive, bendRadius, bendStrength, parallax, parallaxStrength, topWavePosition, middleWavePosition, bottomWavePosition]);
 
   // Đã thêm width 100%, height 100% và position absolute để đảm bảo thẻ div không bị xẹp lại thành 0x0 pixel
-  return <div ref={containerRef} className="floating-lines-container" style={{ mixBlendMode, width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />;
+  return <div ref={containerRef} className="floating-lines-container" style={{ mixBlendMode, width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />;
 }
