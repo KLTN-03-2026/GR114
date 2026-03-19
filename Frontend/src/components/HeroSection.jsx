@@ -109,33 +109,7 @@ export default function HeroSection() {
                 `}
             </style>
 
-            {/* ==========================================================
-                SECTION 1: TYPOGRAPHY KHỔNG LỒ & ROBOT 
-            ========================================================== */}
-            <section className="relative w-full z-30 flex flex-col items-center justify-center h-[calc(100vh-80px)]">
-                <div className="absolute top-0 left-0 w-full h-[125%] bg-gradient-to-b from-[#050505] via-[#050505] via-[80%] to-transparent pointer-events-none -z-10"></div>
 
-                {/* 1. KHỐI GHOST ROBOT: Kích thước giống HỆT bên MainLayout */}
-                <div className="w-full max-w-3xl h-[280px] sm:h-[320px] md:h-[380px] lg:h-[450px] pointer-events-none"></div>
-
-                {/* 2. CHỮ THẬT: Margin âm và Text size giống HỆT bên MainLayout */}
-                <div className="w-full flex justify-center pointer-events-none -mt-[4vw] sm:-mt-[3.5vw] md:-mt-[3vw] lg:-mt-[2.5vw] z-10">
-                    <motion.h1
-                        className="text-[18vw] md:text-[16vw] font-black text-white uppercase tracking-tighter leading-none select-none m-0 p-0 drop-shadow-[0_10px_30px_rgba(0,0,0,1)] flex justify-center flex-nowrap"
-                        variants={textContainer}
-                        initial="hidden"
-                        animate="visible"
-                    >
-                        {"LEGAL".split('').map((char, index) => (
-                            <motion.span key={index} variants={textLetter} className="inline-block origin-bottom">
-                                {char}
-                            </motion.span>
-                        ))}
-                        <motion.span variants={textLetter} className="text-cyan-500 inline-block origin-bottom ml-1">A</motion.span>
-                        <motion.span variants={textLetter} className="text-cyan-500 inline-block origin-bottom">I</motion.span>
-                    </motion.h1>
-                </div>
-            </section>
             {/* ==========================================================
                 SECTION 2: GIỚI THIỆU HỆ THỐNG
             ========================================================== */}
@@ -189,56 +163,56 @@ export default function HeroSection() {
             </section>
 
             {/* ==========================================================
-                SECTION 4: GIỚI THIỆU & THỐNG KÊ (Editorial Dark Mode)
-            ========================================================== */}
+    SECTION 4: GIỚI THIỆU & THỐNG KÊ (Đã tối ưu Performance)
+========================================================== */}
             <section className="relative w-full max-w-7xl mx-auto px-6 py-32 z-20">
                 <div className="flex flex-col lg:flex-row gap-16 lg:gap-24 items-start">
 
-                    {/* CỘT TRÁI: Dính (Sticky) và Typography */}
+                    {/* CỘT TRÁI: Dính (Sticky) */}
                     <motion.div
-                        className="lg:w-5/12 lg:sticky lg:top-40 space-y-8 p-8 md:p-10 rounded-[2.5rem] bg-black/40 border border-white/10 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.5)]"
-                        initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={staggerContainer}
+                        className="lg:w-5/12 lg:sticky lg:top-40 space-y-8 p-8 md:p-10 rounded-[2.5rem] bg-black/40 border border-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] transform-gpu will-change-transform"
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.1, margin: "-100px" }} // Trình diễn sớm hơn
+                        variants={staggerContainer}
                     >
-                        {/* Pill Badge */}
+                        {/* Nội dung cột trái giữ nguyên */}
                         <motion.div variants={fadeUpItem} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 bg-white/5 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
                             Về LegalBot
                         </motion.div>
-
-                        {/* Tiêu đề pha trộn font (Đặc trưng của xu hướng mới) */}
                         <motion.h2 variants={fadeUpItem} className="text-4xl md:text-6xl font-black text-white leading-[1] tracking-tighter">
                             Giải pháp pháp lý <br />
                             <span className="text-cyan-400 font-serif italic font-light tracking-normal">Thời đại số</span>
                         </motion.h2>
-
-                        {/* Mô tả */}
                         <motion.p variants={fadeUpItem} className="text-gray-300 text-lg leading-relaxed font-medium">
-                            <strong className="text-white">LegalBot</strong> không chỉ là công cụ tra cứu, mà là trợ lý ảo đắc lực. Sử dụng các mô hình ngôn ngữ lớn (LLM) tinh chỉnh chuyên sâu, chúng tôi chuyển hóa sự phức tạp thành sự tĩnh lặng và dễ hiểu.
+                            <strong className="text-white">LegalBot</strong> không chỉ là công cụ tra cứu, mà là trợ lý ảo đắc lực.
                         </motion.p>
                     </motion.div>
 
-                    {/* CỘT PHẢI: Lưới So Le (Staggered Grid) */}
+                    {/* CỘT PHẢI: Lưới So Le */}
                     <motion.div
                         className="lg:w-7/12 grid grid-cols-1 md:grid-cols-2 gap-6"
-                        initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={staggerContainer}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.1 }}
+                        variants={staggerContainer}
                     >
                         {stats.map((stat, idx) => (
                             <motion.div
                                 key={stat.id}
                                 variants={fadeUpItem}
-                                /* Tích hợp hiệu ứng Kính mờ (Bento) và hiệu ứng đẩy tụt (So le) */
-                                className={`p-8 md:p-10 rounded-[2rem] bg-black/40 border border-white/10 backdrop-blur-2xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] flex flex-col justify-between aspect-square group hover:border-cyan-500/50 hover:bg-white/5 transition-all duration-700 ${idx % 2 !== 0 ? 'md:mt-16' : ''}`}
+                                // Tối ưu class: Dùng backdrop-blur-xl và transform-gpu
+                                className={`p-8 md:p-10 rounded-[2rem] bg-black/40 border border-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] flex flex-col justify-between aspect-square group hover:border-cyan-500/50 hover:bg-white/5 transition-all duration-500 transform-gpu will-change-transform ${idx % 2 !== 0 ? 'md:mt-16' : ''}`}
                             >
-                                {/* Phần Header của thẻ (Icon + Số 01, 02) */}
+                                {/* Nội dung Card giữ nguyên */}
                                 <div className="flex justify-between items-start">
                                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-600/20 flex items-center justify-center border border-white/10 group-hover:scale-110 group-hover:-rotate-12 transition-transform duration-500">
                                         <stat.icon className="w-5 h-5 text-cyan-400" />
                                     </div>
                                     <span className="text-xs font-bold text-gray-500">0{idx + 1}</span>
                                 </div>
-
-                                {/* Phần Chỉ số Khổng lồ */}
                                 <div>
-                                    <p className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter mb-2 group-hover:scale-105 group-hover:text-cyan-400 origin-left transition-all duration-500">{stat.value}</p>
+                                    <p className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter mb-2 group-hover:text-cyan-400 origin-left transition-all duration-500">{stat.value}</p>
                                     <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">{stat.label}</p>
                                 </div>
                             </motion.div>
@@ -265,8 +239,8 @@ export default function HeroSection() {
                         {/* CỘT TRÁI: Tiêu đề & Form Đăng ký */}
                         <div className="flex flex-col items-start">
                             <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter mb-6 leading-[1.1]">
-                                Tiên phong trong Kỷ nguyên <br className="hidden md:block" />
-                                <span className="font-serif italic font-light text-cyan-400">Pháp lý</span>
+                                Tiên phong trong <br className="hidden md:block" />
+                                <span className="font-serif italic font-light text-cyan-400">Pháp lý số</span>
                             </h2>
 
                             <p className="text-gray-300 text-base font-medium leading-relaxed mb-10">
