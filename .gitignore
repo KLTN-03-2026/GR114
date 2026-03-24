@@ -44,9 +44,9 @@ npm-debug.log*
 /AI_Engine/.env
 /AI_Engine/node_modules/
 # ========================
-# 5. DATA EXCLUSION (Chặn file nặng)
 # ========================
-# Chặn file Vector Cache (106MB - Quá nặng, không Push được, để máy tự sinh)
+# 5. DATA EXCLUSION (Dữ liệu không cần thiết)
+# ========================
+# Chặn các file dữ liệu cũ/tạm thời (đã chuyển sang dùng Pinecone Cloud)
 AI_Engine/src/data/vector_store.json
-
-# (Lưu ý: Không chặn legal_data_old.json để cho phép Push file này)
+AI_Engine/src/data/legal_data_old.json
