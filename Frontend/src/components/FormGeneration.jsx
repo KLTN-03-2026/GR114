@@ -7,6 +7,7 @@ import {
     ChatBubbleLeftEllipsisIcon,
     DocumentMagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
+import aiClient from "../api/aiClient"; 
 
 export default function FormGeneration() {
     // STATE QUẢN LÝ CHAT
@@ -46,38 +47,52 @@ export default function FormGeneration() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleSendMessage = (e) => {
+    const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!inputValue.trim()) return;
 
-        setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: inputValue }]);
+        // 1. Cập nhật tin nhắn của User lên UI
+        const newUserMsg = { id: Date.now(), sender: 'user', text: inputValue };
+        setMessages(prev => [...prev, newUserMsg]);
         setInputValue('');
         setIsTyping(true);
 
-        // Giả lập AI bóc tách dữ liệu
-        setTimeout(() => {
-            const mockApiResponse = {
-                chat_reply: "Tôi đã soạn thảo xong khung Hợp đồng dựa trên thông tin bạn cung cấp. Tôi đã điền sẵn Tên công ty, MST và Giá trị hợp đồng. Vui lòng kiểm tra và bổ sung các phần còn trống trên biểu mẫu bên phải!",
-                template_type: "hop_dong_tieu_chuan",
-                extracted_data: {
-                    benA_name: "Công ty Cổ phần Alpha",
-                    benA_id: "0101234567",
-                    benA_address: "123 Đường Nguyễn Văn Linh, Đà Nẵng",
-                    gia_tri_hop_dong: "50.000.000 VNĐ",
-                    noi_dung_chinh: "Bên B cung cấp dịch vụ tư vấn pháp lý thường xuyên cho Bên A theo yêu cầu.",
-                    thoi_han: "12",
-                    can_cu_luat: [
-                        "Bộ luật Dân sự số 91/2015/QH13;",
-                        "Luật Thương mại số 36/2005/QH11;"
-                    ]
-                }
-            };
+        try {
+            // 2. GỌI API THẬT XUỐNG BACKEND
+            const chatHistory = messages.map(m => ({ role: m.sender, content: m.text }));
+            const response = await aiClient.generateForm({
+                text: inputValue,
+                history: chatHistory
+            });
+            const aiData = response.data; // Cấu trúc JSON
 
-            setCurrentTemplate(mockApiResponse.template_type);
-            setFormData(prev => ({ ...prev, ...mockApiResponse.extracted_data }));
-            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: mockApiResponse.chat_reply }]);
+            // 3. CẬP NHẬT UI DỰA TRÊN DATA THẬT
+            setCurrentTemplate(aiData.template_type);
+
+            // Hàm merge cực hay: Chỉ đè những trường AI bóc được (không phải chuỗi rỗng) vào Form hiện tại
+            setFormData(prev => {
+                const newData = { ...prev };
+                for (const key in aiData.extracted_data) {
+                    if (aiData.extracted_data[key] && aiData.extracted_data[key].length > 0) {
+                        newData[key] = aiData.extracted_data[key];
+                    }
+                }
+                return newData;
+            });
+
+            // Hiển thị câu trả lời của AI
+            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: aiData.chat_reply }]);
+
+        } catch (error) {
+            console.error("Lỗi gọi AI Form:", error);
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                sender: 'ai',
+                text: 'Xin lỗi, hệ thống bóc tách dữ liệu đang bận. Bạn có thể tự điền tay vào biểu mẫu bên phải nhé!'
+            }]);
+        } finally {
             setIsTyping(false);
-        }, 2000);
+        }
     };
 
     const handlePrint = () => window.print();
@@ -102,6 +117,8 @@ export default function FormGeneration() {
 
             {/* CỘT TRÁI: CHAT AI */}
             <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full ${glassPanel} overflow-hidden flex-shrink-0`}>
+                
+                {/* Header Cột Chat */}
                 <div className="p-5 border-b border-white/10 bg-white/5 flex items-center gap-3">
                     <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
                         <SparklesIcon className="w-6 h-6 text-cyan-400" />
@@ -112,6 +129,7 @@ export default function FormGeneration() {
                     </div>
                 </div>
 
+                {/* Khu vực hiển thị tin nhắn  */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -132,17 +150,35 @@ export default function FormGeneration() {
                     )}
                 </div>
 
+                {/* Form nhập liệu */}
                 <div className="p-4 border-t border-white/10 bg-black/40">
-                    <form onSubmit={handleSendMessage} className="relative">
-                        <input
-                            type="text"
+                    <form onSubmit={handleSendMessage} className="relative flex items-end">
+                        <textarea
                             value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="Nhập thông tin hợp đồng..."
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-cyan-500/50 transition-all"
+                            onChange={(e) => {
+                                setInputValue(e.target.value);
+                                // Logic tự co giãn chiều cao (Auto-resize)
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                            }}
+                            onKeyDown={(e) => {
+                                // Nhấn Enter (không giữ Shift) để gửi
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage(e);
+                                }
+                            }}
+                            placeholder="Nhập yêu cầu soạn hợp đồng (Shift + Enter để xuống dòng)..."
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-cyan-500/50 transition-all resize-none custom-scrollbar"
+                            style={{ minHeight: '52px' }} // Chiều cao mặc định 1 dòng
                             disabled={isTyping}
+                            rows={1}
                         />
-                        <button type="submit" disabled={isTyping} className="absolute right-2 top-2 bottom-2 aspect-square flex items-center justify-center rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black">
+                        <button
+                            type="submit"
+                            disabled={isTyping || !inputValue.trim()}
+                            className="absolute right-2 bottom-2 aspect-square h-[36px] flex items-center justify-center rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
                             <PaperAirplaneIcon className="w-5 h-5" />
                         </button>
                     </form>
@@ -190,7 +226,7 @@ export default function FormGeneration() {
                                 <h1 className="text-xl font-black uppercase mb-1">
                                     <input
                                         type="text"
-                                        defaultValue="HỢP ĐỒNG DỊCH VỤ / KINH TẾ"
+                                        value={formData.ten_hop_dong}
                                         className="w-full text-center bg-transparent focus:outline-none print:border-none"
                                     />
                                 </h1>

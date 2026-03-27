@@ -115,25 +115,22 @@ export default function HeroSection() {
             ========================================================== */}
             <section className="relative w-full flex justify-center items-center py-32 z-10">
                 <motion.div className="max-w-6xl px-6 text-center" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
-                    <motion.h3 variants={fadeUpItem} className="text-gray-400 text-sm md:text-base font-medium tracking-[0.4em] uppercase opacity-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mb-6">
+                    <motion.h3 variants={fadeUpItem} className="text-white text-lg md:text-xl font-bold tracking-[0.2em] uppercase opacity-90 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] mb-12">
                         Giải pháp công nghệ pháp lý hiện đại
                     </motion.h3>
-                    <motion.h1 variants={fadeUpItem} className="text-4xl md:text-7xl font-black leading-[1.1] uppercase tracking-tighter">
+                    <motion.h1 variants={fadeUpItem} className="text-4xl md:text-7xl font-black leading-[1.8] uppercase tracking-tighter">
                         <span className="text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">HỆ THỐNG HỖ TRỢ PHÁP LÝ</span> <br />
-                        <span className="inline-block text-glow-pink" style={titleGradient}>TÍCH HỢP AI</span> <br />
+
+                        <span className="inline-block text-glow-pink py-4" style={titleGradient}>TÍCH HỢP AI</span> <br />
+
                         <span className="text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">RÀ SOÁT VĂN BẢN & HỢP ĐỒNG</span>
                     </motion.h1>
-                    <motion.p variants={fadeUpItem} className="max-w-4xl mx-auto text-base md:text-xl font-bold leading-relaxed px-4 mt-8">
+                    <motion.p variants={fadeUpItem} className="max-w-6xl mx-auto text-base md:text-3xl font-bold leading-loose px-4 mt-14">
                         <span className="inline-block text-shadow-deep" style={silverGradient}>
                             Hệ thống cung cấp giải pháp tư vấn pháp lý và tra cứu tích hợp trí tuệ nhân tạo giúp bạn giải quyết vấn đề nhanh chóng.
                         </span>
                     </motion.p>
-                    <motion.div variants={fadeUpItem} className="pt-12 flex justify-center">
-                        <button onClick={() => navigate('/contract-analysis')} className="group relative flex items-center gap-3 px-10 py-4 text-white rounded-full overflow-hidden transition-all duration-500 hover:scale-110 active:scale-95 shadow-[0_0_30px_rgba(0,242,254,0.2)] transform-gpu">
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-700 to-cyan-500 group-hover:from-cyan-500 group-hover:to-blue-700 transition-all duration-500"></div>
-                            <span className="relative font-bold uppercase tracking-widest text-sm z-10">Dùng Ngay</span>
-                        </button>
-                    </motion.div>
+                    
                 </motion.div>
             </section>
 

@@ -11,13 +11,12 @@ const axiosInstance = axios.create({
 const aiClient = {
     /**
      * Chức năng 1: Chat với Bot
-     * Thêm signal để có thể hủy chat giữa chừng nếu cần
      */
     ask: async (question, signal) => {
         try {
             const response = await axiosInstance.post('/chat/ask', 
                 { question }, 
-                { signal } // Thêm signal vào đây
+                { signal }
             );
             return response.data;
         } catch (error) {
@@ -32,30 +31,43 @@ const aiClient = {
 
     /**
      * Chức năng 2: Thẩm định Hợp đồng 
-     * QUAN TRỌNG: Nhận signal từ UI để ngắt request
      */
     analyzeContract: async (fileObject, signal) => {
         try {
             const formData = new FormData();
             formData.append('file', fileObject);
 
-            // Truyền signal vào tham số thứ 3 (config) của axios.post
             const response = await axiosInstance.post('/ai/analyze-contract', formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
+                headers: { "Content-Type": "multipart/form-data" },
                 signal, 
             });
 
             return response.data;
         } catch (error) {
-            // Kiểm tra nếu lỗi là do người dùng chủ động hủy
             if (axios.isCancel(error)) {
-                console.warn(" bạn đã hủy yêu cầu thẩm định hợp đồng.");
+                console.warn("Bạn đã hủy yêu cầu thẩm định hợp đồng.");
                 return null; 
             }
             console.error("Lỗi khi gọi API Phân tích:", error);
             throw error;
+        }
+    },
+
+    /*
+     *  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
+     */
+    generateForm: async (payload, signal) => {
+        try {
+            // Route bên Node.js  (VD: /ai/generate-form)
+            const response = await axiosInstance.post('/ai/generate-form', payload, { signal });
+            return response; 
+        } catch (error) {
+            if (axios.isCancel(error)) {
+                console.log("Form generation canceled");
+            } else {
+                console.error("Lỗi khi gọi API Generate Form:", error);
+                throw error;
+            }
         }
     }
 };
