@@ -1,7 +1,6 @@
 import axios from "axios";
 
-// 1. Cấu hình Axios Instance (Kết nối đến AI Server)
-// Lưu ý: Đảm bảo biến môi trường VITE_AI_API_URL="http://localhost:8000/api"
+// 1. Cấu hình Axios Instance
 const axiosInstance = axios.create({
     baseURL: import.meta.env.VITE_AI_API_URL,
     headers: {
@@ -9,43 +8,52 @@ const axiosInstance = axios.create({
     },
 });
 
-// 2. Định nghĩa các chức năng
 const aiClient = {
     /**
-     * Chức năng 1: Chat với Bot (Dùng cho ChatbotAI.jsx)
-     * Endpoint: /api/chat/ask
+     * Chức năng 1: Chat với Bot
+     * Thêm signal để có thể hủy chat giữa chừng nếu cần
      */
-    ask: async (question) => {
+    ask: async (question, signal) => {
         try {
-            const response = await axiosInstance.post('/chat/ask', { question });
+            const response = await axiosInstance.post('/chat/ask', 
+                { question }, 
+                { signal } // Thêm signal vào đây
+            );
             return response.data;
         } catch (error) {
-            console.error("Lỗi khi gọi API Chat:", error);
-            throw error;
+            if (axios.isCancel(error)) {
+                console.log("Chat request canceled");
+            } else {
+                console.error("Lỗi khi gọi API Chat:", error);
+                throw error;
+            }
         }
     },
 
     /**
-     * Chức năng 2: Thẩm định Hợp đồng (Dùng cho trang Booking/ContractReview mới)
-     * Endpoint: /api/ai/analyze-contract
-     * Input: contractText (Nội dung hợp đồng dạng chữ)
-     * Output: JSON { risk_score, risks, ... }
+     * Chức năng 2: Thẩm định Hợp đồng 
+     * QUAN TRỌNG: Nhận signal từ UI để ngắt request
      */
-    analyzeContract: async (fileObject) => {
+    analyzeContract: async (fileObject, signal) => {
         try {
             const formData = new FormData();
-            // Key này phải là 'file' để khớp với upload.single('file') ở Backend
             formData.append('file', fileObject);
 
-            // Gọi axiosInstance nhưng GHI ĐÈ header Content-Type
+            // Truyền signal vào tham số thứ 3 (config) của axios.post
             const response = await axiosInstance.post('/ai/analyze-contract', formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
                 },
+                signal, 
             });
 
             return response.data;
         } catch (error) {
+            // Kiểm tra nếu lỗi là do người dùng chủ động hủy
+            if (axios.isCancel(error)) {
+                console.warn(" bạn đã hủy yêu cầu thẩm định hợp đồng.");
+                return null; 
+            }
             console.error("Lỗi khi gọi API Phân tích:", error);
             throw error;
         }
