@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 
 // Import các controller
+const documentController = require('../controllers/documentController');
 const authController = require('../controllers/authController');
 const historyController = require('../controllers/historyController');
-const documentController = require('../controllers/documentController'); // ✅ Dòng này đã sạch, không có dấu +
+
 
 // --- AUTH ROUTES ---
 router.post('/auth/register', authController.register);
@@ -16,8 +17,13 @@ router.get('/history/:userId', historyController.getHistory);
 router.get('/history/detail/:id', historyController.getDetail);
 router.delete('/history/delete/:id', historyController.deleteHistory);
 
-// --- DOCUMENT ROUTES (Văn bản pháp luật - MỚI) ---
-router.get('/documents', documentController.getAllDocuments);
+// --- DOCUMENT ROUTES 
+// 3.  Lấy thống kê số lượng văn bản theo danh mục (dành cho FE làm filter dropdown)
+router.get('/document-stats', documentController.getDocumentStats);
+// 1. Lấy danh sách toàn bộ luật
+router.get('/documents', documentController.getAllDocuments); 
+
+// 2. Lấy chi tiết 1 bộ luật khi user click vào xem
 router.get('/documents/:id', documentController.getDocumentDetail);
 
 module.exports = router;

@@ -13,5 +13,5 @@ const upload = multer({
 // router.post('/analyze-contract', upload.single('contract'), aiController.analyzeContract);
 
 router.post('/analyze-contract', upload.single('file'), aiController.analyzeContract);
-
+router.post('/generate-form', aiController.generateForm);
 module.exports = router;
