@@ -17,9 +17,11 @@ export default function ContractAnalysis() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState(null);
     const [progress, setProgress] = useState(0);
-
+    const [isSaving, setIsSaving] = useState(false);
     const abortControllerRef = useRef(null);
     const intervalRef = useRef(null);
+    const [isSaved, setIsSaved] = useState(false);
+
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -42,7 +44,7 @@ export default function ContractAnalysis() {
         setIsAnalyzing(false);
         setProgress(0);
         // Đã xóa setStatusIndex ở đây để hết lỗi trắng màn hình
-        console.log("Duy đã dừng phân tích.");
+        console.log(" đã dừng phân tích.");
     };
 
     const handleAnalyze = async () => {
@@ -52,7 +54,7 @@ export default function ContractAnalysis() {
         setIsAnalyzing(true);
         setResult(null);
         setProgress(0);
-
+        setIsSaved(false);
         intervalRef.current = setInterval(() => {
             setProgress((prev) => (prev < 90 ? prev + Math.random() * 5 : prev));
         }, 600);
@@ -62,20 +64,8 @@ export default function ContractAnalysis() {
             const analysis = aiResult?.data ?? aiResult;
 
             setProgress(100);
+            setResult(analysis);
 
-            setTimeout(async () => {
-                setResult(analysis);
-                try {
-                    const userStr = localStorage.getItem("user");
-                    if (userStr) {
-                        const user = JSON.parse(userStr);
-                        const userId = user.id ?? user.Id ?? user.ID;
-                        const riskScore = analysis?.risk_score ?? analysis?.riskScore ?? 0;
-                        const payload = { userId, fileName: file.name, riskScore, content: JSON.stringify(analysis) };
-                        await axios.post('http://localhost:8000/api/history/save', payload);
-                    }
-                } catch (saveErr) { console.error("Lỗi SQL:", saveErr); }
-            }, 500);
 
         } catch (error) {
             if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
@@ -85,6 +75,43 @@ export default function ContractAnalysis() {
         } finally {
             if (intervalRef.current) clearInterval(intervalRef.current);
             setIsAnalyzing(false);
+        }
+    };
+    const handleSaveToHistory = async () => {
+        if (!result || !file) return;
+
+        setIsSaving(true);
+        try {
+            const token = localStorage.getItem("accessToken");
+            const userStr = localStorage.getItem("user");
+            const user = userStr ? JSON.parse(userStr) : { id: 1 }; // Fallback ID 1 nếu chưa login
+            const userId = user.id ?? user.Id ?? user.ID;
+
+            const payload = {
+                userId: userId,
+                fileName: file.name,
+                title: `Thẩm định: ${file.name}`, // Tiêu đề để hiện trong tab Pháp lý
+                recordType: 'ANALYSIS',           // Định danh loại hồ sơ
+                riskScore: result.risk_score ?? result.riskScore ?? 0,
+                content: JSON.stringify(result) // Lưu toàn bộ JSON kết quả
+            };
+
+           const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+            headers: {
+                // Đưa thẻ cho ông bảo vệ check ở đây
+                Authorization: `Bearer ${token}` 
+            }
+        });
+
+            if (res.data.success) {
+                setIsSaved(true);
+                alert(" Đã lưu hồ sơ vào Kho lưu trữ số thành công!");
+            }
+        } catch (saveErr) {
+            console.error("Lỗi lưu SQL:", saveErr);
+            alert("❌ Lỗi khi lưu hồ sơ vào Database.");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -173,6 +200,34 @@ export default function ContractAnalysis() {
                 <div className="w-full md:w-7/12 relative min-h-[400px]">
                     {result && !isAnalyzing && (
                         <div className="animate-slideUp bg-[#0a0a0a]/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
+                            {/* THÊM ĐOẠN NÀY: Header của kết quả kèm nút LƯU */}
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-8 bg-cyan-500 rounded-full"></div>
+                                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Kết quả phân tích</h3>
+                                </div>
+
+                                <button
+                                    onClick={handleSaveToHistory}
+                                    //  Nút sẽ bị vô hiệu hóa nếu ĐANG LƯU hoặc ĐÃ LƯU XONG
+                                    disabled={isSaving || isSaved}
+                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${isSaving || isSaved
+                                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5' // Style khi bị khóa
+                                        : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                        }`}
+                                >
+                                    {isSaving ? (
+                                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                    ) : isSaved ? (
+                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-400" /> // Icon khi đã lưu
+                                    ) : (
+                                        <CheckBadgeIcon className="w-4 h-4" />
+                                    )}
+
+                                    {/* Thay đổi chữ hiển thị tương ứng */}
+                                    {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU VÀO HỒ SƠ" : "LƯU VÀO HỒ SƠ"}
+                                </button>
+                            </div>
                             <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-white/10 pb-8">
                                 <div className="relative w-48 h-48 flex-shrink-0">
                                     <ResponsiveContainer width="100%" height="100%">

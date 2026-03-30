@@ -69,13 +69,28 @@ export default function AuthPage() {
             } else if (mode === "FORGOT") {
                 const { email } = form;
                 if (!email) return alert("Vui lòng nhập email");
-                try {
-                    await axios.post(`${backendBase}/auth/forgot-password`, { email });
-                    alert("Hướng dẫn khôi phục mật khẩu đã được gửi tới email");
-                } catch (err) {
-                    // API might not exist — fallback mock
-                    alert("Đã gửi mail (mô phỏng). Vui lòng kiểm tra hộp thư.");
+                const res = await axios.post(`${backendBase}/auth/forgot-password`, { email });
+
+                if (res.data.success) {
+                    alert(res.data.message);
+                    setMode("RESET"); // Chuyển sang bước nhập mã PIN & mật khẩu mới
+                } else {
+                    alert(res.data.message || "Không thể thực hiện yêu cầu.");
                 }
+            } else if (mode === "RESET") {
+
+                const { email, pin, newPassword } = form;
+                if (!pin || !newPassword) return alert("Vui lòng nhập mã PIN và mật khẩu mới");
+                const res = await axios.post(`${backendBase}/auth/reset-password`, { email, pin, newPassword });
+
+                if (res.data.success) {
+                    alert("Đổi mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.");
+                    setMode("LOGIN");
+                    setForm({ ...form, password: "", pin: "", newPassword: "" });
+                } else {
+                    alert(res.data.message || "Mã PIN không chính xác hoặc đã hết hạn.");
+                }
+
             }
         } catch (err) {
             console.error(err);
@@ -140,6 +155,33 @@ export default function AuthPage() {
                             />
                         </div>
                     )}
+                    {/* Chế độ RESET: Nhập mã PIN và Mật khẩu mới */}
+                    {mode === "RESET" && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs text-gray-300 mb-2">Mã PIN (6 số)</label>
+                                <input
+                                    name="pin"
+                                    value={form.pin || ""}
+                                    onChange={onChange}
+                                    className="w-full px-4 py-3 bg-[#080808] text-white rounded-xl border border-white/5 outline-none text-center text-2xl tracking-[10px] font-bold"
+                                    placeholder="000000"
+                                    maxLength={6}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-300 mb-2">Mật khẩu mới</label>
+                                <input
+                                    name="newPassword"
+                                    type="password"
+                                    value={form.newPassword || ""}
+                                    onChange={onChange}
+                                    className="w-full px-4 py-3 bg-[#080808] text-white rounded-xl border border-white/5 outline-none"
+                                    placeholder="Nhập mật khẩu mới"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pt-4">
                         <button
@@ -148,7 +190,17 @@ export default function AuthPage() {
                             className={`w-full py-3 rounded-xl font-bold uppercase tracking-wider ${loading ? "bg-gray-600 text-white cursor-not-allowed" : "bg-gradient-to-r from-blue-600 to-cyan-500 text-white"
                                 }`}
                         >
-                            {loading ? "Đang xử lý..." : mode === "LOGIN" ? "Xác nhận truy cập" : mode === "REGISTER" ? "Hoàn tất đăng ký" : "Gửi email khôi phục"}
+                            {loading ? (
+                                "Đang xử lý..."
+                            ) : mode === "LOGIN" ? (
+                                "Xác nhận truy cập"
+                            ) : mode === "REGISTER" ? (
+                                "Hoàn tất đăng ký"
+                            ) : mode === "FORGOT" ? (
+                                "Gửi email khôi phục"
+                            ) : (
+                                "Cập nhật mật khẩu mới" // Đây là chữ cho mode "RESET"
+                            )}
                         </button>
                     </div>
                 </form>

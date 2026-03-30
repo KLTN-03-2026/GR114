@@ -15,7 +15,7 @@ import FeedbackPage from "../pages/User/FeedbackPage";
 import AuthPage from "../pages/User/AuthPage";
 import FormGeneration from "../components/FormGeneration";  
 import RecordDetailPage from "../pages/User/RecordDetailPage"; 
-import AIPlanning from "../pages/AIPlanning";
+import AIPlanning from "../pages/User/AIPlanning";
 export default function AppRouter() {
     return (
         <MainLayout>
