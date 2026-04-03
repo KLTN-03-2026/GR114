@@ -80,6 +80,67 @@ MAX_RETRIES=3
 echo ".env" >> .gitignore
 ```
 
+### 2.4 (TÙY CHỌN) Cấu hình SMTP để gửi Email xác nhận
+
+Để kích hoạt chức năng gửi email xác nhận khi user gửi form (endpoint `POST /api/support`), hãy thêm cấu hình SMTP vào file `AI_Engine/.env`.
+
+Ví dụ các biến cần thiết:
+
+```env
+# SMTP (optional)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false   # true nếu dùng SMTPS (port 465)
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+SMTP_FROM="LegalAI Support <support@legalai.vn>"
+```
+
+Ví dụ cụ thể:
+- MailHog (local dev):
+    ```env
+    SMTP_HOST=localhost
+    SMTP_PORT=1025
+    SMTP_SECURE=false
+    SMTP_USER=
+    SMTP_PASS=
+    ```
+
+- Mailtrap:
+    ```env
+    SMTP_HOST=smtp.mailtrap.io
+    SMTP_PORT=2525
+    SMTP_SECURE=false
+    SMTP_USER=your_mailtrap_user
+    SMTP_PASS=your_mailtrap_pass
+    ```
+
+- Gmail (production, dùng App Password):
+    ```env
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=465
+    SMTP_SECURE=true
+    SMTP_USER=youremail@gmail.com
+    SMTP_PASS=your_app_password
+    ```
+
+Ghi chú:
+- Nếu bạn không cấu hình SMTP, AI_Engine sẽ tự động sử dụng `nodemailer` test account (Ethereal) để gửi thử, và trả về một `previewUrl` trong response để xem email mẫu.
+- Sau khi cập nhật `.env`, khởi động lại AI_Engine để áp dụng thay đổi.
+
+### 2.5 Kiểm thử endpoint gửi mail
+
+Sau khi server AI_Engine đang chạy, dùng `curl` hoặc Postman gửi POST tới:
+
+```bash
+curl -X POST http://localhost:8000/api/support \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Nguyen","email":"you@example.com","phone":"0334445555","subject":"Test","message":"Hello"}'
+```
+
+Response sẽ trả JSON với trường `success` và nếu server dùng test account sẽ có `previewUrl` để mở email thử.
+
+
 ---
 
 ## 🔧 BƯỚC 3: CÀI ĐẶT DEPENDENCIES

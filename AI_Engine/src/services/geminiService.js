@@ -14,11 +14,17 @@ if (!API_KEY) {
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-// ✅ ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
+// ✅ Danh sách model ưu tiên — đặt các model ổn định, được API hỗ trợ lên đầu
 const AVAILABLE_MODELS = [
-    "gemini-3.0-flash",        // Bản mới nhất, nhanh và ổn định (Đã test thành công)
-    "gemini-2.5-flash",        // Ưu tiên 1: Bản cực nhanh, ổn định nhất (Đã test thành công)
-    "gemini-2.0-flash"         // Ưu tiên 2: Bản dự phòng
+    // Thứ tự: thử model đầu tiên, nếu fail sẽ chuyển sang model kế tiếp
+    // "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-pro-latest",
+    // Các lựa chọn dự phòng / embedding
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-embedding-001"
 ];
 
 // Hàm bổ trợ để lấy model và xử lý lỗi Quota/404

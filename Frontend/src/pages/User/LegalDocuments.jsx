@@ -8,6 +8,7 @@ import {
   ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  EyeIcon,
   TrashIcon
 } from "@heroicons/react/24/outline";
 
@@ -31,6 +32,10 @@ export default function LegalDocuments() {
   });
 
   const searchRef = useRef(null);
+
+  // Saved laws (Luật của tôi) and Recently viewed (History)
+  const [myLaws, setMyLaws] = useState([]);
+  const [recentDocs, setRecentDocs] = useState([]);
 
   // 1. LẤY SỐ LƯỢNG SIDEBAR (NHẢY SỐ TỰ ĐỘNG)
   const fetchStats = async () => {
@@ -87,6 +92,45 @@ export default function LegalDocuments() {
     fetchDocuments(1); // Đổi category thì về trang 1
   }, [filter.category]);
 
+  // Load saved lists from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("myLaws") || "[]");
+      setMyLaws(Array.isArray(saved) ? saved : []);
+      const rec = JSON.parse(localStorage.getItem("recentDocs") || "[]");
+      setRecentDocs(Array.isArray(rec) ? rec : []);
+    } catch (e) {
+      console.error("localStorage load error:", e);
+    }
+  }, []);
+
+  const saveMyLaws = (arr) => {
+    setMyLaws(arr);
+    try { localStorage.setItem("myLaws", JSON.stringify(arr)); } catch(e) {}
+  };
+
+  const toggleStar = (doc) => {
+    const exists = myLaws.find(d => d.Id === doc.Id);
+    if (exists) {
+      const next = myLaws.filter(d => d.Id !== doc.Id);
+      saveMyLaws(next);
+    } else {
+      const next = [doc, ...myLaws];
+      saveMyLaws(next);
+    }
+  };
+
+  const saveRecent = (arr) => {
+    setRecentDocs(arr);
+    try { localStorage.setItem("recentDocs", JSON.stringify(arr)); } catch(e) {}
+  };
+
+  const addToRecent = (doc) => {
+    const simplified = { Id: doc.Id, Title: doc.Title, DocumentNumber: doc.DocumentNumber, IssueYear: doc.IssueYear };
+    const next = [simplified, ...recentDocs.filter(d => d.Id !== doc.Id)].slice(0, 8);
+    saveRecent(next);
+  };
+
   // Debounce search
   useEffect(() => {
     if (searchRef.current) clearTimeout(searchRef.current);
@@ -134,7 +178,7 @@ export default function LegalDocuments() {
       </aside>
 
       {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 px-4 py-8 md:px-10 max-w-5xl mx-auto w-full">
+      <main className="flex-1 px-4 py-8 md:px-10 max-w-3xl mx-auto w-full">
         
         {/* Search Bar */}
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-5 mb-8 shadow-2xl">
@@ -167,22 +211,30 @@ export default function LegalDocuments() {
               <p className="text-gray-500 text-sm animate-pulse">Đang truy xuất dữ liệu từ AI Engine...</p>
             </div>
           ) : documents.length > 0 ? (
-            documents.map((item, index) => (
-              <div key={item.Id} className="group bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl hover:border-cyan-500/30 transition-all shadow-sm flex flex-col md:flex-row gap-5">
-                <div className="w-10 h-10 bg-[#111] rounded-lg flex items-center justify-center text-gray-600 font-bold border border-white/5 group-hover:text-cyan-500 transition-colors">
-                  {(pagination.currentPage - 1) * 10 + index + 1}
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-[20px] font-bold text-gray-200 group-hover:text-white mb-2 leading-relaxed italic">{item.Title}</h4>
-                  <div className="flex gap-4 text-xs text-gray-500 mb-4">
-                    <span>Số hiệu: <b className="text-gray-400">{item.DocumentNumber}</b></span>
-                    <span>Năm: <b className="text-gray-400">{item.IssueYear}</b></span>
-                    <span className={item.Status === "Còn hiệu lực" ? "text-emerald-500" : "text-rose-500"}>● {item.Status}</span>
+            documents.map((item, index) => {
+              const isStarred = myLaws.some(d => d.Id === item.Id);
+              return (
+                <div key={item.Id} className="group bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl hover:border-cyan-500/30 transition-all shadow-sm flex flex-col md:flex-row gap-5">
+                  <div className="w-10 h-10 bg-[#111] rounded-lg flex items-center justify-center text-gray-600 font-bold border border-white/5 group-hover:text-cyan-500 transition-colors">
+                    {(pagination.currentPage - 1) * 10 + index + 1}
                   </div>
-                  <button onClick={() => navigate(`/van-ban/chi-tiet/${item.Id}`)} className="text-[10px] border border-white/10 px-4 py-1.5 rounded-lg hover:bg-cyan-500 hover:text-white transition-all uppercase font-bold tracking-tighter">Xem chi tiết</button>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <h4 className="text-[20px] font-bold text-gray-200 group-hover:text-white mb-2 leading-relaxed italic">{item.Title}</h4>
+                      <button onClick={() => toggleStar(item)} className={`ml-4 text-2xl transition-colors ${isStarred ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`} aria-label="Lưu luật">
+                        {isStarred ? '🌟' : '☆'}
+                      </button>
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500 mb-4">
+                      <span>Số hiệu: <b className="text-gray-400">{item.DocumentNumber}</b></span>
+                      <span>Năm: <b className="text-gray-400">{item.IssueYear}</b></span>
+                      <span className={item.Status === "Còn hiệu lực" ? "text-emerald-500" : "text-rose-500"}>● {item.Status}</span>
+                    </div>
+                    <button onClick={() => { addToRecent(item); navigate(`/van-ban/chi-tiet/${item.Id}`); }} className="text-[10px] border border-white/10 px-4 py-1.5 rounded-lg hover:bg-cyan-500 hover:text-white transition-all uppercase font-bold tracking-tighter">Xem chi tiết</button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-20 text-gray-600">Không có dữ liệu phù hợp.</div>
           )}
@@ -232,6 +284,74 @@ export default function LegalDocuments() {
           </div>
         )}
       </main>
+
+      {/* ================= RIGHT PANEL: My Laws + Recently Viewed ================= */}
+      <aside className="hidden lg:flex flex-col w-96 bg-[#0a0a0a] border-l border-white/10 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-4 py-6 gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-cyan-400 mb-3 uppercase">Luật của tôi</h3>
+          {myLaws.length === 0 ? (
+            <div className="text-xs text-gray-500">Bạn chưa lưu luật nào.</div>
+          ) : (
+            myLaws.map(l => (
+              <div key={l.Id} className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                <div className="text-sm truncate">
+                  <div className="font-bold text-gray-200 truncate">{l.Title}</div>
+                  <div className="text-xs text-gray-500">{l.DocumentNumber}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate(`/van-ban/chi-tiet/${l.Id}`)}
+                    className="p-2 rounded-md text-gray-200 bg-white/5 hover:bg-cyan-600 hover:text-white transition-colors"
+                    title="Xem chi tiết"
+                  >
+                    <EyeIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => toggleStar(l)}
+                    className="p-2 rounded-md text-gray-400 hover:text-red-400 hover:bg-white/5 transition-colors"
+                    title="Xóa"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4">
+          <h3 className="text-sm font-bold text-cyan-400 mb-3 uppercase">Các luật bạn vừa xem gần đây</h3>
+          {recentDocs.length === 0 ? (
+            <div className="text-xs text-gray-500">Chưa có lịch sử xem.</div>
+          ) : (
+            recentDocs.map(r => (
+              <div key={r.Id} className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                <div className="text-sm truncate">
+                  <div className="font-medium text-gray-200 truncate">{r.Title}</div>
+                  <div className="text-xs text-gray-500">{r.DocumentNumber}</div>
+                </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigate(`/van-ban/chi-tiet/${r.Id}`)}
+                      className="p-2 rounded-md text-gray-200 bg-white/5 hover:bg-cyan-600 hover:text-white transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => saveRecent(recentDocs.filter(rr => rr.Id !== r.Id))}
+                      className="p-2 rounded-md text-gray-400 hover:text-red-400 hover:bg-white/5 transition-colors"
+                      title="Xóa"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
     </div>
   );
 }
