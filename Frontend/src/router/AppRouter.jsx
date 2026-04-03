@@ -16,6 +16,7 @@ import AuthPage from "../pages/User/AuthPage";
 import FormGeneration from "../components/FormGeneration";  
 import RecordDetailPage from "../pages/User/RecordDetailPage"; 
 import AIPlanning from "../pages/User/AIPlanning";
+import VideoLegalAnalysis from "../pages/User/VideoLegalAnalysis";
 export default function AppRouter() {
     return (
         <MainLayout>
@@ -35,7 +36,7 @@ export default function AppRouter() {
                 {/* === NHÓM DỊCH VỤ === */}
                 <Route path="/contract-analysis" element={<ContractAnalysis />} />
                 <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
-
+                <Route path="/phan-tich-video" element={<VideoLegalAnalysis />} />
 
                 <Route path="/soan-thao" element={<FormGeneration />} />
 

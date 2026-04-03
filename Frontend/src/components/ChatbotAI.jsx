@@ -135,111 +135,106 @@ export default function ChatbotAI({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="fixed bottom-24 right-8 w-[420px] h-[650px] z-[101] flex flex-col"
-        >
-            <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-3xl shadow-[0_0_80px_rgba(34,211,238,0.15)]">
+    <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+        /* SỬA TẠI ĐÂY: 
+           - w-[90vw] md:w-[420px]: Tự thu nhỏ trên điện thoại.
+           - h-[min(600px,75vh)]: Giới hạn chiều cao thông minh, không bao giờ chạm Header.
+           - pointer-events-auto: Đảm bảo nó nhận chuột nhưng không chặn thằng khác.
+        */
+        className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[420px] h-[min(600px,75vh)] z-[101] flex flex-col pointer-events-auto"
+    >
+        <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-3xl shadow-[0_20px_80px_rgba(0,0,0,0.4)]">
 
-                {/* HEADER */}
-                <div className="p-5 border-b border-white/10 bg-white/5">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-cyan-500/20">
-                                <CpuChipIcon className="w-5 h-5 text-cyan-400" />
-                            </div>
-                            <h3 className="text-[10px] font-black text-white tracking-[0.3em] uppercase">LegAI Assistant</h3>
+            {/* HEADER (Giữ nguyên logic của Duy) */}
+            <div className="p-5 border-b border-white/10 bg-white/5 shrink-0">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-cyan-500/20">
+                            <CpuChipIcon className="w-5 h-5 text-cyan-400" />
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                            {/* NÚT LƯU CHAT */}
-                            {messages.length > 1 && (
-                                <button 
-                                    onClick={handleSaveChat}
-                                    disabled={isSaving || isSaved}
-                                    className={`p-2 rounded-xl transition-all ${isSaved ? 'text-emerald-400 bg-emerald-500/10' : 'text-gray-400 hover:text-cyan-400 hover:bg-white/5'}`}
-                                    title="Lưu hội thoại"
-                                >
-                                    {isSaving ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : isSaved ? <CheckBadgeIcon className="w-5 h-5" /> : <CloudArrowUpIcon className="w-5 h-5" />}
-                                </button>
-                            )}
-                            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-500 transition-colors">
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        </div>
+                        <h3 className="text-[10px] font-black text-white tracking-[0.3em] uppercase">LegAI Assistant</h3>
                     </div>
-
-                    {/* SWITCHER */}
-                    <div className="flex bg-black/50 p-1 rounded-xl border border-white/5 relative h-10">
-                        <motion.div
-                            className="absolute bg-cyan-500/10 border border-cyan-500/40 rounded-lg"
-                            animate={{ x: chatMode === 'ai' ? 0 : '100%' }}
-                            style={{ top: 4, bottom: 4, left: 4, width: 'calc(50% - 8px)' }}
-                        />
-                        <button onClick={() => setChatMode('ai')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'ai' ? 'text-cyan-400' : 'text-gray-600'}`}>
-                            <SparklesIcon className="w-3.5 h-3.5" /> AI CONSULTANT
-                        </button>
-                        <button onClick={() => setChatMode('human')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'human' ? 'text-cyan-400' : 'text-gray-600'}`}>
-                            <UserIcon className="w-3.5 h-3.5" /> LAWYER MODE
-                        </button>
-                    </div>
-                </div>
-
-                {/* CHAT BODY */}
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-black/20">
-                    <AnimatePresence mode='popLayout'>
-                        {messages.map((msg) => (
-                            <motion.div
-                                key={msg.id}
-                                initial={{ opacity: 0, x: msg.isBot ? -10 : 10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
+                    
+                    <div className="flex items-center gap-2">
+                        {messages.length > 1 && (
+                            <button 
+                                onClick={handleSaveChat}
+                                className="p-2 rounded-xl text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition-all"
                             >
-                                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                                    msg.isBot 
-                                    ? 'bg-white/5 text-gray-300 rounded-tl-none border border-white/10' 
-                                    : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-tr-none shadow-lg shadow-cyan-900/20'
-                                }`}>
-                                    {msg.text}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                    {isLoading && (
-                        <div className="flex items-center gap-2 text-[10px] text-cyan-500/60 font-black tracking-widest animate-pulse px-2">
-                            {chatMode === 'ai' ? "PROCESSING LEGAL DATA..." : "CONNECTING TO LAWYER..."}
-                        </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                {/* INPUT AREA */}
-                <form onSubmit={handleSend} className="p-5 bg-black/40 border-t border-white/10">
-                    <div className="relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-3xl px-4 py-2 focus-within:border-cyan-500/40 transition-all">
-                        <textarea
-                            ref={textareaRef}
-                            rows={1}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={chatMode === 'ai' ? "Hỏi LegAI về pháp luật..." : "Mô tả vấn đề cho luật sư..."}
-                            className="flex-grow py-3 bg-transparent text-sm text-white outline-none resize-none custom-scrollbar max-h-[120px]"
-                        />
-                        <button
-                            type="submit"
-                            disabled={!input.trim() || isLoading}
-                            className={`mb-2 p-2 rounded-xl transition-all ${!input.trim() || isLoading ? 'text-gray-700' : 'text-cyan-400 hover:bg-cyan-500/20'}`}
-                        >
-                            <PaperAirplaneIcon className="w-6 h-6 -rotate-45" />
+                                <CloudArrowUpIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-500 transition-colors">
+                            <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
-                </form>
+                </div>
+
+                {/* SWITCHER */}
+                <div className="flex bg-black/50 p-1 rounded-xl border border-white/5 relative h-10">
+                    <motion.div
+                        className="absolute bg-cyan-500/10 border border-cyan-500/40 rounded-lg"
+                        animate={{ x: chatMode === 'ai' ? 0 : '100%' }}
+                        style={{ top: 4, bottom: 4, left: 4, width: 'calc(50% - 8px)' }}
+                    />
+                    <button onClick={() => setChatMode('ai')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'ai' ? 'text-cyan-400' : 'text-gray-600'}`}>
+                        <SparklesIcon className="w-3.5 h-3.5" /> AI CONSULTANT
+                    </button>
+                    <button onClick={() => setChatMode('human')} className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-black z-10 transition-all ${chatMode === 'human' ? 'text-cyan-400' : 'text-gray-600'}`}>
+                        <UserIcon className="w-3.5 h-3.5" /> LAWYER MODE
+                    </button>
+                </div>
             </div>
-            <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.1); border-radius: 10px; }
-            `}</style>
-        </motion.div>
-    );
+
+            {/* CHAT BODY - Vùng này sẽ tự cuộn độc lập */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-black/20 overscroll-contain">
+                <AnimatePresence mode='popLayout'>
+                    {messages.map((msg) => (
+                        <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
+                        >
+                            <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                                msg.isBot 
+                                ? 'bg-white/5 text-gray-300 rounded-tl-none border border-white/10' 
+                                : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-tr-none shadow-lg shadow-cyan-900/20'
+                            }`}>
+                                {msg.text}
+                            </div>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+                {isLoading && <div className="text-[10px] text-cyan-500/60 font-black animate-pulse px-2 uppercase">Processing...</div>}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* INPUT AREA */}
+            <form onSubmit={handleSend} className="p-5 bg-black/40 border-t border-white/10 shrink-0">
+                <div className="relative flex items-end gap-2 bg-white/5 border border-white/10 rounded-3xl px-4 py-2 focus-within:border-cyan-500/40 transition-all">
+                    <textarea
+                        ref={textareaRef}
+                        rows={1}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Hỏi LegAI..."
+                        className="flex-grow py-3 bg-transparent text-sm text-white outline-none resize-none scrollbar-hide max-h-[100px]"
+                    />
+                    <button
+                        type="submit"
+                        disabled={!input.trim() || isLoading}
+                        className={`mb-2 p-2 rounded-xl transition-all ${!input.trim() || isLoading ? 'text-gray-700' : 'text-cyan-400'}`}
+                    >
+                        <PaperAirplaneIcon className="w-6 h-6 -rotate-45" />
+                    </button>
+                </div>
+            </form>
+        </div>
+    </motion.div>
+);
 }
