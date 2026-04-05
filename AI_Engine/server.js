@@ -12,6 +12,9 @@ const path = require('path');           // 👇 ĐÃ THÊM: Thư viện xử lý
 const ragService = require('./src/services/ragService');
 const { generateAnswerWithGemini, analyzeContractWithGemini } = require('./src/services/geminiService');
 
+// Import các routes
+const adminRoutes = require('./src/routes/adminRoutes');
+
 const app = express();
 const PORT = 8000;
 
@@ -58,6 +61,11 @@ app.get('/api/legal/templates', (req, res) => res.json({ success: true, data: []
 app.get('/api/legal/document-types', (req, res) => res.json({ success: true, data: [] }));
 app.get('/api/legal/documents', (req, res) => res.json({ success: true, data: [], meta: { total: 0 } }));
 
+
+// ============================================================
+// 1.5. ADMIN ROUTES - Đăng ký routes admin với prefix /api/admin
+// ============================================================
+app.use('/api/admin', adminRoutes);
 
 // ============================================================
 // 2. API CHAT AI

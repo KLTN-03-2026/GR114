@@ -23,7 +23,7 @@ async function checkLawStatus() {
 
 
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
             Bạn là một chuyên gia pháp luật Việt Nam am hiểu sâu sắc hệ thống VBQPPL. 

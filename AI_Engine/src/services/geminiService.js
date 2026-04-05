@@ -16,9 +16,7 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 
 // ✅ ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
 const AVAILABLE_MODELS = [
-    "gemini-3.0-flash",        // Bản mới nhất, nhanh và ổn định (Đã test thành công)
-    "gemini-2.5-flash",        // Ưu tiên 1: Bản cực nhanh, ổn định nhất (Đã test thành công)
-    "gemini-2.0-flash"         // Ưu tiên 2: Bản dự phòng
+    "gemini-1.5-flash"         // Model tối ưu chi phí
 ];
 
 // Hàm bổ trợ để lấy model và xử lý lỗi Quota/404

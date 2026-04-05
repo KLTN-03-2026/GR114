@@ -6,7 +6,7 @@ const path = require('path');
 
 // 1. Load cấu hình & Service
 dotenv.config({ path: path.join(__dirname, '../.env') });
-const ragService = require('./services/ragService'); // 🟢 GIỮ LẠI: Service AI
+const ragService = require('./services/ragService'); // Service AI
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -25,9 +25,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 3. Import Routes
-const chatRoutes = require('./routes/chatRoutes'); // Cũ
-const aiRoutes = require('./routes/aiRoutes');     // Cũ
-const apiRoutes = require('./routes/apiRoutes');   // 🟢 MỚI: Route cho Auth & History
+const chatRoutes = require('./routes/chatRoutes'); 
+const aiRoutes = require('./routes/aiRoutes');     
+const apiRoutes = require('./routes/apiRoutes');   //  Route cho Auth & History
+const adminRoutes = require('./routes/adminRoutes'); // Route cho Admin
 
 // 4. Mount Routes
 app.use('/api/chat', chatRoutes); // -> Chatbot
@@ -60,3 +61,8 @@ const startServer = async () => {
 };
 
 startServer();
+
+// ============================================================
+// 1.5. ADMIN ROUTES - Đăng ký routes admin với prefix /api/admin
+// ============================================================
+app.use('/api/admin', adminRoutes);

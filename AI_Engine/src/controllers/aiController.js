@@ -2,16 +2,52 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
-
+const { CrawlKit } = require('paparusi-crawlkit'); // Dùng để gọi CrawlKit API
+const axios = require('axios');
+const sql = require('mssql');
+const { pool } = require('../config/db');
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 // Cấu hình Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Dùng bản 2.5-flash và bật chế độ ép trả về JSON 100%
-const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    generationConfig: { responseMimeType: "application/json" }
-});
 
+
+// Dùng bản 1.5-flash và bật chế độ ép trả về JSON 100%
+const model = genAI.getGenerativeModel({
+    model: "gemini-flash-lite-latest"
+
+});
+/**
+ * Hàm hỗ trợ: Cạo sạch thẻ Markdown bọc ngoài JSON của AI
+ */
+const cleanAIJsonString = (rawString) => {
+    if (!rawString) return "{}";
+    return rawString.replace(/```json/gi, '')
+        .replace(/```html/gi, '')
+        .replace(/```/g, '')
+        .trim();
+};
+/**
+ * Hàm hỗ trợ làm sạch URL Video để tối ưu hóa Cache (Tiết kiệm 100 request CrawlKit)
+ */
+const cleanVideoUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        // YouTube Shorts/Watch
+        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+            let videoId = urlObj.pathname.includes('/shorts/')
+                ? urlObj.pathname.split('/shorts/')[1].split('/')[0]
+                : urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
+            return `https://www.youtube.com/watch?v=${videoId.split('?')[0]}`;
+        }
+        // TikTok
+        if (urlObj.hostname.includes('tiktok.com')) {
+            return `https://www.tiktok.com${urlObj.pathname.split('?')[0]}`;
+        }
+        return url;
+    } catch (e) { return url; }
+};
 // ==============================================================================
 // 1. API THẨM ĐỊNH HỢP ĐỒNG (FILE SCANNER)
 // ==============================================================================
@@ -75,8 +111,8 @@ exports.analyzeContract = async (req, res) => {
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
 
-        // Parse thẳng vì API đã đảm bảo format JSON
-        const analysisResult = JSON.parse(responseText);
+        const cleanedText = cleanAIJsonString(responseText);
+        const analysisResult = JSON.parse(cleanedText);
 
         console.log("✅ Phân tích xong!");
         res.json(analysisResult);
@@ -170,7 +206,9 @@ exports.generateForm = async (req, res) => {
         const responseText = result.response.text();
 
         // Parse JSON trả về
-        const aiData = JSON.parse(responseText);
+        // Đưa qua dao cạo trước khi parse
+        const cleanedText = cleanAIJsonString(responseText);
+        const aiData = JSON.parse(cleanedText);
 
         console.log("📤 AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
         res.json(aiData);
@@ -178,5 +216,216 @@ exports.generateForm = async (req, res) => {
     } catch (error) {
         console.error("❌ Lỗi API Generate Form:", error);
         res.status(500).json({ error: "Lỗi hệ thống LegAI khi tạo Form" });
+    }
+};
+
+// ==========================================
+// 3. TÍNH NĂNG LẬP KẾ HOẠCH (AI PLANNING)
+// ==========================================
+exports.generatePlanning = async (req, res) => {
+    let filePaths = [];
+
+    try {
+        const { rawText } = req.body;
+        let combinedText = rawText || "";
+
+        // 1. Phân loại và Đọc các file đính kèm (nếu có)
+        if (req.files && req.files.length > 0) {
+            console.log(`📂 Đang xử lý ${req.files.length} file đính kèm...`);
+
+            for (const file of req.files) {
+                const filePath = file.path;
+                filePaths.push(filePath);
+                const mimeType = file.mimetype;
+
+                let fileText = "";
+                if (mimeType === 'application/pdf') {
+                    const dataBuffer = fs.readFileSync(filePath);
+                    const data = await pdf(dataBuffer);
+                    fileText = data.text;
+                }
+                else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    const result = await mammoth.extractRawText({ path: filePath });
+                    fileText = result.value;
+                }
+                else {
+                    fileText = fs.readFileSync(filePath, 'utf-8');
+                }
+
+                combinedText += `\n\n--- NỘI DUNG TỪ FILE [${file.originalname}] ---\n${fileText}`;
+            }
+        }
+
+        if (!combinedText || combinedText.trim().length < 5) {
+            return res.status(400).json({ error: "Vui lòng nhập nội dung hoặc upload file để lập kế hoạch!" });
+        }
+
+        // 2. Gửi cho Gemini lập kế hoạch (Prompt chuyên dụng cho Pháp lý)
+        console.log("🤖 Đang gửi dữ liệu cho Gemini lập kế hoạch Agentic...");
+
+        const prompt = `
+        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích yêu cầu dưới đây và lập một kế hoạch thực thi pháp lý chi tiết (AI Legal Planning).
+        
+        Nội dung yêu cầu/hồ sơ:
+        """${combinedText}"""
+
+        Yêu cầu output JSON format (Danh sách các tasks):
+        [
+            {
+                "id": 1,
+                "phase": "Giai đoạn 1",
+                "title": "Tên nhiệm vụ cụ thể",
+                "assignee": "Người phụ trách (Luật sư A, Trợ lý, hoặc Chờ phân công)",
+                "deadline": "Thời gian dự kiến (VD: 3 ngày, 1 tuần)",
+                "status": "pending" | "locked"
+            }
+        ]
+        Lưu ý: Chỉ trả về JSON, không kèm giải thích hay markdown.
+        `;
+
+        const result = await model.generateContent(prompt);
+        // 3. Parse JSON từ Gemini
+        const responseText = result.response.text();
+        const planningResult = JSON.parse(responseText);
+
+        // 4. LƯU VÀO SQL SERVER (KÉT SẮT CỦA DUY)
+        try {
+            // Lấy userId từ token (đã qua authMiddleware)
+            const userId = req.user ? req.user.id : 1; // Fallback về 1 nếu chưa login (để test)
+
+            const request = pool.request();
+            request.input('UserId', sql.Int, userId);
+            request.input('RecordType', sql.NVarChar(50), 'PLANNING');
+            request.input('Title', sql.NVarChar(500), `Kế hoạch: ${planningResult[0]?.title || 'Tư vấn pháp lý'}`);
+
+            request.input('Folder', sql.NVarChar(200), 'Kế hoạch AI');
+            request.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(planningResult));
+            request.input('AIModel', sql.NVarChar(100), 'gemini-1.5-flash');
+
+            const query = `
+                INSERT INTO dbo.ContractHistory (UserId, RecordType, Title, Folder, AnalysisJson, AIModel, CreatedAt)
+                VALUES (@UserId, @RecordType, @Title, @Folder, @AnalysisJson, @AIModel, GETDATE())
+            `;
+
+            await request.query(query);
+            console.log("📂 Đã lưu kế hoạch vào Hồ sơ pháp lý thành công!");
+        } catch (dbErr) {
+            console.error("⚠️ Lỗi lưu DB (nhưng vẫn trả kết quả cho User):", dbErr);
+        }
+
+        console.log(`✅ Lập kế hoạch xong! Đã tạo ${planningResult.length} bước.`);
+        res.json({
+            success: true,
+            data: planningResult,
+            message: "Kế hoạch đã được tạo và lưu vào hồ sơ!"
+        });
+    } catch (error) {
+        console.error("❌ Lỗi lập kế hoạch:", error);
+        res.status(500).json({ error: "Lỗi hệ thống khi lập kế hoạch AI. Chi tiết: " + error.message });
+    } finally {
+        // Dọn dẹp tất cả file tạm
+        filePaths.forEach(fp => {
+            if (fs.existsSync(fp)) {
+                fs.unlinkSync(fp);
+            }
+        });
+        if (filePaths.length > 0) console.log("🧹 Đã dọn dẹp các file tạm.");
+    }
+};
+// ==============================================================================
+// 4. MỚI: API THẨM ĐỊNH VIDEO (CRAWLKIT + AI SCANNER) - BẢN KHỚP DATA 100%
+// ==============================================================================
+exports.analyzeVideo = async (req, res) => {
+    const { url } = req.body;
+    const userId = req.user ? req.user.id : 1;
+    const apiKey = process.env.CRAWLKIT_API_KEY ? process.env.CRAWLKIT_API_KEY.trim() : null;
+
+    if (!apiKey) return res.status(500).json({ error: "Thiếu CRAWLKIT_API_KEY trong .env" });
+    if (!url) return res.status(400).json({ error: "Vui lòng dán link video!" });
+
+    const cleanedUrl = cleanVideoUrl(url);
+
+    try {
+        // --- 1. KIỂM TRA CACHE ---
+        const checkRequest = pool.request();
+        checkRequest.input('Url', sql.NVarChar(500), cleanedUrl);
+        const cache = await checkRequest.query("SELECT * FROM VideoHistory WHERE VideoUrl = @Url");
+
+        if (cache.recordset.length > 0) {
+            console.log("🚀 Lấy dữ liệu từ Cache SQL Server.");
+            return res.json({ success: true, data: cache.recordset[0], source: 'database' });
+        }
+
+        // --- 2. GỌI API CRAWLKIT ---
+        console.log("📡 Đang bóc tách video qua api.crawlkit.org...");
+        const crawlResponse = await axios.post('https://api.crawlkit.org/v1/scrape',
+            { url: cleanedUrl },
+            {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            }
+        );
+
+        const rawData = crawlResponse.data.data;
+        const transcript = rawData.transcript || rawData.content;
+        const videoTitle = rawData.title || "Video Pháp luật";
+
+        if (!transcript) throw new Error("Không lấy được nội dung video.");
+
+        // --- 3. GEMINI: CHIẾN THUẬT 'LEGAL AUDITOR' ---
+        console.log("🕵️‍♂️ Đang thực hiện kiểm toán pháp lý chuyên sâu...");
+        const prompt = `
+            Bạn là Trợ lý Pháp lý Cao cấp (LegAI Analyst). 
+            Nhiệm vụ: Thực hiện 'Legal Audit' nội dung video.
+            Nội dung Transcript: """${transcript}"""
+            Yêu cầu JSON format (CHỈ TRẢ VỀ JSON):
+            {
+              "analysis_report": "Nội dung báo cáo dạng Markdown...",
+              "legal_map": [{ "law_name": "...", "article": "...", "status": "..." }],
+              "action_plan": ["..."],
+              "audit_metrics": { "trust_score": 95, "complexity_level": "...", "fact_check_result": "..." }
+            }
+        `;
+
+        const aiResult = await model.generateContent(prompt);
+        const responseText = aiResult.response.text();
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+        const aiData = JSON.parse(cleanedJson);
+
+        // --- 4. LƯU DATABASE (SỬA ĐỂ KHỚP VỚI AI DATA MỚI) ---
+        const saveRequest = pool.request();
+        saveRequest.input('UserId', sql.Int, userId);
+        saveRequest.input('Url', sql.NVarChar(500), cleanedUrl);
+        saveRequest.input('Title', sql.NVarChar(500), videoTitle);
+        saveRequest.input('Transcript', sql.NVarChar(sql.MAX), transcript);
+
+        // 🟢 SỬA TẠI ĐÂY: Đọc đúng Key từ JSON của Gemini
+        saveRequest.input('Summary', sql.NVarChar(sql.MAX), aiData.analysis_report);
+        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), JSON.stringify(aiData.legal_map));
+        saveRequest.input('TrustScore', sql.Int, aiData.audit_metrics?.trust_score || 0);
+        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
+
+        // Lưu vào cả 2 bảng (Duy để nguyên tên model 'gemini-flash-lite-latest' là chuẩn rồi)
+        await saveRequest.query(`
+            INSERT INTO VideoHistory (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AIModel, CreatedAt)
+            VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, 'gemini-flash-lite-latest', GETDATE())
+        `);
+
+        await saveRequest.query(`
+            INSERT INTO ContractHistory (UserId, RecordType, Title, Folder, AnalysisText, AnalysisJson, RiskScore, AIModel, CreatedAt, IsFinal)
+            VALUES (@UserId, 'VIDEO_ANALYSIS', @Title, N'Phân tích Video', @Summary, @AnalysisJson, @TrustScore, 'gemini-flash-lite-latest', GETDATE(), 1)
+        `);
+
+        console.log("✅ HOÀN TẤT: Dữ liệu đã nằm trong SQL Server!");
+        res.json({ success: true, data: { transcript, ...aiData, Title: videoTitle } });
+
+    } catch (error) {
+        console.error("❌ Lỗi Video Analysis:", error.response?.data || error.message);
+        res.status(500).json({
+            error: "Lỗi hệ thống: " + (error.response?.data?.message || error.message)
+        });
     }
 };

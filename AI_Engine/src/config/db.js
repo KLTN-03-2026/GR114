@@ -3,9 +3,9 @@ const sql = require('mssql');
 
 const dbConfig = {
     user: 'sa',
-    password: '123456', // Mật khẩu Duy vừa đặt ở Mặt trận 1
+    password: '123456', 
     server: 'localhost',
-    port: 1433,         // Cổng chúng ta vừa thông ở Mặt trận 2
+    port: 1433,        
     database: 'LegalBotDB',
     options: {
         encrypt: false, // Để false vì chạy ở máy cá nhân

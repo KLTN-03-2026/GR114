@@ -32,7 +32,7 @@ const lawStatusMap = JSON.parse(fs.readFileSync('./data/law_status_map.json', 'u
 const CONFIG = {
     // Gemini Configuration
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    GEMINI_MODEL: 'gemini-embedding-2-preview', // Mô hình embedding mới nhất của Gemini 
+    GEMINI_MODEL: 'gemini-embedding-1', 
 
     // Pinecone Configuration
     PINECONE_API_KEY: process.env.PINECONE_API_KEY,
