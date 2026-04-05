@@ -53,6 +53,33 @@ const aiClient = {
         }
     },
 
+    /**
+     * Phân tích hàng loạt: gửi nhiều file lên server (field: 'files')
+     */
+    analyzeContractsBatch: async (fileList, signal) => {
+        try {
+            const formData = new FormData();
+            if (!fileList || fileList.length === 0) return null;
+            for (let i = 0; i < fileList.length; i++) {
+                formData.append('files', fileList[i]);
+            }
+
+            const response = await axiosInstance.post('/ai/analyze-contracts', formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+                signal,
+            });
+
+            return response.data;
+        } catch (error) {
+            if (axios.isCancel(error)) {
+                console.warn("Bạn đã hủy yêu cầu thẩm định hàng loạt.");
+                return null;
+            }
+            console.error("Lỗi khi gọi API Phân tích hàng loạt:", error);
+            throw error;
+        }
+    },
+
     /*
      *  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
      */

@@ -13,5 +13,7 @@ const upload = multer({
 // router.post('/analyze-contract', upload.single('contract'), aiController.analyzeContract);
 
 router.post('/analyze-contract', upload.single('file'), aiController.analyzeContract);
+// Endpoint mới: phân tích nhiều hợp đồng cùng lúc (field: 'files')
+router.post('/analyze-contracts', upload.array('files', 20), aiController.analyzeContractsBatch);
 router.post('/generate-form', aiController.generateForm);
 module.exports = router;

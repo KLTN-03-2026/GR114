@@ -1,7 +1,25 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+﻿//const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
+
+// Helper: Decode double-encoded UTF-8 filenames (fix garbled Vietnamese)
+function decodeFilename(str) {
+    if (!str) return str;
+    try {
+        // If string is double-encoded (UTF-8 → Latin1), fix it
+        const fixed = Buffer.from(str, 'latin1').toString('utf8');
+        // If the result still has garbage, try direct buffer conversion
+        if (fixed.includes('�') || fixed.includes('Ã') || fixed.includes('Ä')) {
+            return Buffer.from(str).toString('utf8');
+        }
+        return fixed;
+    } catch (e) {
+        return str;
+    }
+}
+
 
 // Cấu hình Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -29,7 +47,7 @@ exports.analyzeContract = async (req, res) => {
         let contractText = "";
 
         // 2. Phân loại và Đọc file
-        console.log(`🕵️‍♂️ Đang đọc file: ${req.file.originalname} (${mimeType})`);
+        console.log(`🕵️‍♂️ Đang đọc file: ${decodeFilename(req.file.originalname)} (${mimeType})`);
 
         if (mimeType === 'application/pdf') {
             const dataBuffer = fs.readFileSync(filePath);
@@ -90,6 +108,105 @@ exports.analyzeContract = async (req, res) => {
             fs.unlinkSync(filePath);
             console.log("🧹 Đã dọn dẹp file tạm.");
         }
+    }
+};
+
+// ==============================================================================
+// API PHÂN TÍCH HÀNG LOẠT NHIỀU HỢP ĐỒNG
+// ==============================================================================
+exports.analyzeContractsBatch = async (req, res) => {
+    try {
+        const files = req.files || [];
+        if (!files || files.length === 0) {
+            return res.status(400).json({ error: "Vui lòng upload ít nhất 1 file!" });
+        }
+
+        const results = [];
+
+        for (const f of files) {
+            let filePath = f.path;
+            const mimeType = f.mimetype;
+            let contractText = "";
+
+            try {
+                console.log(`🕵️‍♂️ Đang đọc file (batch): ${decodeFilename(f.originalname)} (${mimeType})`);
+
+                if (mimeType === 'application/pdf') {
+                    const dataBuffer = fs.readFileSync(filePath);
+                    const data = await pdf(dataBuffer);
+                    contractText = data.text;
+                } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    const r = await mammoth.extractRawText({ path: filePath });
+                    contractText = r.value;
+                } else {
+                    contractText = fs.readFileSync(filePath, 'utf-8');
+                }
+
+                if (!contractText || contractText.trim().length < 10) {
+                    results.push({ fileName: f.originalname, error: "Không đọc được nội dung file hoặc file quá ngắn." });
+                    continue;
+                }
+
+                const prompt = `
+            Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON.
+            (File name: ${f.originalname})
+            Nội dung hợp đồng:
+            """${contractText}"""
+
+            Yêu cầu output JSON format:
+            {
+                "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
+                "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
+                "risks": [
+                    {
+                        "clause": "Trích dẫn điều khoản gốc gây rủi ro",
+                        "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
+                        "severity": "High" | "Medium" | "Low"
+                    }
+                ],
+                "recommendation": "Lời khuyên tổng quan của luật sư"
+            }
+            `;
+
+                const result = await model.generateContent(prompt);
+                const responseText = result.response.text();
+
+                let analysisResult = null;
+                try {
+                    analysisResult = JSON.parse(responseText);
+                } catch (parseErr) {
+                    analysisResult = { parseError: true, raw: responseText };
+                }
+
+                results.push({ fileName: decodeFilename(f.originalname), analysis: analysisResult });
+
+            } catch (errFile) {
+                console.error('❌ Lỗi xử lý file batch:', decodeFilename(f.originalname), errFile);
+                results.push({ fileName: decodeFilename(f.originalname), error: errFile.message || 'Lỗi xử lý file.' });
+            } finally {
+                if (filePath && fs.existsSync(filePath)) {
+                    try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+                }
+            }
+        }
+
+        // Tính toán báo cáo tổng hợp
+        const total = results.length;
+        const valid = results.filter(r => r.analysis && (typeof (r.analysis.risk_score ?? r.analysis.riskScore) === 'number'));
+        const sum = valid.reduce((s, r) => s + ((r.analysis.risk_score ?? r.analysis.riskScore) || 0), 0);
+        const average = total > 0 ? Math.round(sum / total) : 0;
+
+        const aggregated = {
+            average_risk_score: average,
+            total_files: total,
+            summary: `Phân tích ${total} file - điểm an toàn trung bình ${average}`
+        };
+
+        res.json({ aggregated, files: results });
+
+    } catch (error) {
+        console.error('❌ Lỗi batch analyze:', error);
+        res.status(500).json({ error: 'Lỗi hệ thống khi phân tích batch: ' + (error.message || error) });
     }
 };
 
