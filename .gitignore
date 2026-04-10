@@ -1,0 +1,60 @@
+# ========================
+# 1. GLOBAL (TOÀN DỰ ÁN)
+# ========================
+# Chặn tất cả thư mục thư viện (cực nặng)
+node_modules/
+**/node_modules/
+
+# Chặn tất cả file cấu hình chứa Key/Pass (CỰC QUAN TRỌNG)
+.env
+.env.*
+!.env.example
+
+# Chặn file hệ thống & IDE (File rác)
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+npm-debug.log*
+
+# ========================
+# 2. FRONTEND (React/Vite)
+# ========================
+# Chặn file build ra (không cần đẩy lên git)
+/Frontend/dist/
+/Frontend/build/
+/Frontend/coverage/
+
+# ========================
+# 3. BACKEND (Laravel)
+# ========================
+/vendor/
+/backend/vendor/
+/backend/storage/*.key
+/backend/public/hot
+/backend/public/storage
+/backend/phpunit.xml
+.phpunit.result.cache
+
+# ========================
+# 4. AI ENGINE (Node.js)
+# ========================
+# Đảm bảo chặn file .env của AI (nơi chứa Key Google)
+/AI_Engine/.env
+/AI_Engine/node_modules/
+# ========================
+# ========================
+# 5. DATA EXCLUSION (Dữ liệu không cần thiết)
+# ========================
+# Chặn các file dữ liệu cũ/tạm thời (đã chuyển sang dùng Pinecone Cloud)
+AI_Engine/src/data/vector_store.json
+AI_Engine/src/data/legal_data_old.json
+# Chặn file trạng thái nạp luật (Tránh xung đột khi chạy máy khác)
+/AI_Engine/data/law_status_map.json
+/AI_Engine/scripts/progress.txt
+/AI_Engine/scripts/upload.log
+
+# Chặn file cấu hình nếu Duy lỡ để Key cứng trong đó (Vô cùng quan trọng!)
+/AI_Engine/config.js
+/AI_Engine/src/config/config.js

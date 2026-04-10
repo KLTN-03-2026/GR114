@@ -1,0 +1,27 @@
+# 🤖 LegAI Engine (Microservice)
+
+Đây là module xử lý AI riêng biệt, chạy độc lập với Backend Laravel.
+
+## 🛠️ Cài đặt & Chạy
+1. Vào thư mục: `cd AI_Engine`
+2. Cài thư viện: `npm install`
+3. Chạy Server: `npm start`
+
+**LƯU Ý QUAN TRỌNG VỀ PORT:**
+- Module này chạy **Port 8000** (để khớp với config cũ).
+- **Backend Laravel** bắt buộc phải chạy sang port khác (ví dụ 8081) để tránh xung đột.
+  > Lệnh chạy Laravel: `php artisan serve --port=8081`
+  
+## 🔌 Thông tin Server
+- **Port:** 8000
+- **URL:** http://localhost:8000
+
+## 📡 API Endpoints
+1. **Chatbot:** `POST /api/chat/ask`
+   **Body (JSON):**
+  ```json
+  {
+    "question": "Ly hôn đơn phương cần giấy tờ gì?"
+  }
+2. **Phân tích Hợp đồng:** `POST /api/ai/analyze-contract`
+   - Body: Form-data `{ "contract": (File PDF/Word) }`
