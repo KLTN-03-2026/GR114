@@ -37,7 +37,11 @@ exports.register = async (req, res) => {
     const token = jwt.sign(
       { id: user.Id, email: user.Email, role: user.Role },
       JWT_SECRET,
+<<<<<<< HEAD
       { expiresIn: '24h' }
+=======
+      { expiresIn: '30d' } // Token có thời hạn 30 ngày cho phép người dùng đăng nhập lại mà không cần đăng ký mới trong khoảng thời gian này
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     );
 
     return res.json({ success: true, user, token });
@@ -64,7 +68,11 @@ exports.login = async (req, res) => {
     const request = pool.request();
     request.input('Email', sql.NVarChar(320), email);
 
+<<<<<<< HEAD
     const selectSql = `SELECT Id, Email, Password, FullName, Role FROM dbo.Users WHERE Email = @Email`;
+=======
+    const selectSql = `SELECT Id, Email, Password, FullName, Role, Status FROM dbo.Users WHERE Email = @Email`;
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     const result = await request.query(selectSql);
 
     if (!result.recordset || result.recordset.length === 0) {
@@ -73,6 +81,14 @@ exports.login = async (req, res) => {
 
     const userRow = result.recordset[0];
 
+<<<<<<< HEAD
+=======
+    // 0. Kiểm tra tài khoản có đang bị khóa không
+    if (userRow.Status && String(userRow.Status).toLowerCase() === 'banned') {
+      return res.status(403).json({ success: false, message: 'Tài khoản của bạn đã bị quản trị viên khóa' });
+    }
+
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     // 1. Kiểm tra mật khẩu băm
     const isMatch = await bcrypt.compare(password, userRow.Password);
     if (!isMatch) {
@@ -90,7 +106,12 @@ exports.login = async (req, res) => {
       id: userRow.Id,
       email: userRow.Email,
       role: userRow.Role,
+<<<<<<< HEAD
       fullName: userRow.FullName
+=======
+      fullName: userRow.FullName,
+      status: userRow.Status || 'Active'
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     };
 
     return res.json({ success: true, user, token });

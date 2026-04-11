@@ -22,7 +22,11 @@ export default function LegalDocuments() {
 
   // State quản lý dữ liệu và phân trang
   const [documents, setDocuments] = useState([]);
+<<<<<<< HEAD
   const [categories, setCategories] = useState([]); // Sidebar động
+=======
+  const [categories, setCategories] = useState([]);
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -40,7 +44,11 @@ export default function LegalDocuments() {
         const apiStats = res.data.stats;
         // Danh sách hiển thị ưu tiên (Duy có thể thêm full 20 cái vào đây)
         const menuItems = ["Bộ máy hành chính", "Tài chính nhà nước", "Bất động sản", "Thương mại", "Dân sự", "Hình sự", "Lao động - Tiền lương", "Giao thông - Vận tải"];
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         const updated = [
           { name: "Xem tất cả", count: res.data.total },
           ...menuItems.map(name => ({
@@ -59,16 +67,27 @@ export default function LegalDocuments() {
     setLoading(true);
     try {
       let categoryToSend = filter.category === "Tất cả" || filter.category === "Xem tất cả" ? "" : filter.category;
+<<<<<<< HEAD
       
+=======
+
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
       const res = await axios.get("http://localhost:8000/api/documents", {
         params: {
           search: filter.keyword.trim(),
           category: categoryToSend,
           page: page,
+<<<<<<< HEAD
           limit: 10 // Fix 10 văn bản/trang như Duy yêu cầu
         }
       });
 
+=======
+          limit: 10
+        }
+      });
+      console.log("🔍 Check Data từ API Tra Cứu:", res.data);
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
       if (res.data.success) {
         setDocuments(res.data.data);
         setPagination({
@@ -120,11 +139,18 @@ export default function LegalDocuments() {
             <button
               key={idx}
               onClick={() => setFilter({ ...filter, category: cat.name })}
+<<<<<<< HEAD
               className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all group ${
                 filter.category === cat.name || (cat.name === "Xem tất cả" && filter.category === "Tất cả")
                   ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
                   : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
               }`}
+=======
+              className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all group ${filter.category === cat.name || (cat.name === "Xem tất cả" && filter.category === "Tất cả")
+                  ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+                  : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                }`}
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
             >
               <span className="text-[18px] font-medium tracking-tight truncate">{cat.name}</span>
               <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 rounded text-gray-600 group-hover:text-cyan-500">({cat.count})</span>
@@ -135,7 +161,11 @@ export default function LegalDocuments() {
 
       {/* ================= MAIN CONTENT ================= */}
       <main className="flex-1 px-4 py-8 md:px-10 max-w-5xl mx-auto w-full">
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         {/* Search Bar */}
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-5 mb-8 shadow-2xl">
           <div className="flex gap-3">
@@ -155,8 +185,13 @@ export default function LegalDocuments() {
 
         {/* Results Header */}
         <div className="flex items-center justify-between mb-6 px-2">
+<<<<<<< HEAD
            <h3 className="text-sm font-bold text-gray-400 tracking-widest uppercase">Thư viện pháp luật số</h3>
            <p className="text-xs text-gray-500">Tìm thấy <span className="text-cyan-500 font-bold">{pagination.totalDocs}</span> văn bản</p>
+=======
+          <h3 className="text-sm font-bold text-gray-400 tracking-widest uppercase">Thư viện pháp luật số</h3>
+          <p className="text-xs text-gray-500">Tìm thấy <span className="text-cyan-500 font-bold">{pagination.totalDocs}</span> văn bản</p>
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         </div>
 
         {/* Documents List */}
@@ -191,7 +226,11 @@ export default function LegalDocuments() {
         {/* ================= PAGINATION UI ================= */}
         {!loading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 pb-10">
+<<<<<<< HEAD
             <button 
+=======
+            <button
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
               className="p-2 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-20 transition-all"
@@ -208,11 +247,18 @@ export default function LegalDocuments() {
                   <button
                     key={p}
                     onClick={() => handlePageChange(p)}
+<<<<<<< HEAD
                     className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all ${
                       pagination.currentPage === p 
                       ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/40" 
                       : "border-white/10 text-gray-500 hover:bg-white/5"
                     }`}
+=======
+                    className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all ${pagination.currentPage === p
+                        ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/40"
+                        : "border-white/10 text-gray-500 hover:bg-white/5"
+                      }`}
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                   >
                     {p}
                   </button>
@@ -222,7 +268,11 @@ export default function LegalDocuments() {
               return null;
             })}
 
+<<<<<<< HEAD
             <button 
+=======
+            <button
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === pagination.totalPages}
               className="p-2 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-20 transition-all"

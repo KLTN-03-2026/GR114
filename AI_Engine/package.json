@@ -28,6 +28,10 @@
     "pdf-parse": "^1.1.4"
   },
   "devDependencies": {
+<<<<<<< HEAD
     "nodemon": "^3.1.14"
+=======
+    "nodemon": "^3.1.0"
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
   }
 }

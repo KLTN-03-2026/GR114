@@ -7,6 +7,7 @@ export default function App() {
          <AppRouter />
       </div>
    );
+
 }
 
 // tuan //
@@ -32,4 +33,5 @@ const CourseItem = (props) => {
     </div>
   </div>
   )
+
 }

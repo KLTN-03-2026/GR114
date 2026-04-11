@@ -43,6 +43,7 @@ exports.getAllDocuments = async (req, res) => {
       SELECT Id, Title, DocumentNumber, IssueYear, Status, Category 
       FROM LegalDocuments 
       ${whereClause}
+<<<<<<< HEAD
       ORDER BY IssueYear DESC
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
     `;
@@ -52,6 +53,17 @@ exports.getAllDocuments = async (req, res) => {
     // 5. Trả về format chuẩn để Frontend nhảy số trang
     return res.json({ 
       success: true, 
+=======
+      ORDER BY IssueYear DESC, CreatedAt DESC
+      OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
+    `;
+
+    const result = await request.query(sqlText);
+
+    // 5. Trả về format chuẩn để Frontend nhảy số trang
+    return res.json({
+      success: true,
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
       data: result.recordset,
       totalDocs: totalDocs,
       totalPages: Math.ceil(totalDocs / limit),
@@ -80,6 +92,7 @@ exports.getDocumentStats = async (req, res) => {
       FROM LegalDocuments 
       GROUP BY Category
     `);
+<<<<<<< HEAD
     
     // Lấy tổng số lượng
     const totalResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments`);
@@ -88,6 +101,16 @@ exports.getDocumentStats = async (req, res) => {
       success: true, 
       stats: statsResult.recordset,
       total: totalResult.recordset[0].Total 
+=======
+
+    // Lấy tổng số lượng
+    const totalResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments`);
+
+    return res.json({
+      success: true,
+      stats: statsResult.recordset,
+      total: totalResult.recordset[0].Total
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -102,10 +125,17 @@ exports.getDocumentDetail = async (req, res) => {
     const { id } = req.params;
     await poolConnect;
     const request = pool.request();
+<<<<<<< HEAD
     
     request.input('Id', sql.NVarChar(100), id);
     const result = await request.query(`SELECT * FROM dbo.LegalDocuments WHERE Id = @Id`);
     
+=======
+
+    request.input('Id', sql.NVarChar(100), id);
+    const result = await request.query(`SELECT * FROM dbo.LegalDocuments WHERE Id = @Id`);
+
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     if (!result.recordset[0]) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy văn bản' });
     }

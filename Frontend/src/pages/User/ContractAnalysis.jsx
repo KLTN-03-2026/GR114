@@ -96,12 +96,21 @@ export default function ContractAnalysis() {
                 content: JSON.stringify(result) // Lưu toàn bộ JSON kết quả
             };
 
+<<<<<<< HEAD
            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
             headers: {
                 // Đưa thẻ cho ông bảo vệ check ở đây
                 Authorization: `Bearer ${token}` 
             }
         });
+=======
+            const res = await axios.post('http://localhost:8000/api/history/save', payload, {
+                headers: {
+                    // Đưa thẻ cho ông bảo vệ check ở đây
+                    Authorization: `Bearer ${token}`
+                }
+            });
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 
             if (res.data.success) {
                 setIsSaved(true);
@@ -142,14 +151,20 @@ export default function ContractAnalysis() {
 
             <div className="max-w-7xl mx-auto px-6 w-full flex flex-col md:flex-row items-center md:items-start pt-10 pb-20 gap-10">
                 {/* 🟢 CỘT TRÁI */}
+<<<<<<< HEAD
                 <div className="w-full md:w-5/12 relative z-10">
                     <div className="text-left mb-10">
+=======
+                <div className="w-full md:w-5/12 relative z-10 flex flex-col gap-6">
+                    <div className="text-left mb-6">
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                         <h1 className="text-4xl lg:text-6xl font-black uppercase text-white drop-shadow-[0_4px_20px_rgba(0,0,0,1)] leading-none">
                             Thẩm định <br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Hợp đồng AI</span>
                         </h1>
                     </div>
 
+<<<<<<< HEAD
                     {/* Ô UPLOAD MÀU GỐC CỦA DUY */}
                     <div className="bg-[#0a0a0a]/80 rounded-[2.3rem] p-8 text-center text-white border border-white/10 shadow-2xl backdrop-blur-xl">
                         {!result ? (
@@ -190,12 +205,61 @@ export default function ContractAnalysis() {
                             </>
                         ) : (
                             <button onClick={() => { setFile(null); setResult(null); }} className="w-full py-4 rounded-2xl border border-white/10 text-cyan-400 font-bold flex items-center justify-center gap-2">
+=======
+                    {/* KHU VỰC CHỌN FILE (LUÔN LUÔN HIỆN) */}
+                    <div className="bg-[#0a0a0a]/80 rounded-[2.3rem] p-8 text-center text-white border border-white/10 shadow-2xl backdrop-blur-xl">
+                        <label className="block w-full cursor-pointer group mb-6">
+                            <input type="file" className="hidden" onChange={handleFileChange} />
+                            <div className={`border-2 border-dashed rounded-3xl p-8 transition-all ${file ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/20 hover:border-cyan-400/50'}`}>
+                                {file ? (
+                                    <div className="text-cyan-400 flex flex-col items-center gap-2">
+                                        <DocumentTextIcon className="w-10 h-10 animate-pulse" />
+                                        <span className="text-white font-bold break-all">{file.name}</span>
+                                    </div>
+                                ) : (
+                                    <div className="text-gray-400 flex flex-col items-center">
+                                        <CloudArrowUpIcon className="w-8 h-8 mb-2" />
+                                        <span className="text-[10px] uppercase tracking-widest font-bold">Tải lên tài liệu (.pdf, .doc)</span>
+                                    </div>
+                                )}
+                            </div>
+                        </label>
+
+                        {/* LOGIC NÚT BẤM DƯỚI KHUNG UPLOAD */}
+                        {!isAnalyzing && !result && (
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={!file}
+                                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-3 tracking-widest transition-all ${!file ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-[1.02]'}`}
+                            >
+                                <ShieldCheckIcon className="w-5 h-5" /> THẨM ĐỊNH NGAY
+                            </button>
+                        )}
+
+                        {isAnalyzing && (
+                            <button
+                                onClick={handleCancelAnalysis}
+                                className="w-full py-4 rounded-2xl font-black text-white bg-red-500/10 border border-red-500/40 hover:bg-red-500/20 flex items-center justify-center gap-3 tracking-widest transition-all animate-pulse"
+                            >
+                                <StopIcon className="w-6 h-6 text-red-500" /> DỪNG PHÂN TÍCH
+                            </button>
+                        )}
+
+                        {result && !isAnalyzing && (
+                            <button
+                                onClick={() => { setFile(null); setResult(null); }}
+                                className="w-full py-4 rounded-2xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all"
+                            >
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                                 <ArrowPathIcon className="w-5 h-5" /> PHÂN TÍCH VĂN BẢN KHÁC
                             </button>
                         )}
                     </div>
                 </div>
+<<<<<<< HEAD
 
+=======
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 {/* 🔵 CỘT PHẢI - SẠCH SẼ, CHỈ HIỆN KẾT QUẢ */}
                 <div className="w-full md:w-7/12 relative min-h-[400px]">
                     {result && !isAnalyzing && (

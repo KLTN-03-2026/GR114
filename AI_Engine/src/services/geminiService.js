@@ -8,19 +8,34 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 require('dotenv').config();
 
 const API_KEY = process.env.GEMINI_API_KEY;
+<<<<<<< HEAD
+=======
+console.log("🔑 Đang sử dụng Key (4 ký tự cuối):", API_KEY?.slice(-4));
+console.log("🔍 KEY ĐANG CHẠY:", API_KEY.substring(0, 5) + "..." + API_KEY.slice(-5));
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 if (!API_KEY) {
     console.error("❌ LỖI: Chưa cấu hình GEMINI_API_KEY trong file .env!");
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
+<<<<<<< HEAD
 // ✅ ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
 const AVAILABLE_MODELS = [
     "gemini-1.5-flash"         // Model tối ưu chi phí
+=======
+//  ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
+const AVAILABLE_MODELS = [
+    "gemini-3.1-flash-lite-preview", // Ưu tiên 1: Bản 3.1 Lite cực nhanh, ít tốn quota
+    "gemini-flash-latest",           // Ưu tiên 2: Luôn trỏ về bản Flash ổn định nhất
+    "gemini-2.0-flash-lite",         // Ưu tiên 3: Bản rút gọn của 2.0, dễ lách 429
+    "gemini-3.1-pro-preview"
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 ];
 
 // Hàm bổ trợ để lấy model và xử lý lỗi Quota/404
 async function getActiveModel(prompt) {
+<<<<<<< HEAD
     for (const modelName of AVAILABLE_MODELS) {
         try {
             const model = genAI.getGenerativeModel({
@@ -40,6 +55,105 @@ async function getActiveModel(prompt) {
 
 // ==============================================================================
 // 1. HÀM CHAT (ĐÃ NÂNG CẤP TRÍ NHỚ)
+=======
+    // 1. Cắt ngắn prompt để né lỗi 429 (Quota Token)
+    const shortPrompt = typeof prompt === 'string' ? prompt.substring(0, 5000) : prompt;
+
+    for (const modelName of AVAILABLE_MODELS) {
+        try {
+            console.log(`📡 Đang gọi: ${modelName}...`);
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+
+                generationConfig: { responseMimeType: "application/json" }
+            });
+            const result = await model.generateContent(shortPrompt);
+            const response = await result.response;
+            return response.text();
+        } catch (error) {
+            const msg = error.message;
+            console.error(`❌ ${modelName} báo lỗi:`, msg);
+
+            // Nếu dính 429 (Hết lượt/Spam), bắt buộc phải nghỉ lâu
+            if (msg.includes("429") || msg.includes("quota")) {
+                console.warn("🚫 Dính giới hạn Quota. Nghỉ 10s rồi thử con tiếp theo...");
+                await new Promise(r => setTimeout(r, 10000)); // Nghỉ 10s
+                continue;
+            }
+
+            // Nếu dính 404, thử con tiếp theo luôn
+            if (msg.includes("404")) continue;
+
+            // Nếu lỗi khác, nghỉ 2s
+            await new Promise(r => setTimeout(r, 2000));
+        }
+    }
+    throw new Error("Không thể kết nối với bất kỳ AI Model nào.");
+}
+// AI_Engine/src/services/geminiService.js
+
+async function classifyCategoryWithAI(title) {
+    const VALID_CATEGORIES = [
+        "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
+        "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
+        "Thuế - Phí - Lệ phí", "Giao thông - Vận tải", "Lao động - Tiền lương", "Công nghệ thông tin",
+        "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
+        "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
+    ];
+
+    const upperTitle = title.toUpperCase();
+
+    try {
+        const prompt = `Bạn là chuyên gia pháp luật. Phân loại tiêu đề văn bản sau vào MỘT nhóm duy nhất từ danh sách: [${VALID_CATEGORIES.join(", ")}]. 
+        Tiêu đề: "${title}"
+        Chỉ trả về đúng tên nhóm trong danh sách, không giải thích gì thêm.`;
+
+        // 🟢 Cố gắng gọi AI trước (tận dụng vòng lặp model Duy đã viết)
+        const response = await getActiveModel(prompt);
+        const categoryResult = response.trim().replace(/[".*]/g, "");
+
+        if (VALID_CATEGORIES.includes(categoryResult)) {
+            return categoryResult;
+        }
+
+        // Nếu AI trả về kết quả không nằm trong list, ném lỗi để xuống phần Keyword xử lý
+        throw new Error("AI trả về danh mục không hợp lệ");
+
+    } catch (aiErr) {
+        // 🆘 PHẦN CỨU HỘ: Khi AI sập hoặc bận, Logic Keyword của Duy sẽ ra tay
+        console.warn("🆘 AI đang bận, kích hoạt bộ lọc Keyword 'Siêu cấp' của Duy để cứu dữ liệu...");
+
+        if (upperTitle.includes("HÌNH SỰ") || upperTitle.includes("TỘI PHẠM")) return "Hình sự";
+        if (upperTitle.includes("DÂN SỰ") || upperTitle.includes("HÔN NHÂN") || upperTitle.includes("GIA ĐÌNH") || upperTitle.includes("THỪA KẾ")) return "Dân sự";
+        if (upperTitle.includes("ĐẤT ĐAI") || upperTitle.includes("NHÀ Ở") || upperTitle.includes("BẤT ĐỘNG SẢN")) return "Bất động sản";
+        if (upperTitle.includes("LAO ĐỘNG") || upperTitle.includes("TIỀN LƯƠNG") || upperTitle.includes("BHXH") || upperTitle.includes("BẢO HIỂM XÃ HỘI")) return "Lao động - Tiền lương";
+        if (upperTitle.includes("THUẾ") || upperTitle.includes("PHÍ") || upperTitle.includes("LỆ PHÍ")) return "Thuế - Phí - Lệ phí";
+        if (upperTitle.includes("XUẤT KHẨU") || upperTitle.includes("NHẬP KHẨU") || upperTitle.includes("HẢI QUAN")) return "Xuất nhập khẩu";
+        if (upperTitle.includes("DOANH NGHIỆP") || upperTitle.includes("CÔNG TY") || upperTitle.includes("HỢP TÁC XÃ")) return "Doanh nghiệp";
+        if (upperTitle.includes("ĐẦU TƯ") || upperTitle.includes("DỰ ÁN") || upperTitle.includes("ĐẤU THẦU")) return "Đầu tư";
+        if (upperTitle.includes("TÀI CHÍNH") || upperTitle.includes("NGÂN SÁCH") || upperTitle.includes("KẾ TOÁN") || upperTitle.includes("KIỂM TOÁN")) return "Tài chính nhà nước";
+        if (upperTitle.includes("GIAO THÔNG") || upperTitle.includes("VẬN TẢI") || upperTitle.includes("XE CỘ") || upperTitle.includes("BẰNG LÁI")) return "Giao thông - Vận tải";
+        if (upperTitle.includes("NGÂN HÀNG") || upperTitle.includes("TÍN DỤNG") || upperTitle.includes("LÃI SUẤT") || upperTitle.includes("TIỀN TỆ")) return "Tiền tệ - Ngân hàng";
+        if (upperTitle.includes("SỞ HỮU TRÍ TUỆ") || upperTitle.includes("BẢN QUYỀN") || upperTitle.includes("TÁC GIẢ") || upperTitle.includes("NHÃN HIỆU")) return "Sở hữu trí tuệ";
+        if (upperTitle.includes("Y TẾ") || upperTitle.includes("SỨC KHỎE") || upperTitle.includes("BỆNH VIỆN") || upperTitle.includes("DƯỢC")) return "Thể thao - Y tế";
+        if (upperTitle.includes("GIÁO DỤC") || upperTitle.includes("HỌC SINH") || upperTitle.includes("SINH VIÊN") || upperTitle.includes("TRƯỜNG HỌC") || upperTitle.includes("ĐÀO TẠO")) return "Giáo dục";
+        if (upperTitle.includes("CÔNG NGHỆ THÔNG TIN") || upperTitle.includes("CNTT") || upperTitle.includes("INTERNET") || upperTitle.includes("MẠNG") || upperTitle.includes("DỮ LIỆU")) return "Công nghệ thông tin";
+        if (upperTitle.includes("HÀNH CHÍNH") || upperTitle.includes("CÁN BỘ") || upperTitle.includes("CÔNG CHỨC") || upperTitle.includes("UBND") || upperTitle.includes("HĐND")) return "Bộ máy hành chính";
+        if (upperTitle.includes("MÔI TRƯỜNG") || upperTitle.includes("TÀI NGUYÊN") || upperTitle.includes("RÁC THẢI") || upperTitle.includes("KHOÁNG SẢN")) return "Tài nguyên - Môi trường";
+        if (upperTitle.includes("XÂY DỰNG") || upperTitle.includes("ĐÔ THỊ") || upperTitle.includes("CÔNG TRÌNH") || upperTitle.includes("KIẾN TRÚC")) return "Xây dựng - Đô thị";
+        if (upperTitle.includes("THƯƠNG MẠI") || upperTitle.includes("KINH DOANH") || upperTitle.includes("CẠNH TRANH")) return "Thương mại";
+        if (upperTitle.includes("CHỨNG KHOÁN") || upperTitle.includes("CỔ PHIẾU")) return "Chứng khoán";
+        if (upperTitle.includes("TỐ TỤNG") || upperTitle.includes("XỬ PHẠT") || upperTitle.includes("THI HÀNH ÁN")) return "Thủ tục Tố tụng";
+        if (upperTitle.includes("BẢO HIỂM")) return "Bảo hiểm";
+        if (upperTitle.includes("VĂN HÓA") || upperTitle.includes("XÃ HỘI") || upperTitle.includes("DU LỊCH") || upperTitle.includes("THỂ THAO")) return "Văn hóa - Xã hội";
+
+        return "Lĩnh vực khác"; // Phao cứu sinh cuối cùng
+    }
+}
+
+// ==============================================================================
+// 1. HÀM CHAT 
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 // ==============================================================================
 async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = []) {
     try {
@@ -219,5 +333,72 @@ ${historyText}
     }
 }
 
+<<<<<<< HEAD
 
 module.exports = { generateAnswerWithGemini, analyzeContractWithGemini, generateFormWithGemini };
+=======
+/**
+ * Chức năng: Lập kế hoạch thực thi pháp lý dựa trên yêu cầu và hồ sơ
+ * @param {string} userPrompt - Yêu cầu từ người dùng
+ * @param {string} context - Nội dung bóc tách từ hồ sơ (PDF/Word)
+ * 
+ */
+async function generatePlanWithGemini(userPrompt, context) {
+    try {
+        const systemInstruction = `
+            Bạn là một Legal Architect cao cấp của hệ thống LegAI.
+            NHIỆM VỤ: Lập lộ trình thực thi pháp lý DỰA TRÊN NỘI DUNG VĂN BẢN PHÁP LUẬT ĐƯỢC CUNG CẤP.
+
+            QUY TẮC XỬ LÝ DỮ LIỆU:
+            1. Trích xuất các ĐIỀU, KHOẢN cụ thể để đưa vào 'title'.
+            2. 'assignee' phải xác định dựa trên thực tế pháp lý.
+            3. 'deadline' phải dựa trên thời hạn tố tụng thực tế.
+            
+            YÊU CẦU ĐỘ CHI TIẾT:
+            - Phải chia ít nhất 8-12 bước nếu vụ việc phức tạp.
+            - Trường 'description' phải chứa ít nhất 2-3 câu mô tả chi tiết quy trình và giấy tờ cần thiết.
+
+            CẤU TRÚC JSON BẮT BUỘC:
+            [
+              {
+                "id": number,
+                "phase": "Tên giai đoạn",
+                "title": "Tên công việc",
+                "description": "Mô tả chi tiết và trích dẫn luật...", 
+                "assignee": "Chủ thể thực hiện",
+                "deadline": "Thời hạn"
+              }
+            ]
+            - CẤM: Không giải thích, không Markdown, không "Chào bạn".
+        `;
+
+        const finalPrompt = `
+            HỒ SƠ PHÁP LÝ: "${context.substring(0, 10000)}" 
+            YÊU CẦU: "${userPrompt}"
+            Hãy lập lộ trình chi tiết.
+        `;
+
+        let text = await getActiveModel(systemInstruction + finalPrompt);
+
+        // Làm sạch và Parse
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        const planArray = JSON.parse(text);
+        return planArray;
+
+    } catch (error) {
+        console.error("❌ Lỗi tại generatePlanWithGemini:", error);
+        // VỊ TRÍ CẦN THÊM: Trả về mặc định có description để UI không bị trống
+        return [
+            {
+                id: 1,
+                phase: 'Thông báo',
+                title: 'Không thể khởi tạo lộ trình',
+                description: 'Hệ thống AI đang bận hoặc hồ sơ quá phức tạp. Vui lòng thử lại với yêu cầu ngắn gọn hơn.',
+                assignee: 'Hệ thống',
+                deadline: 'N/A'
+            }
+        ];
+    }
+}
+module.exports = { generateAnswerWithGemini, analyzeContractWithGemini, generateFormWithGemini, classifyCategoryWithAI, generatePlanWithGemini };
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c

@@ -8,6 +8,10 @@ export default function AuthPage() {
 
     const [mode, setMode] = useState("LOGIN"); // LOGIN | REGISTER | FORGOT
     const [loading, setLoading] = useState(false);
+<<<<<<< HEAD
+=======
+    const [errorMessage, setErrorMessage] = useState("");
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     const [form, setForm] = useState({
         fullName: "",
         email: "",
@@ -33,6 +37,7 @@ export default function AuthPage() {
         try {
             if (mode === "LOGIN") {
                 const { email, password } = form;
+<<<<<<< HEAD
                 if (!email || !password) return alert("Vui lòng nhập email và mật khẩu");
                 const res = await axios.post(`${backendBase}/auth/login`, { email, password });
                 if (res.data?.user) {
@@ -53,6 +58,37 @@ export default function AuthPage() {
                     window.location.href = "/";
                 } else {
                     alert(res.data?.message || "Đăng nhập thất bại");
+=======
+                if (!email || !password) {
+                    setErrorMessage("Vui lòng nhập email và mật khẩu");
+                    return;
+                }
+                const res = await axios.post(`${backendBase}/auth/login`, { email, password });
+                if (res.data?.user) {
+                    setErrorMessage("");
+                    // 1. Lưu Token (Ưu tiên lấy từ đúng key Backend trả về)
+                    const token = res.data.token || res.data.accessToken;
+                    if (token) localStorage.setItem("accessToken", token);
+
+                    // 2. Lưu thông tin User & Trạng thái
+                    localStorage.setItem("user", JSON.stringify(res.data.user));
+                    localStorage.setItem("isLoggedIn", "true");
+
+                    // 3. Lưu Role 
+                    const userRole = res.data.user.role; // Giả sử Backend trả về 'ADMIN' hoặc 'USER'
+                    if (userRole) localStorage.setItem("userRole", userRole);
+
+                    alert(`Chào mừng ${res.data.user.fullName || 'bạn'} quay trở lại!`);
+
+                    //  4. ĐIỀU HƯỚNG THEO ROLE
+                    if (userRole === "ADMIN") {
+                        window.location.href = "/admin/dashboard";
+                    } else {
+                        window.location.href = "/"; // Trang chủ cho User thường
+                    }
+                } else {
+                    setErrorMessage(res.data?.message || "Đăng nhập thất bại");
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 }
             } else if (mode === "REGISTER") {
                 const { fullName, email, password } = form;
@@ -94,7 +130,12 @@ export default function AuthPage() {
             }
         } catch (err) {
             console.error(err);
+<<<<<<< HEAD
             alert(err.response?.data?.message || err.message || "Lỗi server");
+=======
+            const message = err.response?.data?.message || err.message || "Lỗi server";
+            setErrorMessage(message);
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         } finally {
             setLoading(false);
         }
@@ -183,6 +224,14 @@ export default function AuthPage() {
                         </div>
                     )}
 
+<<<<<<< HEAD
+=======
+                    {errorMessage && mode === 'LOGIN' && (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 text-red-200 px-4 py-3 text-sm font-medium mb-3">
+                            {errorMessage}
+                        </div>
+                    )}
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                     <div className="pt-4">
                         <button
                             type="submit"

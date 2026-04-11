@@ -14,8 +14,13 @@ const aiClient = {
      */
     ask: async (question, signal) => {
         try {
+<<<<<<< HEAD
             const response = await axiosInstance.post('/chat/ask', 
                 { question }, 
+=======
+            const response = await axiosInstance.post('/chat/ask',
+                { question },
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 { signal }
             );
             return response.data;
@@ -39,14 +44,22 @@ const aiClient = {
 
             const response = await axiosInstance.post('/ai/analyze-contract', formData, {
                 headers: { "Content-Type": "multipart/form-data" },
+<<<<<<< HEAD
                 signal, 
+=======
+                signal,
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
             });
 
             return response.data;
         } catch (error) {
             if (axios.isCancel(error)) {
                 console.warn("Bạn đã hủy yêu cầu thẩm định hợp đồng.");
+<<<<<<< HEAD
                 return null; 
+=======
+                return null;
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
             }
             console.error("Lỗi khi gọi API Phân tích:", error);
             throw error;
@@ -60,7 +73,11 @@ const aiClient = {
         try {
             // Route bên Node.js  (VD: /ai/generate-form)
             const response = await axiosInstance.post('/ai/generate-form', payload, { signal });
+<<<<<<< HEAD
             return response; 
+=======
+            return response;
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         } catch (error) {
             if (axios.isCancel(error)) {
                 console.log("Form generation canceled");
@@ -69,6 +86,34 @@ const aiClient = {
                 throw error;
             }
         }
+<<<<<<< HEAD
+=======
+    },
+
+    /**
+     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
+     * Gửi cả text và file lên Backend
+     */
+    /**
+     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
+     * Gửi cả text và file lên Backend
+     */
+    // Thêm tham số config vào để nhận Header từ UI truyền xuống
+    generatePlan: async (formData, config = {}) => { 
+        try {
+            const response = await axiosInstance.post('/ai/generate-plan', formData, {
+                ...config, // Giải nén config (bao gồm headers) vào đây
+                headers: { 
+                    ...config.headers, // Giữ các header truyền từ ngoài vào
+                    "Content-Type": "multipart/form-data" 
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Lỗi khi gọi API Generate Plan:", error);
+            throw error;
+        }
+>>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     }
 };
 
