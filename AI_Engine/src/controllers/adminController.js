@@ -8,6 +8,7 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 const geminiService = require('../services/geminiService');
+const crawlService = require('../services/crawlService');
 // Khởi tạo Pinecone client
 const pc = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY
@@ -65,6 +66,28 @@ const getSystemStats = async (req, res) => {
             message: 'Lỗi server khi lấy thống kê hệ thống',
             error: error.message
         });
+    }
+};
+
+// ============================================================
+// HÀM LẤY CẤU HÌNH HỆ THỐNG
+// ============================================================
+
+const getSystemSettings = async () => {
+    try {
+        // LẤY CẢ pool VÀ poolConnect ra (giống hệt crawlService.js)
+        const { pool, poolConnect } = require('../config/db');
+
+        // Chờ kết nối mở xong
+        await poolConnect;
+
+        // Dùng biến pool đã lấy ở trên để query
+        const result = await pool.request().query(`SELECT TOP 1 * FROM dbo.SystemSettings ORDER BY UpdatedAt DESC`);
+
+        return result.recordset[0];
+    } catch (error) {
+        console.error("Lỗi SQL khi lấy Settings:", error.message);
+        return null;
     }
 };
 
@@ -315,9 +338,8 @@ const getRecentHistory = async (req, res) => {
         await poolConnect;
 
         const result = await pool.request().query(`
-            SELECT TOP (5) Id, Title, SourceUrl, CreatedAt
+            SELECT TOP (10) Id, Title, DocumentNumber, Category, SourceUrl, Status, CreatedAt
             FROM dbo.LegalDocuments
-            WHERE SourceUrl IS NOT NULL
             ORDER BY CreatedAt DESC
         `);
 
@@ -365,138 +387,9 @@ const runManualCrawl = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Chỉ được thu thập tối đa 5 URLs mỗi lần' });
         }
 
-        const apiKey = process.env.CRAWLKIT_API_KEY ? process.env.CRAWLKIT_API_KEY.trim() : null;
-        if (!apiKey) throw new Error('Thiếu CRAWLKIT_API_KEY trong .env');
+        const result = await crawlService.processLegalCrawl(urls, null);
 
-        await poolConnect;
-
-        let successCount = 0;
-        let duplicateCount = 0;
-        let failCount = 0;
-
-        for (const rawUrl of urls) {
-            const url = String(rawUrl || '').trim();
-            if (!url) continue;
-
-            try {
-                // --- BƯỚC 1: CHECK TRÙNG ---
-                const checkRequest = pool.request();
-                checkRequest.input('url', sql.NVarChar(1000), url);
-                const checkResult = await checkRequest.query('SELECT Id FROM dbo.LegalDocuments WHERE SourceUrl = @url');
-
-                if (checkResult.recordset.length > 0) {
-                    duplicateCount++;
-                    continue;
-                }
-
-                // --- BƯỚC 2: CÀO DATA ---
-                const crawlResponse = await axios.post('https://api.crawlkit.org/v1/scrape',
-                    { url },
-                    { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 30000 }
-                );
-
-                const rawData = crawlResponse.data.data;
-                const content = rawData.transcript || rawData.content || rawData.text || "";
-                const title = rawData.title || `[LegAI Crawled] ${url.substring(0, 50)}...`;
-
-                if (!content) { failCount++; continue; }
-
-                // --- BƯỚC 3: MAPPING & AI CLASSIFY ---
-                let documentNumber = rawData.documentNumber || null;
-                let issueYear = rawData.issueYear || null;
-                const upperContent = content.toUpperCase();
-
-                // 1. Regex bóc tách số hiệu
-                if (!documentNumber) {
-                    const docNumMatch = content.match(/(?:Số hiệu|Số)\s*:?\s*([0-9\/\.\-]+[A-ZĐ\-]+)/i);
-                    const backupMatch = content.match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})/);
-
-                    if (docNumMatch) documentNumber = docNumMatch[1].trim();
-                    else if (backupMatch) documentNumber = backupMatch[1].trim();
-                    else if (upperContent.includes("DỰ THẢO")) documentNumber = "Văn bản Dự thảo";
-                }
-
-                // 2. Bóc tách năm ban hành
-                if (!issueYear) {
-                    const yearInNo = documentNumber ? documentNumber.match(/\d{4}/) : null;
-                    const yearInContent = content.match(/năm\s+(20\d{2})/i);
-                    issueYear = yearInNo ? parseInt(yearInNo[0]) : (yearInContent ? parseInt(yearInContent[1]) : new Date().getFullYear());
-                }
-
-                // 3. AI PHÂN LOẠI (Tích hợp từ classifyData.js)
-                const VALID_CATEGORIES = [
-                    "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
-                    "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
-                    "Thuế - Phí - Lệ phí", "Giao thông - Vận tải", "Lao động - Tiền lương", "Công nghệ thông tin",
-                    "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
-                    "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
-                ];
-
-                let finalCategory = "Lĩnh vực khác";
-                try {
-                    finalCategory = await geminiService.classifyCategoryWithAI(title);
-                } catch (aiErr) {
-                    console.error(" AI Phân loại thất bại, dùng mặc định:", aiErr.message);
-                }
-                const normalizeLawContent = (text) => {
-                    if (!text) return "";
-                    return text
-                        .replace(/\n\s*\n/g, '\n\n') // Thu gọn nhiều dòng trống thành 2 dòng
-                        .replace(/([a-z])\n([a-z])/g, '$1 $2') // Nối các từ bị xuống dòng giữa chừng
-                        .replace(/QU\s+ỐC HỘI/g, 'QUỐC HỘI') // Fix lỗi tách từ đặc thù
-                        .replace(/CỘNG\s+HÒA/g, 'CỘNG HÒA')
-                        .trim();
-                };
-
-
-                // --- BƯỚC 4: INSERT VÀO DB ---
-                const documentId = `DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                const insertRequest = pool.request();
-
-                insertRequest.input('id', sql.NVarChar(100), documentId);
-                insertRequest.input('title', sql.NVarChar(500), title);
-                insertRequest.input('documentNumber', sql.NVarChar(100), documentNumber || "Chưa xác định");
-                insertRequest.input('issueYear', sql.Int, issueYear);
-                insertRequest.input('status', sql.NVarChar(100), 'Còn hiệu lực');
-                insertRequest.input('category', sql.NVarChar(100), finalCategory); // Dùng kết quả từ AI
-                insertRequest.input('content', sql.NVarChar(sql.MAX), extremeDeepClean(content));
-                insertRequest.input('sourceUrl', sql.NVarChar(1000), url);
-
-                await insertRequest.query(`
-                    INSERT INTO dbo.LegalDocuments 
-                    (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, SourceUrl, CreatedAt)
-                    VALUES 
-                    (@id, @title, @documentNumber, @issueYear, @status, @category, @content, @sourceUrl, GETDATE());
-                `);
-
-                successCount++;
-                console.log(`✅ Đã cào & phân loại: ${title.substring(0, 30)}... -> ${finalCategory}`);
-                await wait(1000); // Nghỉ 1 giây giữa các URL để tránh quá tải API
-
-            } catch (urlError) {
-                console.error(`❌ Lỗi URL ${url}:`, urlError.message);
-                failCount++;
-            }
-        }
-
-        // --- BƯỚC 5: UPDATE THỐNG KÊ (AIFEATUREUSAGE) ---
-        if (successCount > 0) {
-            const usageRequest = pool.request();
-            usageRequest.input('fName', sql.NVarChar(100), 'CRAWL_DATA');
-            usageRequest.input('inc', sql.Int, successCount);
-
-            const updateRes = await usageRequest.query(`
-                UPDATE dbo.AIFeatureUsage SET UsageCount = UsageCount + @inc, LastUsed = SYSUTCDATETIME()
-                WHERE FeatureName = @fName;
-            `);
-
-            if (updateRes.rowsAffected[0] === 0) {
-                await pool.request().input('fn', sql.NVarChar(100), 'CRAWL_DATA').input('ic', sql.Int, successCount)
-                    .query(`INSERT INTO dbo.AIFeatureUsage (FeatureName, UsageCount) VALUES (@fn, @ic);`);
-            }
-        }
-
-        res.json({ success: true, successCount, duplicateCount, failCount });
+        res.json({ success: true, ...result });
 
     } catch (error) {
         console.error('❌ [CRITICAL ERROR]', error);
@@ -700,8 +593,26 @@ const getFeatureUsage = async (req, res) => {
     }
 };
 
+const getCrawlerStatus = async (req, res) => {
+    try {
+        const status = crawlService.getCrawlStatus();
+        res.json({
+            success: true,
+            data: status
+        });
+    } catch (error) {
+        console.error('❌ [GET CRAWLER STATUS ERROR]', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy trạng thái crawler',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getSystemStats,
+    getSystemSettings,
     crawlAndSyncLaw,
     runManualCrawl,
     getRecentHistory,
@@ -711,5 +622,6 @@ module.exports = {
     createUser,
     toggleUserBan,
     getAiHistory,
-    getFeatureUsage
+    getFeatureUsage,
+    getCrawlerStatus
 };

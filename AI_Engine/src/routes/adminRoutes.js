@@ -14,6 +14,7 @@ router.get('/crawler/history', isAdmin, adminController.getRecentHistory);
 // Routes cho Crawler Settings
 router.get('/crawler/settings', isAdmin, adminController.getCrawlerSettings);
 router.put('/crawler/settings', isAdmin, adminController.updateCrawlerSettings);
+router.get('/crawler/status', isAdmin, adminController.getCrawlerStatus);
 
 //  các route khác cho admin ở đây
 router.get('/users', isAdmin, adminController.getAllUsers);

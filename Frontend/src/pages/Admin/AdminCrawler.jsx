@@ -40,7 +40,7 @@ export default function AdminCrawler() {
             if (res.data.success) {
                 const data = res.data.data;
 
-                // 🛡️ Bọc lót cả hoa lẫn thường (SQL hay trả về viết hoa chữ cái đầu)
+                //  Bọc lót cả hoa lẫn thường (SQL hay trả về viết hoa chữ cái đầu)
                 setIsAutoCrawlEnabled(data.IsAutoCrawlOn ?? data.isAutoCrawlOn ?? false);
                 setCrawlTime(data.CrawlTime || data.crawlTime || '02:00');
                 setUrls(data.TargetUrls || data.targetUrls || '');
@@ -140,7 +140,7 @@ export default function AdminCrawler() {
     return (
         <div className="min-h-screen bg-[#050505] text-gray-300 font-sans selection:bg-cyan-500/30 flex">
 
-            {/* 🟢 SIDEBAR NAV - Đã đồng bộ */}
+            {/*  SIDEBAR NAV  */}
             <aside className="w-64 border-r border-white/5 bg-black/40 flex flex-col p-6 gap-8">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
@@ -305,7 +305,8 @@ export default function AdminCrawler() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {history.length === 0 ? (
+                                {/* Thêm history?.length để chặn lỗi null */}
+                                {!history || history.length === 0 ? (
                                     <tr>
                                         <td colSpan="6" className="py-8 text-center text-gray-500">
                                             Chưa có dữ liệu thu thập nào
@@ -314,7 +315,6 @@ export default function AdminCrawler() {
                                 ) : (
                                     history.map((item) => {
                                         const createdAt = new Date(item.CreatedAt);
-                                        // Sử dụng toLocaleTimeString để tự động lấy múi giờ trình duyệt (Việt Nam)
                                         const timeStr = createdAt.getHours().toString().padStart(2, '0') + ":" +
                                             createdAt.getMinutes().toString().padStart(2, '0');
 
@@ -332,7 +332,7 @@ export default function AdminCrawler() {
                                                     {item.Id}
                                                 </td>
 
-                                                {/* 2. SỐ HIỆU - Đã sửa: Hiện data thật, không để dấu "-" cứng nữa */}
+                                                {/* 2. SỐ HIỆU */}
                                                 <td className="py-4 px-4 text-sm text-cyan-400 font-bold">
                                                     {item.DocumentNumber && item.DocumentNumber !== "-"
                                                         ? item.DocumentNumber
@@ -352,11 +352,11 @@ export default function AdminCrawler() {
                                                         rel="noopener noreferrer"
                                                         className="text-cyan-400/80 hover:text-cyan-400 underline decoration-cyan-400/20"
                                                     >
-                                                        {item.SourceUrl.length > 25 ? item.SourceUrl.substring(0, 25) + '...' : item.SourceUrl}
+                                                        {item.SourceUrl && item.SourceUrl.length > 25 ? item.SourceUrl.substring(0, 25) + '...' : item.SourceUrl}
                                                     </a>
                                                 </td>
 
-                                                {/* 5. THỜI GIAN - Duy nhớ thêm lại cột này nhé! */}
+                                                {/* 5. THỜI GIAN */}
                                                 <td className="py-4 px-4 text-sm text-gray-400 font-mono">
                                                     {timeStr}
                                                 </td>

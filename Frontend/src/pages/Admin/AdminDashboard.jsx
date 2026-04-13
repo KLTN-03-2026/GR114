@@ -2,17 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import {
   LayoutDashboard,
   Database,
   Users,
   Activity,
-  Search,
-  RefreshCw,
   Settings,
   ShieldCheck,
   Zap,
-  MoreVertical
+  MoreVertical,
+  Clock,
+  Play,
+  Pause,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 
 const backendBase = 'http://localhost:8000/api';
@@ -32,8 +36,6 @@ export default function AdminDashboard() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [aiRecords, setAiRecords] = useState(0);
 
-  const [isAutoCrawl, setIsAutoCrawl] = useState(true);
-  const [activeStage, setActiveStage] = useState(2);
   const [vectorQuota, setVectorQuota] = useState({ used: 0, total: 0 });
   const [loading, setLoading] = useState(false);
 
@@ -44,9 +46,13 @@ export default function AdminDashboard() {
   const [historyItems, setHistoryItems] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const [crawlUrl, setCrawlUrl] = useState('');
-  const [isCrawling, setIsCrawling] = useState(false);
-  const [crawlStep, setCrawlStep] = useState(0);
+  const [crawlerStatus, setCrawlerStatus] = useState({
+    isRunning: false,
+    current: 0,
+    total: 0,
+    title: '',
+    step: ''
+  });
 
 
 
@@ -114,39 +120,81 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleTimeframeChange = (value) => {
-    setTimeframe(value);
-  };
-
-  const handleCrawlSync = async () => {
-    if (!crawlUrl.trim()) {
-      alert('Vui lòng nhập URL hợp lệ!');
-      return;
-    }
-    setIsCrawling(true);
-    setCrawlStep(1);
-
+  const fetchCrawlerStatus = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await axios.post(`${backendBase}/admin/crawl`, { url: crawlUrl }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.get(`${backendBase}/admin/crawler/status`, { headers });
       if (res.data.success) {
-        setCrawlStep(2);
-        setTimeout(() => setCrawlStep(3), 400);
-        setTimeout(() => {
-          alert(`Thành công! ${res.data.message}`);
-          setIsCrawling(false);
-          setCrawlStep(0);
-          setCrawlUrl('');
-        }, 1000);
+        setCrawlerStatus(res.data.data);
       }
     } catch (error) {
-      console.error('Lỗi đồng bộ:', error);
-      alert(`Có lỗi: ${error.response?.data?.message || error.message}`);
-      setCrawlStep(0);
-      setIsCrawling(false);
+      console.error('Lỗi khi lấy trạng thái crawler:', error);
     }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    const socketUrl = 'http://localhost:8000'; // Cùng URL với backend, sẽ tự chọn ws:// hoặc wss://
+    const newSocket = io(socketUrl, {
+      auth: { token }
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Socket connected', newSocket.id);
+    });
+
+    newSocket.on('crawl-progress', (data) => {
+      setCrawlerStatus(data);
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.error('Socket connect error', err);
+    });
+
+    fetchCrawlerStatus();
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  const getStepIcon = (step) => {
+    switch (step) {
+      case 'check':
+        return <Clock size={18} className="text-blue-400" />;
+      case 'crawl':
+        return <Play size={18} className="text-yellow-400 animate-spin" />;
+      case 'classify':
+        return <Clock size={18} className="text-purple-400" />;
+      case 'sql':
+        return <Play size={18} className="text-green-400" />;
+      case 'pinecone':
+        return <CheckCircle2 size={18} className="text-cyan-400" />;
+      case 'done':
+        return <CheckCircle2 size={18} className="text-green-400" />;
+      case 'error':
+        return <XCircle size={18} className="text-red-400" />;
+      default:
+        return <Clock size={18} className="text-gray-400" />;
+    }
+  };
+
+  const getStatusText = () => {
+    if (crawlerStatus.isRunning) {
+      return `Đang tự động thu thập: ${crawlerStatus.current}/${crawlerStatus.total} văn bản`;
+    }
+
+   
+    if (crawlerStatus.step === 'done') {
+      return 'Hoàn thành thu thập';
+    }
+
+    return 'Hệ thống đang nghỉ';
+  };
+
+  const handleTimeframeChange = (value) => {
+    setTimeframe(value);
   };
 
   const maxUsageCount = useMemo(() => {
@@ -154,6 +202,23 @@ export default function AdminDashboard() {
   }, [featureUsage]);
 
   const glassClass = 'bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden';
+  const cardClass = 'bg-white/5 rounded-3xl border border-white/10 p-5 shadow-xl';
+
+  const stepOrder = (() => {
+    switch (crawlerStatus.step) {
+      case 'check':
+      case 'crawl':
+      case 'classify':
+        return 1;
+      case 'sql':
+        return 2;
+      case 'pinecone':
+      case 'done':
+        return 3;
+      default:
+        return 0;
+    }
+  })();
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-300 font-sans selection:bg-cyan-500/30 flex">
@@ -282,8 +347,8 @@ export default function AdminDashboard() {
                               // Cột 0 lượt sẽ cao 2% để chừa lại vạch xám mỏng
                               animate={{ height: item.UsageCount === 0 ? '2%' : `${percent}%` }}
                               className={`w-full rounded-t-md relative transition-all duration-300 ${item.UsageCount === 0
-                                  ? 'bg-white/5' // Màu xám chìm cho cột 0
-                                  : 'bg-gradient-to-t from-indigo-500/40 to-cyan-400/80 group-hover:from-indigo-500/60 group-hover:to-cyan-300'
+                                ? 'bg-white/5' // Màu xám chìm cho cột 0
+                                : 'bg-gradient-to-t from-indigo-500/40 to-cyan-400/80 group-hover:from-indigo-500/60 group-hover:to-cyan-300'
                                 }`}
                             >
                               {/* Tooltip */}
@@ -306,52 +371,68 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* --- MODULE 2: CRAWL PIPELINE (Đã chuyển lên đây cho khít, thu gọn chiều cao, giãn chiều ngang) --- */}
-            <div className={`${glassClass} rounded-[2.5rem] p-6 flex flex-col gap-4`}>
-              {/* Hàng 1: Tiêu đề & Thanh Input (Nới rộng 100%) */}
-              <div>
-                <h3 className="text-xs font-black text-white uppercase tracking-widest mb-3">Thu thập dữ liệu luật</h3>
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                  <input
-                    type="text"
-                    placeholder="Nhập URL Pháp lý cần thu thập..."
-                    value={crawlUrl}
-                    onChange={(e) => setCrawlUrl(e.target.value)}
-                    disabled={isCrawling}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-10 pr-36 text-xs outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <button
-                    onClick={handleCrawlSync}
-                    disabled={isCrawling}
-                    className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-gradient-to-r from-cyan-600 to-indigo-600 text-white text-[10px] font-black uppercase rounded-xl hover:scale-105 transition-transform flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    <RefreshCw size={12} className={isCrawling ? "animate-spin" : "animate-spin-slow"} />
-                    {isCrawling ? 'Đang đồng bộ' : 'Thu thập'}
-                  </button>
+            <div className={`${glassClass} rounded-[2.5rem] p-6 flex flex-col gap-5`}>
+              <div className={`${cardClass}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Giám sát Pipeline</span>
+                    <div className="mt-3 text-2xl font-black text-white tracking-tight">{getStatusText()}</div>
+                    {crawlerStatus.title && <p className="mt-2 text-sm text-gray-400">{crawlerStatus.title}</p>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-3xl bg-cyan-500/10 flex items-center justify-center">
+                      <Clock size={20} className="text-cyan-400" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-widest text-gray-400">Tiến độ</div>
+                      <div className="text-sm font-semibold text-white">{crawlerStatus.current}/{crawlerStatus.total}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Hàng 2: Nút Lên Lịch & Các Icon Tiến Trình (Gộp chung thành 1 khối gọn gàng) */}
-              <div className="flex flex-col gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                {/* Công tắc Lên lịch */}
+              <div className={`${cardClass}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nhiệm vụ Lên lịch: Tự động Thu thập (00:00)</span>
-                  <button
-                    onClick={() => setIsAutoCrawl(!isAutoCrawl)}
-                    className={`w-8 h-4 rounded-full relative transition-colors ${isAutoCrawl ? 'bg-cyan-500' : 'bg-gray-700'}`}
-                  >
-                    <motion.div animate={{ x: isAutoCrawl ? 16 : 2 }} className="absolute top-0.5 w-3 h-3 bg-white rounded-full" />
-                  </button>
-                </div>
+                  <PipelineStep
+                    icon={CloudArrowUpIcon}
+                    label="Thu thập"
+                    status={stepOrder === 0 ? 'pending' : stepOrder === 1 ? 'active' : 'complete'}
+                    active={stepOrder === 1}
+                  />
 
-                {/* Đường ống Icon (Đẩy xuống dưới chân) */}
-                <div className="flex items-center justify-between gap-2 w-full pt-2 border-t border-white/5">
-                  <PipelineStep icon={CloudArrowUpIcon} label="Đang Thu thập" status={crawlStep >= 1 ? 'complete' : 'pending'} active={crawlStep === 1} />
-                  <div className="h-px flex-1 bg-white/10 relative"><motion.div className="absolute inset-0 bg-cyan-500" initial={{ width: 0 }} animate={{ width: crawlStep >= 2 ? '100%' : '0%' }} /></div>
-                  <PipelineStep icon={Database} label="Phân tích SSMS" status={crawlStep === 2 ? 'active' : crawlStep > 2 ? 'complete' : 'pending'} active={crawlStep === 2} />
-                  <div className="h-px flex-1 bg-white/10 relative"><motion.div className="absolute inset-0 bg-cyan-500" initial={{ width: 0 }} animate={{ width: crawlStep >= 3 ? '100%' : '0%' }} /></div>
-                  <PipelineStep icon={Zap} label="Đồng bộ Pinecone" status={crawlStep === 3 ? 'active' : 'pending'} active={crawlStep === 3} />
+                  {/* THANH NỐI 1: TỪ THU THẬP -> SSMS */}
+                  <div className="relative flex-1 h-0.5 bg-white/10">
+                    <motion.div
+                      className="absolute left-0 top-0 h-full bg-cyan-500"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${Math.min(100, Math.max(0, ((stepOrder || 0) - 1) * 100))}%` }}
+                      transition={{ duration: 0.4 }}
+                    />
+                  </div>
+
+                  <PipelineStep
+                    icon={Database}
+                    label="Phân tích SSMS"
+                    status={stepOrder < 2 ? 'pending' : stepOrder === 2 ? 'active' : 'complete'}
+                    active={stepOrder === 2}
+                  />
+
+                  {/* THANH NỐI 2: TỪ SSMS -> PINECONE */}
+                  <div className="relative flex-1 h-0.5 bg-white/10">
+                    <motion.div
+                      className="absolute left-0 top-0 h-full bg-cyan-500"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${Math.min(100, Math.max(0, ((stepOrder || 0) - 2) * 100))}%` }}
+                      transition={{ duration: 0.4 }}
+                    />
+                  </div>
+
+                  <PipelineStep
+                    icon={Zap}
+                    label="Đồng bộ Pinecone"
+                    status={stepOrder < 3 ? 'pending' : stepOrder === 3 ? 'active' : 'complete'}
+                    active={stepOrder === 3}
+                  />
                 </div>
               </div>
             </div>
@@ -424,8 +505,8 @@ function PipelineStep({ icon: Icon, label, status, active }) {
 
       {/* Tăng hộp Icon từ w-8/h-8 lên w-10/h-10 */}
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500 ${status === 'complete' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' :
-          status === 'active' ? 'bg-cyan-500 border-cyan-400 text-white animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.5)]' :
-            'bg-white/5 border-white/10 text-gray-600'
+        status === 'active' ? 'bg-cyan-500 border-cyan-400 text-white animate-pulse shadow-[0_0_15px_rgba(6,182,212,0.5)]' :
+          'bg-white/5 border-white/10 text-gray-600'
         }`}>
         <Icon size={16} /> {/* Tăng size icon bên trong từ 14 lên 16 */}
       </div>
