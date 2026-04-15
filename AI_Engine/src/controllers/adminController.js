@@ -322,7 +322,7 @@ const crawlAndSyncLaw = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ [CRAWL ERROR]', error);
+        console.error(' [CRAWL ERROR]', error);
         res.status(500).json({
             success: false,
             message: 'Lỗi server khi thu thập & đồng bộ',

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const legalDataRoutes = require('./legalDataRoutes');
 const { isAdmin } = require('../middleware/authMiddleware');
 
 // Route lấy thống kê hệ thống - chỉ dành cho Admin
@@ -22,5 +23,7 @@ router.post('/users', isAdmin, adminController.createUser);
 router.put('/users/:id/ban', isAdmin, adminController.toggleUserBan);
 router.get('/feature-usage', isAdmin, adminController.getFeatureUsage);
 router.get('/history-analytics', isAdmin, adminController.getAiHistory);
+
+router.use('/legal-documents', legalDataRoutes);
 
 module.exports = router;
