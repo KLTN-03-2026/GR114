@@ -28,12 +28,12 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Import Routes
 const chatRoutes = require('./routes/chatRoutes'); // Cũ
 const aiRoutes = require('./routes/aiRoutes');     // Cũ
-const apiRoutes = require('./routes/apiRoutes');   // 🟢 MỚI: Route cho Auth & History
+const apiRoutes = require('./routes/apiRoutes');   // MỚI: Route cho Auth & History
 
 // 4. Mount Routes
 app.use('/api/chat', chatRoutes); // -> Chatbot
 app.use('/api/ai', aiRoutes);     // -> Phân tích HĐ
-app.use('/api', apiRoutes);       // 🟢 MỚI: -> /api/auth/login, /api/history...
+app.use('/api', apiRoutes);       // MỚI: /api/auth/login, /api/history...
 
 // 5. Test Route
 app.get('/', (req, res) => {

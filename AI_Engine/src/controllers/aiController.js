@@ -297,3 +297,128 @@ exports.generateForm = async (req, res) => {
         res.status(500).json({ error: "Lỗi hệ thống LegAI khi tạo Form" });
     }
 };
+
+// SO SÁNH HAI PHIÊN BẢN HỢP ĐỒNG
+exports.compareContracts = async (req, res) => {
+    let filePathA = null; // Khai báo biến để giữ đường dẫn file tạm thời A
+    let filePathB = null; 
+
+    try {
+        // 1. Kiểm tra xem có đủ 2 file gửi lên không
+        // req.files sẽ là một đối tượng khi dùng upload.fields
+        if (!req.files || !req.files['fileA'] || !req.files['fileB'] || req.files['fileA'].length === 0 || req.files['fileB'].length === 0) {
+            return res.status(400).json({ error: "Vui lòng upload cả hai file hợp đồng để so sánh!" });
+        }
+
+        const fileA = req.files['fileA'][0]; // Lấy đối tượng file A đầu tiên
+        const fileB = req.files['fileB'][0]; 
+
+        filePathA = fileA.path; // Lấy đường dẫn file tạm thời
+        filePathB = fileB.path; 
+
+        let contractTextA = "";
+        let contractTextB = "";
+
+        // Helper function để đọc nội dung file từ đường dẫn và mimeType
+        const readContractFile = async (path, mimeType) => {
+            if (mimeType === 'application/pdf') {
+                const dataBuffer = fs.readFileSync(path);
+                const data = await pdf(dataBuffer);
+                return data.text;
+            } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/msword') {
+                const result = await mammoth.extractRawText({ path: path });
+                return result.value;
+            } else { // text/plain hoặc các loại khác mà fs.readFileSync có thể xử lý
+                return fs.readFileSync(path, 'utf-8');
+            }
+        };
+
+        // 2. Đọc nội dung của cả hai file
+        console.log(`🕵️‍♂️ Đang đọc file A: ${decodeFilename(fileA.originalname)} (${fileA.mimetype})`);
+        contractTextA = await readContractFile(filePathA, fileA.mimetype);
+
+        console.log(`🕵️‍♂️ Đang đọc file B: ${decodeFilename(fileB.originalname)} (${fileB.mimetype})`);
+        contractTextB = await readContractFile(filePathB, fileB.mimetype);
+
+        // Kiểm tra nội dung file có đủ dài không
+        if (!contractTextA || contractTextA.trim().length < 50 || !contractTextB || contractTextB.trim().length < 50) {
+            return res.status(400).json({ error: "Không đọc được nội dung đầy đủ từ một hoặc cả hai file, hoặc file quá ngắn. Cần ít nhất 50 ký tự." });
+        }
+
+        // 3. Xây dựng Prompt cho Gemini
+        console.log("🤖 Đang gửi nội dung hai hợp đồng cho Gemini so sánh...");
+
+        const prompt = `
+        Bạn là một Luật sư AI chuyên nghiệp, có nhiệm vụ so sánh hai phiên bản của một hợp đồng và chỉ ra các điểm khác biệt.
+        Hãy chú ý đến các điều khoản, số liệu, thời gian, tên các bên, và bất kỳ thay đổi nào về ngôn ngữ hoặc cấu trúc.
+
+        Phiên bản Hợp đồng CŨ (A - Tên file: ${decodeFilename(fileA.originalname)}):
+        """
+        ${contractTextA}
+        """
+
+        Phiên bản Hợp đồng MỚI (B - Tên file: ${decodeFilename(fileB.originalname)}):
+        """
+        ${contractTextB}
+        """
+
+        Hãy phân tích và trả về kết quả dưới dạng JSON.
+        Các điểm khác biệt phải được chỉ rõ: THÊM MỚI, SỬA ĐỔI, hoặc BỊ XÓA.
+        Đối với "SỬA ĐỔI", cần cung cấp cả nội dung cũ và mới.
+        Cố gắng trích dẫn chính xác các đoạn văn bản liên quan để dễ dàng đối chiếu.
+
+        Yêu cầu output JSON format:
+        {
+            "overall_summary": "Tóm tắt ngắn gọn các điểm khác biệt chính và ý nghĩa của chúng (2-4 câu).",
+            "differences": [
+                {
+                    "type": "added" | "modified" | "removed", // Loại thay đổi
+                    "section_identifier": "Điều, khoản hoặc đoạn văn bản bị ảnh hưởng (ví dụ: 'Điều 3 Khoản 2', 'Đoạn mở đầu', 'Phụ lục 1'). Nếu không xác định được chính xác, có thể bỏ trống hoặc mô tả chung.",
+                    "old_text": "Đoạn văn bản từ phiên bản CŨ (chỉ nếu type là 'modified' hoặc 'removed'). Giới hạn 200-300 ký tự.",
+                    "new_text": "Đoạn văn bản từ phiên bản MỚI (chỉ nếu type là 'modified' hoặc 'added'). Giới hạn 200-300 ký tự.",
+                    "explanation": "Giải thích ngắn gọn (1-2 câu) về sự thay đổi này và tác động tiềm năng của nó theo pháp luật Việt Nam (nếu có thể)."
+                }
+            ],
+            "recommendations": "Lời khuyên tổng quan của luật sư về các thay đổi được phát hiện (ví dụ: cần xem xét kỹ điều khoản nào, có rủi ro pháp lý tiềm ẩn không)."
+        }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+
+        // Parse thẳng vì API đã đảm bảo format JSON
+        // Thêm một khối try-catch để bắt lỗi nếu Gemini trả về non-JSON bất ngờ
+        let comparisonResult;
+        try {
+            comparisonResult = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error("❌ Lỗi parse JSON từ Gemini:", parseError);
+            console.error("Phản hồi gốc từ Gemini:", responseText);
+            return res.status(500).json({ error: "Gemini trả về phản hồi không đúng định dạng JSON. Vui lòng thử lại.", rawResponse: responseText });
+        }
+        
+
+        console.log("✅ So sánh hợp đồng xong!");
+        res.json({
+            ...comparisonResult, // Bao gồm overall_summary, differences, recommendations từ Gemini
+            originalContractA: contractTextA, // Thêm nội dung gốc của file A
+            originalContractB: contractTextB, // Thêm nội dung gốc của file B
+            fileNameA: decodeFilename(fileA.originalname), // Thêm tên file A
+            fileNameB: decodeFilename(fileB.originalname)  // Thêm tên file B
+        });
+
+    } catch (error) {
+        console.error("❌ Lỗi hệ thống khi so sánh hợp đồng:", error);
+        res.status(500).json({ error: "Lỗi hệ thống khi so sánh hợp đồng. Chi tiết: " + error.message });
+    } finally {
+        // Luôn dọn dẹp các file tạm đã upload dù thành công hay thất bại
+        if (filePathA && fs.existsSync(filePathA)) {
+            fs.unlinkSync(filePathA);
+            console.log(`🧹 Đã dọn dẹp file tạm A: ${filePathA}`);
+        }
+        if (filePathB && fs.existsSync(filePathB)) {
+            fs.unlinkSync(filePathB);
+            console.log(`🧹 Đã dọn dẹp file tạm B: ${filePathB}`);
+        }
+    }
+};

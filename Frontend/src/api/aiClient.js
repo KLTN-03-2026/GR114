@@ -80,9 +80,30 @@ const aiClient = {
         }
     },
 
-    /*
-     *  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
-     */
+    // Chức năng mới: So sánh 2 phiên bản hợp đồng
+    compareContracts: async (fileA, fileB, signal) => {
+        try {
+            const formData = new FormData();
+            formData.append('fileA', fileA); // Tên trường 'fileA'
+            formData.append('fileB', fileB); // Tên trường 'fileB'
+
+            const response = await axiosInstance.post('/ai/compare-contracts', formData, { // Endpoint mới
+                headers: { "Content-Type": "multipart/form-data" },
+                signal,
+            });
+
+            return response.data;
+        } catch (error) {
+            if (axios.isCancel(error)) {
+                console.warn("Bạn đã hủy yêu cầu so sánh hợp đồng.");
+                return null;
+            }
+            console.error("Lỗi khi gọi API So sánh hợp đồng:", error);
+            throw error;
+        }
+    },
+
+    //  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
     generateForm: async (payload, signal) => {
         try {
             // Route bên Node.js  (VD: /ai/generate-form)

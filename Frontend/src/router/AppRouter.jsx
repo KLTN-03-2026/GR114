@@ -4,6 +4,7 @@ import MainLayout from "../layouts/MainLayout";
 //  (Pages)
 import Home from "../pages/User/Home";
 import ContractAnalysis from "../pages/User/ContractAnalysis";
+import ContractComparison from "../pages/User/ContractComparison";
 import EditLegalRecord from "../pages/User/EditLegalRecord";
 import About from "../pages/User/About";
 import Contact from "../pages/User/Contact";
@@ -34,6 +35,7 @@ export default function AppRouter() {
                 
                 {/* === NHÓM DỊCH VỤ === */}
                 <Route path="/contract-analysis" element={<ContractAnalysis />} />
+                <Route path="/contract-comparison" element={<ContractComparison />} /> 
                 <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
 
 
@@ -52,7 +54,6 @@ export default function AppRouter() {
                 <Route path="/van-ban-phap-luat" element={<LegalDocuments />} />
                 <Route path="/van-ban/chi-tiet/:id" element={<DocumentViewDetail />} />
                
-
                 {/* 404 - Redirect về Home */}
                 {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
             </Routes>

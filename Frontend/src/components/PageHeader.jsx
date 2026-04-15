@@ -13,7 +13,8 @@ import {
     DocumentPlusIcon,     // Icon cho Biểu mẫu
     PresentationChartLineIcon, // Icon cho Kế hoạch
     ChevronDownIcon,      // Icon mũi tên xuống
-    SparklesIcon
+    SparklesIcon,
+    ScaleIcon             // Icon này cho So sánh
 } from "@heroicons/react/24/outline";
 
 import logo from "../assets/icons/logo.png";
@@ -125,6 +126,16 @@ export default function PageHeader() {
                                                         <p className="text-xs text-gray-400 leading-tight">Trích xuất lộ trình & Slide báo cáo.</p>
                                                     </div>
                                                 </Link>
+
+                                                {/* So sánh Hợp đồng AI */}
+                                                <Link to="/contract-comparison" className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors group">
+                                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20"><ScaleIcon className="w-5 h-5" /></div>
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">So sánh Hợp đồng AI</h4>
+                                                        <p className="text-xs text-gray-400 leading-tight">Chỉ ra điểm khác biệt giữa 2 phiên bản.</p>
+                                                    </div>
+                                                </Link>
+
                                             </div>
 
                                             {/* CỘT PHẢI: HIGHLIGHTS */}
