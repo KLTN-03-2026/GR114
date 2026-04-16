@@ -8,92 +8,24 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 require('dotenv').config();
 
 const API_KEY = process.env.GEMINI_API_KEY;
-<<<<<<< HEAD
-=======
 console.log("🔑 Đang sử dụng Key (4 ký tự cuối):", API_KEY?.slice(-4));
 console.log("🔍 KEY ĐANG CHẠY:", API_KEY.substring(0, 5) + "..." + API_KEY.slice(-5));
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 if (!API_KEY) {
     console.error("❌ LỖI: Chưa cấu hình GEMINI_API_KEY trong file .env!");
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-<<<<<<< HEAD
-// ✅ ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
-const AVAILABLE_MODELS = [
-    "gemini-1.5-flash"         // Model tối ưu chi phí
-=======
 //  ĐÃ SỬA: Danh sách các model xịn nhất của bạn, loại bỏ các model cũ gây lỗi 404
 const AVAILABLE_MODELS = [
     "gemini-3.1-flash-lite-preview", // Ưu tiên 1: Bản 3.1 Lite cực nhanh, ít tốn quota
     "gemini-flash-latest",           // Ưu tiên 2: Luôn trỏ về bản Flash ổn định nhất
     "gemini-2.0-flash-lite",         // Ưu tiên 3: Bản rút gọn của 2.0, dễ lách 429
     "gemini-3.1-pro-preview"
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 ];
 
 // Hàm bổ trợ để lấy model và xử lý lỗi Quota/404
 async function getActiveModel(prompt) {
-<<<<<<< HEAD
-    for (const modelName of AVAILABLE_MODELS) {
-        try {
-            const model = genAI.getGenerativeModel({
-                model: modelName,
-                // Chatbot cần sáng tạo một chút nên để temperature 0.3 là đẹp
-                generationConfig: { temperature: 0.3, topP: 0.8, topK: 40 }
-            });
-            const result = await model.generateContent(prompt);
-            return result.response.text();
-        } catch (error) {
-            console.warn(`⚠️ Model ${modelName} gặp sự cố. Đang chuyển sang dự phòng...`);
-            continue;
-        }
-    }
-    throw new Error("Tất cả các Model đều đang bận hoặc hết hạn mức.");
-}
-
-// Hàm tạo khoảng nghỉ (delay)
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function getActiveModel(prompt) {
-    let lastError = null;
-    
-    for (const modelName of AVAILABLE_MODELS) {
-        // Thử lại tối đa 2 lần cho mỗi model nếu gặp lỗi quá tải
-        for (let attempt = 1; attempt <= 2; attempt++) {
-            try {
-                const model = genAI.getGenerativeModel({
-                    model: modelName,
-                    generationConfig: { temperature: 0.3, topP: 0.8, topK: 40 }
-                });
-                
-                const result = await model.generateContent(prompt);
-                return result.response.text();
-
-            } catch (error) {
-                lastError = error;
-                // Nếu lỗi là 503 (quá tải) hoặc 429 (quá giới hạn request)
-                if (error.message.includes("503") || error.message.includes("429")) {
-                    console.warn(`⚠️ Model ${modelName} đang bận (Lần thử ${attempt}). Đang nghỉ và thử lại...`);
-                    // Nghỉ 2 giây ở lần thử 1, 5 giây ở lần thử 2 trước khi đổi model
-                    await sleep(attempt * 2500); 
-                    continue; 
-                }
-                
-                // Nếu lỗi khác (ví dụ model không tồn tại), bỏ qua và đổi model ngay
-                console.error(`❌ Lỗi model ${modelName}:`, error.message);
-                break; 
-            }
-        }
-    }
-    throw new Error("Tất cả các Model đều đang bận. Vui lòng đợi 30 giây rồi thử lại.");
-}
-
-
-// ==============================================================================
-// 1. HÀM CHAT (ĐÃ NÂNG CẤP TRÍ NHỚ)
-=======
     // 1. Cắt ngắn prompt để né lỗi 429 (Quota Token)
     const shortPrompt = typeof prompt === 'string' ? prompt.substring(0, 5000) : prompt;
 
@@ -191,7 +123,6 @@ async function classifyCategoryWithAI(title) {
 
 // ==============================================================================
 // 1. HÀM CHAT 
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 // ==============================================================================
 async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = []) {
     try {
@@ -376,10 +307,6 @@ ${historyText}
     }
 }
 
-<<<<<<< HEAD
-
-module.exports = { generateAnswerWithGemini, analyzeContractWithGemini, generateFormWithGemini };
-=======
 /**
  * Chức năng: Lập kế hoạch thực thi pháp lý dựa trên yêu cầu và hồ sơ
  * @param {string} userPrompt - Yêu cầu từ người dùng
@@ -444,4 +371,3 @@ async function generatePlanWithGemini(userPrompt, context) {
     }
 }
 module.exports = { generateAnswerWithGemini, analyzeContractWithGemini, generateFormWithGemini, classifyCategoryWithAI, generatePlanWithGemini };
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
