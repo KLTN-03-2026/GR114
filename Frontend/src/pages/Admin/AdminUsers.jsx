@@ -1,17 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { LayoutDashboard, Database, Users, Activity, Search, RefreshCw, Settings, ShieldCheck, Zap, MoreVertical, Plus } from 'lucide-react';
-
+import { LayoutDashboard, Database,Scale, Users, Activity, Search, RefreshCw, Settings, ShieldCheck, Zap, MoreVertical, Plus } from 'lucide-react';
+import AdminSidebar from '../../components/AdminSidebar';
 const backendBase = 'http://localhost:8000/api';
-const navigationItems = [
-    { key: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, path: '/admin/dashboard' },
-    { key: 'users', label: 'Quản lý Người dùng', icon: Users, path: '/admin/users' },
-    { key: 'crawl', icon: Database, label: 'Trình thu thập', path: '/admin/crawl' },
-
-    { key: 'history', icon: Activity, label: 'Lịch sử AI', path: '/admin/history' },
-    { key: 'settings', icon: Settings, label: 'Cài đặt', path: '/admin/settings' },
-];
 
 export default function AdminUsers() {
     const navigate = useNavigate();
@@ -117,32 +109,10 @@ export default function AdminUsers() {
 
     return (
         <div className="min-h-screen bg-[#050505] text-gray-300 font-sans selection:bg-cyan-500/30 flex">
-            <aside className="w-64 border-r border-white/5 bg-black/40 flex flex-col p-6 gap-8">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                        <ShieldCheck className="text-white w-6 h-6" />
-                    </div>
-                    <span className="font-black text-xl tracking-tighter text-white">LEGAI <span className="text-cyan-400">HUB</span></span>
-                </div>
+            {/* --- SIDEBAR ADMIN --- */}
+            <AdminSidebar />
 
-                <nav className="flex flex-col gap-2">
-                    {navigationItems.map((item) => {
-                        const active = item.path === location.pathname;
-                        const Icon = item.icon;
-                        return (
-                            <button
-                                key={item.key}
-                                onClick={() => navigate(item.path)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'hover:bg-white/5 hover:text-white'}`}
-                            >
-                                <Icon size={18} />
-                                <span className="text-xs font-bold uppercase tracking-widest">{item.label}</span>
-                            </button>
-                        );
-                    })}
-                </nav>
-            </aside>
-
+            {/* --- NỘI DUNG CHÍNH --- */}
             <main className="flex-1 p-8 overflow-y-auto custom-scrollbar">
                 <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
                     <div>

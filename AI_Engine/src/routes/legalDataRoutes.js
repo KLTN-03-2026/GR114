@@ -8,5 +8,5 @@ router.post('/', isAdmin, legalDataController.createLegalDocument);
 router.put('/:id', isAdmin, legalDataController.updateLegalDocument);
 router.delete('/:id', isAdmin, legalDataController.deleteLegalDocument);
 router.get('/:id/chunks', isAdmin, legalDataController.getDocumentChunks);
-
+router.get('/categories', isAdmin, legalDataController.getCategories);
 module.exports = router;

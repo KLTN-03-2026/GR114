@@ -20,6 +20,8 @@ import VideoLegalAnalysis from "../pages/User/VideoLegalAnalysis";
 import AdminDashboard from "../pages/Admin/AdminDashboard";
 import AdminUsers from "../pages/Admin/AdminUsers";
 import AdminCrawler from "../pages/Admin/AdminCrawler";
+import AdminSettings from "../pages/Admin/AdminSettings";
+import LegalDataManager from "../pages/Admin/LegalDataManager";
 // ========================================================
 //  (ADMIN GUARD)
 
@@ -28,18 +30,18 @@ const AdminRoute = ({ children }) => {
     const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
 
-    // 1. Nếu chưa login thì đuổi về nhà luôn
+    // 1. Nếu chưa login thì out
     if (!user) {
         return <Navigate to="/" replace />;
     }
 
-    // 2. Dùng lưới bắt cá quét mọi loại key/value của Role
+    // 2. loại key/value của Role
     const rawRole = user.Role || user.role || user.ROLE || "";
     const isAdmin = String(rawRole).toUpperCase() === 'ADMIN';
 
-    // 3. Nếu KHÔNG phải Admin -> Trục xuất
+    // 3. Nếu KHÔNG phải Admin -> out
     if (!isAdmin) {
-        console.warn("⛔ CẢNH BÁO: Phát hiện truy cập trái phép vào khu vực Admin!");
+        console.warn(" Phát hiện truy cập trái phép vào khu vực Admin!");
         return <Navigate to="/" replace />;
     }
 
@@ -111,6 +113,26 @@ export default function AppRouter() {
                         </AdminRoute>
                     }
                 />
+                {/* Thêm Route cho Quản lý data luật (thay thế Nhật ký AI) */}
+                <Route
+                    path="/admin/lawdata"
+                    element={
+                        <AdminRoute>
+                            <LegalDataManager />
+                        </AdminRoute>
+                    }
+                />
+
+                {/* Thêm Route cho Cài đặt */}
+                <Route
+                    path="/admin/settings"
+                    element={
+                        <AdminRoute>
+                            <AdminSettings />
+                        </AdminRoute>
+                    }
+                />
+
                 {/* 404 - Redirect về Home */}
                 {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
             </Routes>

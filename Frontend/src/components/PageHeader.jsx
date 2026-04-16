@@ -149,7 +149,7 @@ export default function PageHeader() {
 
 
                         {/* ========================================================= */}
-                        {/* NÚT CHUYỂN MẠCH THẦN THÁNH CỦA ADMIN (BẢN TỐI THƯỢNG) */}
+                        {/* NÚT CHUYỂN MẠCH THẦN THÁNH CỦA ADMIN  */}
                         {/* ========================================================= */}
                         {(() => {
                             const userStr = localStorage.getItem("user");
