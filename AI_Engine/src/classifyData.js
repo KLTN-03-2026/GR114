@@ -10,13 +10,8 @@ const VALID_CATEGORIES = [
     "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
 ];
 
-<<<<<<< HEAD
-// Cấu hình cho bản PRO
-const CONCURRENCY_LIMIT = 10; // Xử lý song song 10 văn bản cùng lúc
-=======
 
 const CONCURRENCY_LIMIT = 2;
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 // AI_Engine/src/classifyData.js
 
 async function classifySingleDoc(doc, index, total) {
@@ -58,11 +53,7 @@ async function startClassifying() {
         const docs = result.recordset;
         const total = docs.length;
 
-<<<<<<< HEAD
-        console.log(`🔥 ĐẲNG CẤP PRO: Bắt đầu phân loại song song ${total} văn bản...`);
-=======
         console.log(` Bắt đầu phân loại song song ${total} văn bản...`);
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 
         // Xử lý theo từng cụm (Batch) để tận dụng tối đa băng thông API Pro
         for (let i = 0; i < total; i += CONCURRENCY_LIMIT) {
@@ -73,11 +64,7 @@ async function startClassifying() {
             await new Promise(r => setTimeout(r, 200));
         }
 
-<<<<<<< HEAD
-        console.log("\n✨ HOÀN THÀNH! Database của Duy đã sạch bóng quân thù.");
-=======
         console.log("\n✨ HOÀN THÀNH! .");
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         process.exit(0);
     } catch (err) {
         console.error("🚨 Lỗi hệ thống:", err);

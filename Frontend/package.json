@@ -16,10 +16,7 @@
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",
     "framer-motion": "^12.23.26",
-<<<<<<< HEAD
-=======
     "lucide-react": "^1.7.0",
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     "react": "^19.2.0",
     "react-diff-viewer-continued": "^4.2.0",
     "react-dom": "^19.2.0",

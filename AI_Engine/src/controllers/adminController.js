@@ -2,20 +2,12 @@ const { sql, pool, poolConnect } = require('../config/db');
 const { Pinecone } = require('@pinecone-database/pinecone');
 const axios = require('axios');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-<<<<<<< HEAD
-
-// Khởi tạo Gemini cho embedding
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-
-=======
 const bcrypt = require('bcryptjs');
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Khởi tạo Gemini cho embedding
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 const geminiService = require('../services/geminiService');
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 // Khởi tạo Pinecone client
 const pc = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY
@@ -77,8 +69,6 @@ const getSystemStats = async (req, res) => {
 };
 
 // ============================================================
-<<<<<<< HEAD
-=======
 // HÀM LẤY CẤU HÌNH CRAWLER
 // ============================================================
 
@@ -160,7 +150,6 @@ const updateCrawlerSettings = async (req, res) => {
 };
 
 // ============================================================
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 // HÀM CRAWL & SYNC LAW - API Pipeline 3 Bước
 // ============================================================
 
@@ -318,21 +307,6 @@ const crawlAndSyncLaw = async (req, res) => {
         });
     }
 };
-<<<<<<< HEAD
-// ============================================================
-// MODULE 3: LẤY DANH SÁCH NGƯỜI DÙNG (ADMIN)
-// ============================================================
-const getAllUsers = async (req, res) => {
-    try {
-        await poolConnect;
-        // Lấy danh sách user mới nhất, tuyệt đối KHÔNG lấy Password
-        const query = `
-            SELECT TOP (50) Id, FullName, Email, Role, CreatedAt
-            FROM dbo.Users 
-            ORDER BY CreatedAt DESC
-        `;
-        const result = await pool.request().query(query);
-=======
 
 
 
@@ -346,15 +320,12 @@ const getRecentHistory = async (req, res) => {
             WHERE SourceUrl IS NOT NULL
             ORDER BY CreatedAt DESC
         `);
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 
         res.json({
             success: true,
             data: result.recordset
         });
     } catch (error) {
-<<<<<<< HEAD
-=======
         console.error('❌ [GET HISTORY ERROR]', error);
         res.status(500).json({
             success: false,
@@ -566,17 +537,10 @@ const getAllUsers = async (req, res) => {
             totalUsers
         });
     } catch (error) {
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         console.error('❌ Lỗi lấy danh sách User:', error);
         res.status(500).json({ success: false, message: 'Lỗi server khi lấy dữ liệu người dùng' });
     }
 };
-<<<<<<< HEAD
-module.exports = {
-    getSystemStats,
-    crawlAndSyncLaw,
-    getAllUsers
-=======
 
 const toggleUserBan = async (req, res) => {
     try {
@@ -748,5 +712,4 @@ module.exports = {
     toggleUserBan,
     getAiHistory,
     getFeatureUsage
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 };

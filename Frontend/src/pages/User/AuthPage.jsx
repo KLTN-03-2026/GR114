@@ -8,10 +8,7 @@ export default function AuthPage() {
 
     const [mode, setMode] = useState("LOGIN"); // LOGIN | REGISTER | FORGOT
     const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
-=======
     const [errorMessage, setErrorMessage] = useState("");
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
     const [form, setForm] = useState({
         fullName: "",
         email: "",
@@ -37,28 +34,6 @@ export default function AuthPage() {
         try {
             if (mode === "LOGIN") {
                 const { email, password } = form;
-<<<<<<< HEAD
-                if (!email || !password) return alert("Vui lòng nhập email và mật khẩu");
-                const res = await axios.post(`${backendBase}/auth/login`, { email, password });
-                if (res.data?.user) {
-                    // Ensure token is saved first so header can detect login
-                    const token = res.data.token || res.data.accessToken || (res.data.data && res.data.data.token);
-                    if (token) {
-                        localStorage.setItem("accessToken", token);
-                    } else {
-                        // Fallback flag if backend doesn't return a token
-                        localStorage.setItem("accessToken", "true");
-                    }
-
-                    localStorage.setItem("user", JSON.stringify(res.data.user));
-                    localStorage.setItem("isLoggedIn", "true");
-                    if (res.data.user.role) localStorage.setItem("userRole", res.data.user.role);
-                    alert("Đăng nhập thành công");
-                    // Force full reload so header reads LocalStorage synchronously
-                    window.location.href = "/";
-                } else {
-                    alert(res.data?.message || "Đăng nhập thất bại");
-=======
                 if (!email || !password) {
                     setErrorMessage("Vui lòng nhập email và mật khẩu");
                     return;
@@ -88,7 +63,6 @@ export default function AuthPage() {
                     }
                 } else {
                     setErrorMessage(res.data?.message || "Đăng nhập thất bại");
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 }
             } else if (mode === "REGISTER") {
                 const { fullName, email, password } = form;
@@ -130,12 +104,8 @@ export default function AuthPage() {
             }
         } catch (err) {
             console.error(err);
-<<<<<<< HEAD
-            alert(err.response?.data?.message || err.message || "Lỗi server");
-=======
             const message = err.response?.data?.message || err.message || "Lỗi server";
             setErrorMessage(message);
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         } finally {
             setLoading(false);
         }
@@ -224,14 +194,11 @@ export default function AuthPage() {
                         </div>
                     )}
 
-<<<<<<< HEAD
-=======
                     {errorMessage && mode === 'LOGIN' && (
                         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 text-red-200 px-4 py-3 text-sm font-medium mb-3">
                             {errorMessage}
                         </div>
                     )}
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                     <div className="pt-4">
                         <button
                             type="submit"
