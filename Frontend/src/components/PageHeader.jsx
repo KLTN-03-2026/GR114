@@ -14,7 +14,8 @@ import {
     PresentationChartLineIcon,
     ChevronDownIcon,
     SparklesIcon,
-    VideoCameraIcon
+    VideoCameraIcon,
+    ScaleIcon             // Icon này cho So sánh
 } from "@heroicons/react/24/outline";
 
 import logo from "../assets/icons/logo.png";
@@ -59,14 +60,10 @@ export default function PageHeader() {
     }, []);
 
     return (
-<<<<<<< HEAD
         <header className={`fixed top-0 left-0 right-0 transition-all duration-500 w-full h-20 flex items-center border-b z-[100] ${
             isHomePage ? "bg-black/20 border-white/5 backdrop-blur-md" : "bg-black/60 backdrop-blur-2xl border-white/10 shadow-lg"
         }`}>
-=======
-        <header className={`fixed top-0 left-0 right-0 transition-all duration-500 w-full h-20 flex items-center border-b z-[100] ${isHomePage ? "bg-black/20 border-white/5 backdrop-blur-md" : "bg-black/60 backdrop-blur-2xl border-white/10 shadow-lg"
-            }`}>
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
+
             <div className="max-w-7xl mx-auto px-6 w-full flex items-center justify-between relative">
 
                 <div className="flex items-center gap-10">
@@ -80,11 +77,7 @@ export default function PageHeader() {
                     <nav className="hidden md:flex gap-8 text-sm font-medium items-center">
                         <NavLink to="/" className={navClass}>Trang chủ</NavLink>
 
-<<<<<<< HEAD
                         <div 
-=======
-                        <div
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                             className="relative"
                             onMouseEnter={() => setIsAISolutionsOpen(true)}
                             onMouseLeave={() => setIsAISolutionsOpen(false)}
@@ -104,11 +97,6 @@ export default function PageHeader() {
                                         <div className="bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex">
                                             <div className="w-2/3 p-6 space-y-1">
                                                 <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold mb-4">Công cụ thông minh</p>
-<<<<<<< HEAD
-                                                
-=======
-
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                                                 <Link to="/contract-analysis" className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors group">
                                                     <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 group-hover:bg-blue-500/20"><DocumentTextIcon className="w-5 h-5" /></div>
                                                     <div>
@@ -136,13 +124,18 @@ export default function PageHeader() {
                                                 <Link to="/phan-tich-video" className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors group">
                                                     <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20"><VideoCameraIcon className="w-5 h-5" /></div>
                                                     <div>
-<<<<<<< HEAD
-                                                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">Phân tích Video Pháp lý</h4>
-                                                        <p className="text-[10px] text-gray-400 leading-tight">Tóm tắt tư vấn từ TikTok/YouTube.</p>
-=======
+
                                                         <h4 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">Xác Thực Video Pháp lý</h4>
                                                         <p className="text-[10px] text-gray-400 leading-tight">Tóm tắt tư vấn từ TikTok/YouTube Short.</p>
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
+                                                    </div>
+                                                </Link>
+
+                                                {/* So sánh Hợp đồng AI */}
+                                                <Link to="/contract-comparison" className="flex items-start gap-4 p-3 rounded-2xl hover:bg-white/5 transition-colors group">
+                                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20"><ScaleIcon className="w-5 h-5" /></div>
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">So sánh Hợp đồng AI</h4>
+                                                        <p className="text-xs text-gray-400 leading-tight">Chỉ ra điểm khác biệt giữa 2 phiên bản.</p>
                                                     </div>
                                                 </Link>
                                             </div>
@@ -152,15 +145,9 @@ export default function PageHeader() {
                                                 <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
                                                     <div className="flex items-center gap-2 mb-1 text-indigo-400">
                                                         <SparklesIcon className="w-3 h-3" />
-<<<<<<< HEAD
-                                                        <span className="text-[10px] font-bold">Video AI v1.0</span>
-                                                    </div>
-                                                    <p className="text-[10px] text-gray-400 italic leading-snug">Chuyển đổi video ngắn thành văn bản tư vấn chuyên sâu.</p>
-=======
                                                         <span className="text-[10px] font-bold"> AI v2.0</span>
                                                     </div>
                                                     <p className="text-[10px] text-gray-400 italic leading-snug">LLM</p>
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                                                 </div>
                                             </div>
                                         </div>
@@ -171,9 +158,6 @@ export default function PageHeader() {
 
                         <NavLink to="/van-ban-phap-luat" className={navClass}>Tra cứu văn bản</NavLink>
                         <NavLink to="/ho-so-phap-ly" className={navClass}>Hồ sơ pháp lý</NavLink>
-<<<<<<< HEAD
-=======
-
 
                         {/* ========================================================= */}
                         {/* NÚT CHUYỂN MẠCH THẦN THÁNH CỦA ADMIN (BẢN TỐI THƯỢNG) */}
@@ -211,7 +195,6 @@ export default function PageHeader() {
                             return null;
                         })()}
                         {/* ========================================================= */}
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                     </nav>
                 </div>
 
@@ -233,11 +216,7 @@ export default function PageHeader() {
                             {isMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}></div>
-<<<<<<< HEAD
-                                    <motion.div 
-=======
                                     <motion.div
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.95, y: 10 }}

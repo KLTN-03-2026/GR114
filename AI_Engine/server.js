@@ -1,5 +1,7 @@
 // src/server.js - BẢN FIX LỖI HOÀN CHỈNH (Đã test PDF & Word)
 const express = require('express');
+// Load environment variables from .env (if present)
+require('dotenv').config();
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const multer = require('multer');       // Thư viện nhận file upload
@@ -7,6 +9,7 @@ const pdfParse = require('pdf-parse');  // Thư viện đọc PDF
 const mammoth = require('mammoth');     // 👇 ĐÃ THÊM: Thư viện đọc Word
 const fs = require('fs');               // Thư viện quản lý file
 const path = require('path');           // 👇 ĐÃ THÊM: Thư viện xử lý đường dẫn
+const nodemailer = require('nodemailer');
 
 // Sửa lại đường dẫn import cho đúng vị trí file
 const ragService = require('./src/services/ragService');
@@ -191,6 +194,73 @@ app.post('/api/ai/analyze-contract', upload.single('contract'), async (req, res)
             fs.unlinkSync(req.file.path);
         }
         res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// ============================================================
+// 4. API: GỬI EMAIL XÁC NHẬN YÊU CẦU HỖ TRỢ
+// Body: { name, email, phone, subject, message }
+// ============================================================
+app.post('/api/support', async (req, res) => {
+    try {
+        const { name, email, phone, subject, message } = req.body || {};
+        if (!name || !email || !phone || !subject || !message) {
+            return res.status(400).json({ success: false, message: 'Vui lòng điền đầy đủ thông tin.' });
+        }
+
+        // Tạo transporter: ưu tiên cấu hình SMTP từ env, nếu không có thì dùng test account
+        let transporter;
+        let previewUrl = null;
+
+        if (process.env.SMTP_HOST) {
+            transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST,
+                port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
+                secure: process.env.SMTP_SECURE === 'true',
+                auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined
+            });
+        } else {
+            const testAccount = await nodemailer.createTestAccount();
+            transporter = nodemailer.createTransport({
+                host: testAccount.smtp.host,
+                port: testAccount.smtp.port,
+                secure: testAccount.smtp.secure,
+                auth: { user: testAccount.user, pass: testAccount.pass }
+            });
+        }
+
+        const mailOptions = {
+            from: `"LegAI Support" <no-reply@legai.local>`,
+            to: email,
+            subject: `Xác nhận: Yêu cầu hỗ trợ đã được nhận`,
+            text: `Xin chào ${name},\n\nChúng tôi đã nhận được yêu cầu hỗ trợ của bạn.\n\nChủ đề: ${subject}\nSố điện thoại: ${phone}\nNội dung: ${message}\n\nChúng tôi sẽ liên hệ lại sớm.\n\nTrân trọng,\nLegAI`,
+            html: `<p>Xin chào <b>${name}</b>,</p><p>Chúng tôi đã nhận được yêu cầu hỗ trợ của bạn với thông tin sau:</p><ul><li><b>Chủ đề:</b> ${subject}</li><li><b>Số điện thoại:</b> ${phone}</li><li><b>Nội dung:</b> ${message}</li></ul><p>Đội ngũ LegAI sẽ liên hệ với bạn sớm.</p><p>Trân trọng,<br/>LegAI</p>`
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+
+        if (nodemailer.getTestMessageUrl) {
+            previewUrl = nodemailer.getTestMessageUrl(info) || null;
+        }
+
+        // Gửi 1 bản tới email hỗ trợ nội bộ (không block nếu lỗi)
+        try {
+            await transporter.sendMail({
+                from: `"LegAI Support" <no-reply@legai.local>`,
+                to: 'support@legalai.vn',
+                subject: `Yêu cầu hỗ trợ mới từ ${name} <${email}>`,
+                text: `Yêu cầu mới:\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\nSubject: ${subject}\nMessage: ${message}`
+            });
+        } catch (err) {
+            console.warn('Could not send admin copy:', err.message || err);
+        }
+
+        return res.json({ success: true, message: 'Email sent', to: email, previewUrl });
+
+    } catch (err) {
+        console.error('Support email error:', err);
+        return res.status(500).json({ success: false, message: 'Lỗi khi gửi email: ' + (err.message || err) });
     }
 });
 

@@ -1,13 +1,10 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 
-<<<<<<< HEAD
-//  (Pages)
-=======
 // (Pages)
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 import Home from "../pages/User/Home";
 import ContractAnalysis from "../pages/User/ContractAnalysis";
+import ContractComparison from "../pages/User/ContractComparison";
 import EditLegalRecord from "../pages/User/EditLegalRecord";
 import About from "../pages/User/About";
 import Contact from "../pages/User/Contact";
@@ -17,12 +14,6 @@ import DocumentViewDetail from "../pages/User/DocumentViewDetail";
 import ProfilePage from "../pages/User/ProfilePage";
 import FeedbackPage from "../pages/User/FeedbackPage";
 import AuthPage from "../pages/User/AuthPage";
-<<<<<<< HEAD
-import FormGeneration from "../components/FormGeneration";  
-import RecordDetailPage from "../pages/User/RecordDetailPage"; 
-import AIPlanning from "../pages/User/AIPlanning";
-import VideoLegalAnalysis from "../pages/User/VideoLegalAnalysis";
-=======
 import FormGeneration from "../components/FormGeneration";
 import RecordDetailPage from "../pages/User/RecordDetailPage";
 import AIPlanning from "../pages/User/AIPlanning";
@@ -57,7 +48,6 @@ const AdminRoute = ({ children }) => {
     return children;
 };
 
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
 export default function AppRouter() {
     return (
         <MainLayout>
@@ -73,37 +63,17 @@ export default function AppRouter() {
                 <Route path="/gioi-thieu" element={<About />} />
                 <Route path="/lien-he" element={<Contact />} />
                 <Route path="/gui-phan-hoi" element={<FeedbackPage />} />
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 {/* === NHÓM DỊCH VỤ === */}
                 <Route path="/contract-analysis" element={<ContractAnalysis />} />
+                <Route path="/contract-comparison" element={<ContractComparison />} /> 
                 <Route path="/dat-lich" element={<Navigate to="/contract-analysis" replace />} />
                 <Route path="/phan-tich-video" element={<VideoLegalAnalysis />} />
-<<<<<<< HEAD
-
-=======
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 <Route path="/soan-thao" element={<FormGeneration />} />
 
                 {/* === NHÓM USER === */}
                 <Route path="/tai-khoan" element={<ProfilePage />} />
                 <Route path="/ho-so-phap-ly" element={<LegalRecordPage />} />
-<<<<<<< HEAD
-                
-               
-                <Route path="/ho-so/chi-tiet/:id" element={<RecordDetailPage />} />
-                
-                <Route path="/ho-so/chinh-sua/:id" element={<EditLegalRecord />} />
-                <Route path="/ke-hoach-bao-cao" element={<AIPlanning />} />
-                {/* === NHÓM VĂN BẢN === */}
-                <Route path="/van-ban-phap-luat" element={<LegalDocuments />} />
-                <Route path="/van-ban/chi-tiet/:id" element={<DocumentViewDetail />} />
-               
-
-=======
                 <Route path="/ho-so/chi-tiet/:id" element={<RecordDetailPage />} />
                 <Route path="/ho-so/chinh-sua/:id" element={<EditLegalRecord />} />
                 <Route path="/ke-hoach-bao-cao" element={<AIPlanning />} />
@@ -143,7 +113,6 @@ export default function AppRouter() {
                         </AdminRoute>
                     }
                 />
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                 {/* 404 - Redirect về Home */}
                 {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
             </Routes>

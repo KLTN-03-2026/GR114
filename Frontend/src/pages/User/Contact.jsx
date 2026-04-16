@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import {
     EnvelopeIcon,
     PhoneIcon,
@@ -9,11 +10,100 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function Contact() {
-    const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
+    const [formData, setFormData] = useState({ name: "", email: "", phone: "", subject: "Tư vấn hợp đồng bằng AI", message: "" });
+    const [sending, setSending] = useState(false);
+    const [infoMessage, setInfoMessage] = useState("");
+    const [errors, setErrors] = useState({});
+
+    const validateEmail = (value) => {
+        if (!value) return 'Vui lòng nhập email.';
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(value) ? null : 'Địa chỉ email không hợp lệ.';
+    };
+
+    const validatePhone = (value) => {
+        if (!value) return 'Vui lòng nhập số điện thoại.';
+        const digits = value.replace(/\D/g, '');
+        if (digits.length < 9 || digits.length > 11) return 'Số điện thoại không hợp lệ.';
+        return null;
+    };
+
+    const validateName = (value) => {
+        if (!value) return 'Vui lòng nhập họ và tên.';
+        if (value.trim().length < 2) return 'Tên quá ngắn.';
+        return null;
+    };
+
+    const validateSubject = (value) => {
+        if (!value) return 'Vui lòng chọn chủ đề.';
+        return null;
+    };
+
+    const validateMessage = (value) => {
+        if (!value) return 'Vui lòng nhập nội dung.';
+        if (value.trim().length < 10) return 'Nội dung quá ngắn (ít nhất 10 ký tự).';
+        return null;
+    };
+
+    const validateField = (field, value) => {
+        switch (field) {
+            case 'name': return validateName(value);
+            case 'email': return validateEmail(value);
+            case 'phone': return validatePhone(value);
+            case 'subject': return validateSubject(value);
+            case 'message': return validateMessage(value);
+            default: return null;
+        }
+    };
+
+    const validateAll = () => {
+        const next = {};
+        next.name = validateName(formData.name);
+        next.email = validateEmail(formData.email);
+        next.phone = validatePhone(formData.phone);
+        next.subject = validateSubject(formData.subject);
+        next.message = validateMessage(formData.message);
+        Object.keys(next).forEach(k => { if (next[k] === null) delete next[k]; });
+        setErrors(next);
+        return Object.keys(next).length === 0;
+    };
+
+    const handleChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setErrors(prev => ({ ...prev, [field]: validateField(field, value) }));
+    };
+
+    const handleBlur = (field) => {
+        const err = validateField(field, formData[field]);
+        setErrors(prev => ({ ...prev, [field]: err }));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        alert("Cảm ơn bạn! Yêu cầu của bạn đã được gửi đến đội ngũ luật sư. Chúng tôi sẽ phản hồi trong vòng 24h.");
+        if (!validateAll()) {
+            // validation messages are shown inline
+            return;
+        }
+
+        // Show a simple inline acknowledgement immediately
+        setInfoMessage('LegalAI đã tiếp nhận yêu cầu hỗ trợ.');
+
+        const payload = { ...formData };
+
+        // clear the form so user can continue
+        setFormData({ name: "", email: "", phone: "", subject: "Tư vấn hợp đồng bằng AI", message: "" });
+        setErrors({});
+
+        setSending(true);
+        // send email in background silently
+        axios.post("http://localhost:8000/api/support", payload, { headers: { 'Content-Type': 'application/json' } })
+            .then(res => {
+                console.log('Support request response:', res.data);
+            })
+            .catch(err => {
+                console.error('Support email send error', err);
+            })
+            .finally(() => setSending(false));
     };
 
     return (
@@ -121,27 +211,54 @@ export default function Contact() {
                             <h2 className="text-3xl font-black text-white uppercase tracking-tight italic">Gửi yêu cầu hỗ trợ</h2>
                         </div>
 
+                        {infoMessage && (
+                            <div className="mb-6 p-4 rounded-xl bg-emerald-900/20 border border-emerald-500/20 text-emerald-300 flex items-center justify-between">
+                                <div className="text-sm">{infoMessage}</div>
+                                <button type="button" onClick={() => setInfoMessage('')} className="ml-4 px-3 py-1 bg-emerald-500 text-white rounded">Đóng</button>
+                            </div>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-2 group">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 group-focus-within:text-cyan-400 transition-colors">Họ và tên</label>
                                     <input
-                                        type="text"
-                                        required
-                                        className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
-                                        placeholder="Nguyễn Văn A"
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    />
+                                            type="text"
+                                            required
+                                            value={formData.name}
+                                            onChange={(e) => handleChange('name', e.target.value)}
+                                            onBlur={() => handleBlur('name')}
+                                            className={`w-full px-5 py-4 bg-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all ${errors.name ? 'border-rose-500' : 'border border-white/10'}`}
+                                            placeholder="Nguyễn Văn A"
+                                        />
+                                        {errors.name && <p className="text-rose-400 text-sm mt-1">{errors.name}</p>}
                                 </div>
                                 <div className="space-y-2 group">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 group-focus-within:text-cyan-400 transition-colors">Địa chỉ Email</label>
                                     <input
                                         type="email"
                                         required
-                                        className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                                        value={formData.email}
+                                        onChange={(e) => handleChange('email', e.target.value)}
+                                        onBlur={() => handleBlur('email')}
+                                        className={`w-full px-5 py-4 bg-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all ${errors.email ? 'border-rose-500' : 'border border-white/10'}`}
                                         placeholder="example@gmail.com"
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     />
+                                    {errors.email && <p className="text-rose-400 text-sm mt-1">{errors.email}</p>}
+                                </div>
+
+                                <div className="space-y-2 group">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 group-focus-within:text-cyan-400 transition-colors">Số điện thoại</label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={formData.phone}
+                                        onChange={(e) => handleChange('phone', e.target.value)}
+                                        onBlur={() => handleBlur('phone')}
+                                        className={`w-full px-5 py-4 bg-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all ${errors.phone ? 'border-rose-500' : 'border border-white/10'}`}
+                                        placeholder="0912xxxxxx"
+                                    />
+                                    {errors.phone && <p className="text-rose-400 text-sm mt-1">{errors.phone}</p>}
                                 </div>
                             </div>
 
@@ -149,14 +266,17 @@ export default function Contact() {
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 group-focus-within:text-cyan-400 transition-colors">Chủ đề cần hỗ trợ</label>
                                 <div className="relative">
                                     <select
-                                        className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all appearance-none cursor-pointer hover:bg-white/10"
-                                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                        value={formData.subject}
+                                        className={`w-full px-5 py-4 bg-white/5 rounded-xl text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all appearance-none cursor-pointer hover:bg-white/10 ${errors.subject ? 'border-rose-500' : 'border border-white/10'}`}
+                                        onChange={(e) => handleChange('subject', e.target.value)}
+                                        onBlur={() => handleBlur('subject')}
                                     >
                                         <option className="bg-gray-900 text-gray-300">Tư vấn hợp đồng bằng AI</option>
                                         <option className="bg-gray-900 text-gray-300">Đặt lịch hẹn với luật sư</option>
                                         <option className="bg-gray-900 text-gray-300">Hỗ trợ kỹ thuật tài khoản</option>
                                         <option className="bg-gray-900 text-gray-300">Khác</option>
                                     </select>
+                                    {errors.subject && <p className="text-rose-400 text-sm mt-1">{errors.subject}</p>}
                                     <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                     </div>
@@ -168,10 +288,13 @@ export default function Contact() {
                                 <textarea
                                     rows="6"
                                     required
-                                    className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all resize-none"
+                                    value={formData.message}
+                                    onChange={(e) => handleChange('message', e.target.value)}
+                                    onBlur={() => handleBlur('message')}
+                                    className={`w-full px-5 py-4 bg-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all resize-none ${errors.message ? 'border-rose-500' : 'border border-white/10'}`}
                                     placeholder="Vui lòng mô tả chi tiết vấn đề bạn đang gặp phải..."
-                                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                                 ></textarea>
+                                {errors.message && <p className="text-rose-400 text-sm mt-1">{errors.message}</p>}
                             </div>
 
                             <button

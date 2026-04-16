@@ -105,8 +105,10 @@ export default function ChatbotAI({ isOpen, onClose }) {
                 const res = await aiClient.ask(question);
                 setMessages(prev => [...prev, {
                     id: Date.now() + 1,
-                    text: res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?",
-                    isBot: true
+                    text: res.message || res.answer, // Backend trả về res.message
+                    isBot: true,
+                    type: res.type || 'text',       // Nhận diện type 'contact'
+                    lawyer: res.lawyer || null      // Nhận diện thông tin luật sư
                 }]);
             } else {
                 setTimeout(() => {
@@ -205,6 +207,24 @@ export default function ChatbotAI({ isOpen, onClose }) {
                                 : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-tr-none shadow-lg shadow-cyan-900/20'
                             }`}>
                                 {msg.text}
+                                    {/* HIỂN THỊ CARD LUẬT SƯ NẾU TYPE LÀ CONTACT */}
+                                    {msg.isBot && msg.type === 'contact' && msg.lawyer && (
+                                        <div className="mt-4 p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl border-dashed animate-pulse">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center text-black font-bold">
+                                                    LS
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">{msg.lawyer.name}</h4>
+                                                    <p className="text-[10px] text-cyan-400 uppercase tracking-widest">{msg.lawyer.specialty}</p>
+                                                </div>
+                                            </div>
+                                            {/* Thay đổi từ nút bấm thành Text bình thường */}
+                                            <div className="flex items-center justify-center py-2 bg-white/5 text-gray-400 rounded-xl text-xs font-medium border border-white/5">
+                                                Liên hệ: <span className="text-cyan-400 ml-1 font-bold">{msg.lawyer.phone}</span>
+                                            </div>
+                                        </div>
+                                    )}
                             </div>
                         </motion.div>
                     ))}

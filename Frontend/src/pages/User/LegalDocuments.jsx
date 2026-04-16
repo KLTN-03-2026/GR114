@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -8,8 +8,10 @@ import {
   ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  EyeIcon,
   TrashIcon
 } from "@heroicons/react/24/outline";
+
 
 export default function LegalDocuments() {
   const navigate = useNavigate();
@@ -20,13 +22,10 @@ export default function LegalDocuments() {
     category: "Tất cả"
   });
 
-  // State quản lý dữ liệu và phân trang
+  const [userId, setUserId] = useState(null); 
+  
   const [documents, setDocuments] = useState([]);
-<<<<<<< HEAD
-  const [categories, setCategories] = useState([]); // Sidebar động
-=======
-  const [categories, setCategories] = useState([]);
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
+  const [categories, setCategories] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -36,19 +35,15 @@ export default function LegalDocuments() {
 
   const searchRef = useRef(null);
 
-  // 1. LẤY SỐ LƯỢNG SIDEBAR (NHẢY SỐ TỰ ĐỘNG)
+  const [myLaws, setMyLaws] = useState([]);
+  const [recentDocs, setRecentDocs] = useState([]);
+
   const fetchStats = async () => {
     try {
       const res = await axios.get("http://localhost:8000/api/document-stats");
       if (res.data.success) {
         const apiStats = res.data.stats;
-        // Danh sách hiển thị ưu tiên (Duy có thể thêm full 20 cái vào đây)
         const menuItems = ["Bộ máy hành chính", "Tài chính nhà nước", "Bất động sản", "Thương mại", "Dân sự", "Hình sự", "Lao động - Tiền lương", "Giao thông - Vận tải"];
-<<<<<<< HEAD
-        
-=======
-
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         const updated = [
           { name: "Xem tất cả", count: res.data.total },
           ...menuItems.map(name => ({
@@ -62,32 +57,18 @@ export default function LegalDocuments() {
     } catch (err) { console.error("Stats error:", err); }
   };
 
-  // 2. GỌI API LẤY VĂN BẢN (CÓ PHÂN TRANG)
   const fetchDocuments = async (page = 1) => {
     setLoading(true);
     try {
       let categoryToSend = filter.category === "Tất cả" || filter.category === "Xem tất cả" ? "" : filter.category;
-<<<<<<< HEAD
-      
-=======
-
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
       const res = await axios.get("http://localhost:8000/api/documents", {
         params: {
           search: filter.keyword.trim(),
           category: categoryToSend,
           page: page,
-<<<<<<< HEAD
-          limit: 10 // Fix 10 văn bản/trang như Duy yêu cầu
-        }
-      });
-
-=======
           limit: 10
         }
       });
-      console.log("🔍 Check Data từ API Tra Cứu:", res.data);
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
       if (res.data.success) {
         setDocuments(res.data.data);
         setPagination({
@@ -100,13 +81,173 @@ export default function LegalDocuments() {
     finally { setLoading(false); }
   };
 
-  // Effect load ban đầu và khi đổi Category
-  useEffect(() => {
-    fetchStats();
-    fetchDocuments(1); // Đổi category thì về trang 1
-  }, [filter.category]);
+  const fetchMyLawsFromDb = useCallback(async () => {
+    if (!userId) { 
+        setMyLaws(JSON.parse(localStorage.getItem("myLaws") || "[]")); 
+        return; 
+    }
+    try {
+      const res = await axios.get(`http://localhost:8000/api/user/saved-laws/${userId}`);
+      if (res.data.success) {
+        setMyLaws(res.data.data);
+      }
+    } catch (err) {
+      console.error("Lỗi khi lấy luật đã lưu từ DB:", err);
+      setMyLaws(JSON.parse(localStorage.getItem("myLaws") || "[]")); 
+    }
+  }, [userId]); 
 
-  // Debounce search
+  const fetchRecentDocsFromDb = useCallback(async () => {
+    if (!userId) { 
+        setRecentDocs(JSON.parse(localStorage.getItem("recentDocs") || "[]")); 
+        return; 
+    }
+    try {
+      const res = await axios.get(`http://localhost:8000/api/user/recent-docs/${userId}`);
+      if (res.data.success) {
+        setRecentDocs(res.data.data);
+      }
+    } catch (err) {
+      console.error("Lỗi khi lấy tài liệu xem gần đây từ DB:", err);
+      setRecentDocs(JSON.parse(localStorage.getItem("recentDocs") || "[]")); 
+    }
+  }, [userId]); 
+
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserId(user.id || user.Id); 
+      } catch (e) {
+        console.error("Lỗi parse user từ localStorage:", e);
+        setUserId(null); 
+      }
+    } else {
+        setUserId(null); 
+    }
+
+    fetchStats();
+    fetchDocuments(1); 
+  }, [filter.category]); 
+
+
+  useEffect(() => {
+    if (userId) {
+      fetchMyLawsFromDb(); 
+      fetchRecentDocsFromDb(); 
+    } else {
+      setMyLaws(JSON.parse(localStorage.getItem("myLaws") || "[]"));
+      setRecentDocs(JSON.parse(localStorage.getItem("recentDocs") || "[]"));
+    }
+  }, [userId, fetchMyLawsFromDb, fetchRecentDocsFromDb]); 
+
+  const saveMyLaws = (arr) => {
+    setMyLaws(arr);
+    try { localStorage.setItem("myLaws", JSON.stringify(arr)); } catch(e) {}
+  };
+
+  const saveRecent = (arr) => {
+    setRecentDocs(arr);
+    try { localStorage.setItem("recentDocs", JSON.stringify(arr)); } catch(e) {}
+  };
+
+
+  const toggleStar = async (doc) => {
+    if (userId) {
+      try {
+        const payload = {
+          userId: userId,
+          DocumentId: doc.Id, 
+          DocumentTitle: doc.Title,
+          DocumentNumber: doc.DocumentNumber,
+          IssueYear: doc.IssueYear
+        };
+        const res = await axios.post("http://localhost:8000/api/user/toggle-saved-law", payload);
+        if (res.data.success) {
+          fetchMyLawsFromDb(); 
+        }
+      } catch (err) {
+        console.error("Lỗi khi cập nhật luật đã lưu (DB):", err);
+        alert("Có lỗi xảy ra khi lưu/xóa luật. Vui lòng thử lại.");
+      }
+    } else {
+      const exists = myLaws.find(d => d.Id === doc.Id);
+      if (exists) {
+        const next = myLaws.filter(d => d.Id !== doc.Id);
+        saveMyLaws(next);
+      } else {
+        const next = [doc, ...myLaws];
+        saveMyLaws(next);
+      }
+      alert("Bạn chưa đăng nhập. Luật đã được lưu tạm vào trình duyệt.");
+    }
+  };
+
+  const removeSavedLaw = async (savedLawId) => {
+    if (!userId) {
+        saveMyLaws(myLaws.filter(l => l.Id !== savedLawId));
+        alert("Bạn chưa đăng nhập. Luật đã được xóa khỏi danh sách lưu tạm.");
+        return;
+    }
+    try {
+        const payload = { userId: userId, savedLawId: savedLawId }; 
+        const res = await axios.delete("http://localhost:8000/api/user/remove-saved-law", { data: payload }); 
+        if (res.data.success) {
+            fetchMyLawsFromDb(); 
+        }
+    } catch (err) {
+        console.error("Lỗi khi xóa luật đã lưu từ panel (DB):", err);
+        alert("Có lỗi xảy ra khi xóa luật đã lưu. Vui lòng thử lại.");
+    }
+  };
+
+
+  const addToRecent = async (doc) => {
+    const simplified = { Id: doc.Id, Title: doc.Title, DocumentNumber: doc.DocumentNumber, IssueYear: doc.IssueYear };
+
+    if (userId) {
+      try {
+        const payload = {
+          userId: userId,
+          DocumentId: simplified.Id, 
+          DocumentTitle: simplified.Title,
+          DocumentNumber: simplified.DocumentNumber,
+          IssueYear: simplified.IssueYear
+        };
+        const res = await axios.post("http://localhost:8000/api/user/add-recent-doc", payload);
+        if (res.data.success) {
+          fetchRecentDocsFromDb(); 
+        }
+      } catch (err) {
+        console.error("Lỗi khi thêm/cập nhật tài liệu xem gần đây (DB):", err);
+      }
+    } else {
+      const next = [simplified, ...recentDocs.filter(d => d.Id !== simplified.Id)].slice(0, 8);
+      saveRecent(next);
+    }
+  };
+
+  const removeRecentDoc = async (recentDocId) => {
+    if (!userId) {
+        saveRecent(recentDocs.filter(r => r.Id !== recentDocId));
+        alert("Bạn chưa đăng nhập. Mục đã được xóa khỏi lịch sử xem tạm.");
+        return;
+    }
+    try {
+        const payload = { userId: userId, recentDocId: recentDocId }; 
+        const res = await axios.delete("http://localhost:8000/api/user/remove-recent-doc", { data: payload });
+        if (res.data.success) {
+            fetchRecentDocsFromDb(); 
+        }
+    } catch (err) {
+        console.error("Lỗi khi xóa lịch sử xem gần đây (DB):", err);
+        alert("Có lỗi xảy ra khi xóa lịch sử. Vui lòng thử lại.");
+    }
+  };
+
+
   useEffect(() => {
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(() => fetchDocuments(1), 400);
@@ -115,7 +256,7 @@ export default function LegalDocuments() {
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
-      window.scrollTo({ top: 0, behavior: 'smooth' }); // Cuộn lên đầu cho mượt
+      window.scrollTo({ top: 0, behavior: 'smooth' }); 
       fetchDocuments(newPage);
     }
   };
@@ -139,18 +280,10 @@ export default function LegalDocuments() {
             <button
               key={idx}
               onClick={() => setFilter({ ...filter, category: cat.name })}
-<<<<<<< HEAD
-              className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all group ${
-                filter.category === cat.name || (cat.name === "Xem tất cả" && filter.category === "Tất cả")
-                  ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
-                  : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-              }`}
-=======
               className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all group ${filter.category === cat.name || (cat.name === "Xem tất cả" && filter.category === "Tất cả")
                   ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
                   : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
                 }`}
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
             >
               <span className="text-[18px] font-medium tracking-tight truncate">{cat.name}</span>
               <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 rounded text-gray-600 group-hover:text-cyan-500">({cat.count})</span>
@@ -160,12 +293,7 @@ export default function LegalDocuments() {
       </aside>
 
       {/* ================= MAIN CONTENT ================= */}
-      <main className="flex-1 px-4 py-8 md:px-10 max-w-5xl mx-auto w-full">
-<<<<<<< HEAD
-        
-=======
-
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
+      <main className="flex-1 px-4 py-8 md:px-10 max-w-3xl mx-auto w-full">
         {/* Search Bar */}
         <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-5 mb-8 shadow-2xl">
           <div className="flex gap-3">
@@ -185,13 +313,8 @@ export default function LegalDocuments() {
 
         {/* Results Header */}
         <div className="flex items-center justify-between mb-6 px-2">
-<<<<<<< HEAD
-           <h3 className="text-sm font-bold text-gray-400 tracking-widest uppercase">Thư viện pháp luật số</h3>
-           <p className="text-xs text-gray-500">Tìm thấy <span className="text-cyan-500 font-bold">{pagination.totalDocs}</span> văn bản</p>
-=======
           <h3 className="text-sm font-bold text-gray-400 tracking-widest uppercase">Thư viện pháp luật số</h3>
           <p className="text-xs text-gray-500">Tìm thấy <span className="text-cyan-500 font-bold">{pagination.totalDocs}</span> văn bản</p>
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
         </div>
 
         {/* Documents List */}
@@ -202,22 +325,30 @@ export default function LegalDocuments() {
               <p className="text-gray-500 text-sm animate-pulse">Đang truy xuất dữ liệu từ AI Engine...</p>
             </div>
           ) : documents.length > 0 ? (
-            documents.map((item, index) => (
-              <div key={item.Id} className="group bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl hover:border-cyan-500/30 transition-all shadow-sm flex flex-col md:flex-row gap-5">
-                <div className="w-10 h-10 bg-[#111] rounded-lg flex items-center justify-center text-gray-600 font-bold border border-white/5 group-hover:text-cyan-500 transition-colors">
-                  {(pagination.currentPage - 1) * 10 + index + 1}
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-[20px] font-bold text-gray-200 group-hover:text-white mb-2 leading-relaxed italic">{item.Title}</h4>
-                  <div className="flex gap-4 text-xs text-gray-500 mb-4">
-                    <span>Số hiệu: <b className="text-gray-400">{item.DocumentNumber}</b></span>
-                    <span>Năm: <b className="text-gray-400">{item.IssueYear}</b></span>
-                    <span className={item.Status === "Còn hiệu lực" ? "text-emerald-500" : "text-rose-500"}>● {item.Status}</span>
+            documents.map((item, index) => {
+              const isStarred = myLaws.some(d => (userId ? d.DocumentId === item.Id : d.Id === item.Id));
+              return (
+                <div key={item.Id} className="group bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl hover:border-cyan-500/30 transition-all shadow-sm flex flex-col md:flex-row gap-5">
+                  <div className="w-10 h-10 bg-[#111] rounded-lg flex items-center justify-center text-gray-600 font-bold border border-white/5 group-hover:text-cyan-500 transition-colors">
+                    {(pagination.currentPage - 1) * 10 + index + 1}
                   </div>
-                  <button onClick={() => navigate(`/van-ban/chi-tiet/${item.Id}`)} className="text-[10px] border border-white/10 px-4 py-1.5 rounded-lg hover:bg-cyan-500 hover:text-white transition-all uppercase font-bold tracking-tighter">Xem chi tiết</button>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <h4 className="text-[20px] font-bold text-gray-200 group-hover:text-white mb-2 leading-relaxed italic">{item.Title}</h4>
+                      <button onClick={() => toggleStar(item)} className={`ml-4 text-2xl transition-colors ${isStarred ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`} aria-label="Lưu luật">
+                        {isStarred ? '🌟' : '☆'}
+                      </button>
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500 mb-4">
+                      <span>Số hiệu: <b className="text-gray-400">{item.DocumentNumber}</b></span>
+                      <span>Năm: <b className="text-gray-400">{item.IssueYear}</b></span>
+                      <span className={item.Status === "Còn hiệu lực" ? "text-emerald-500" : "text-rose-500"}>● {item.Status}</span>
+                    </div>
+                    <button onClick={() => { addToRecent(item); navigate(`/van-ban/chi-tiet/${item.Id}`); }} className="text-[10px] border border-white/10 px-4 py-1.5 rounded-lg hover:bg-cyan-500 hover:text-white transition-all uppercase font-bold tracking-tighter">Xem chi tiết</button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-20 text-gray-600">Không có dữ liệu phù hợp.</div>
           )}
@@ -226,11 +357,7 @@ export default function LegalDocuments() {
         {/* ================= PAGINATION UI ================= */}
         {!loading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 pb-10">
-<<<<<<< HEAD
-            <button 
-=======
             <button
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
               className="p-2 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-20 transition-all"
@@ -241,24 +368,15 @@ export default function LegalDocuments() {
             {/* Tạo danh sách số trang (Ví dụ: 1, 2, 3...) */}
             {[...Array(pagination.totalPages)].map((_, i) => {
               const p = i + 1;
-              // Chỉ hiển thị vài trang đầu, trang hiện tại và trang cuối nếu quá nhiều
               if (p === 1 || p === pagination.totalPages || (p >= pagination.currentPage - 1 && p <= pagination.currentPage + 1)) {
                 return (
                   <button
                     key={p}
                     onClick={() => handlePageChange(p)}
-<<<<<<< HEAD
-                    className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all ${
-                      pagination.currentPage === p 
-                      ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/40" 
-                      : "border-white/10 text-gray-500 hover:bg-white/5"
-                    }`}
-=======
                     className={`w-10 h-10 rounded-lg border font-bold text-sm transition-all ${pagination.currentPage === p
                         ? "bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/40"
                         : "border-white/10 text-gray-500 hover:bg-white/5"
                       }`}
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
                   >
                     {p}
                   </button>
@@ -268,11 +386,7 @@ export default function LegalDocuments() {
               return null;
             })}
 
-<<<<<<< HEAD
-            <button 
-=======
             <button
->>>>>>> 015cc60cbf8f0c9906a2bb104d5ccd51070c656c
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === pagination.totalPages}
               className="p-2 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-20 transition-all"
@@ -282,6 +396,94 @@ export default function LegalDocuments() {
           </div>
         )}
       </main>
+
+      {/* ================= RIGHT PANEL: My Laws + Recently Viewed ================= */}
+      <aside className="hidden lg:flex flex-col w-96 bg-[#0a0a0a] border-l border-white/10 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-4 py-6 gap-6">
+        {/* --- Luật của tôi --- */}
+        <div className="bg-[#0e0e0e] p-5 rounded-2xl border border-white/10 shadow-lg">
+          <h3 className="text-sm font-bold text-cyan-400 mb-4 uppercase tracking-widest flex items-center gap-2">
+            <BookOpenIcon className="w-4 h-4" /> LUẬT CỦA TÔI
+          </h3>
+          {myLaws.length === 0 ? (
+            <div className="text-xs text-gray-600 text-center py-4 bg-white/5 rounded-lg border border-white/5">
+              Bạn chưa lưu luật nào.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myLaws.map(l => (
+                <div 
+                  key={l.Id} 
+                  className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all group border border-white/5"
+                >
+                  <div className="flex-1 mr-3 min-w-0"> {/* Thêm min-w-0 */}
+                    <div className="font-bold text-gray-200 text-sm truncate group-hover:text-white transition-colors">{l.Title}</div>
+                    <div className="text-xs text-gray-500 truncate">{l.DocumentNumber}</div> {/* Thêm truncate */}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate(`/van-ban/chi-tiet/${userId ? l.DocumentId : l.Id}`)} 
+                      className="p-2 rounded-md text-gray-300 bg-white/5 hover:bg-cyan-600 hover:text-white transition-all shadow-md group-hover:scale-105"
+                      title="Xem chi tiết"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => removeSavedLaw(l.Id)} 
+                      className="p-2 rounded-md text-gray-400 bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-all shadow-md group-hover:scale-105"
+                      title="Xóa khỏi danh sách"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* --- Các luật bạn vừa xem gần đây --- */}
+        <div className="bg-[#0e0e0e] p-5 rounded-2xl border border-white/10 shadow-lg mt-4">
+          <h3 className="text-sm font-bold text-cyan-400 mb-4 uppercase tracking-widest flex items-center gap-2">
+            <EyeIcon className="w-4 h-4" /> VỪA XEM GẦN ĐÂY
+          </h3>
+          {recentDocs.length === 0 ? (
+            <div className="text-xs text-gray-600 text-center py-4 bg-white/5 rounded-lg border border-white/5">
+              Chưa có lịch sử xem.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentDocs.map(r => (
+                <div 
+                  key={r.Id} 
+                  className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all group border border-white/5"
+                >
+                  <div className="flex-1 mr-3 min-w-0"> {/* Thêm min-w-0 */}
+                    <div className="font-bold text-gray-200 text-sm truncate group-hover:text-white transition-colors">{r.Title}</div>
+                    <div className="text-xs text-gray-500 truncate">{r.DocumentNumber}</div> {/* Thêm truncate */}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate(`/van-ban/chi-tiet/${userId ? r.DocumentId : r.Id}`)} 
+                      className="p-2 rounded-md text-gray-300 bg-white/5 hover:bg-cyan-600 hover:text-white transition-all shadow-md group-hover:scale-105"
+                      title="Xem chi tiết"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => removeRecentDoc(r.Id)} 
+                      className="p-2 rounded-md text-gray-400 bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-all shadow-md group-hover:scale-105"
+                      title="Xóa khỏi lịch sử"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+
     </div>
   );
 }
