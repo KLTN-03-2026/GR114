@@ -6,7 +6,8 @@ const fs = require('fs');
 const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
-const cron = require('node-cron'); // BỔ SUNG: Import node-cron
+const cron = require('node-cron');
+const { poolConnect } = require('./config/db'); // BỔ SUNG: Import kết nối DB để chờ
 
 // 1. Load cấu hình
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -46,11 +47,12 @@ const chatRoutes = require('./routes/chatRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const apiRoutes = require('./routes/apiRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const settingRoutes = require('./routes/settingRoutes');
 const { processLegalCrawl } = require('./services/crawlService');
 const { getSystemSettings } = require('./controllers/adminController');
 
-// BỔ SUNG: Dời Import Planning lên trước khi sử dụng để tránh sập Server
-const { generatePlanWithGemini } = require('./services/geminiService');
+
+const { generatePlan } = require('./services/geminiService');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
@@ -74,7 +76,7 @@ app.post('/api/ai/generate-plan', upload.array('files'), async (req, res) => {
             }
         }
 
-        const plan = await generatePlanWithGemini(prompt, context);
+        const plan = await generatePlan(prompt, context);
         res.json({ success: true, plan });
     } catch (error) {
         console.error("Lỗi Planning API:", error);
@@ -82,18 +84,19 @@ app.post('/api/ai/generate-plan', upload.array('files'), async (req, res) => {
     }
 });
 
-// 5. Mount Routes
+// 5. Mount Routes 
 app.use('/api/chat', chatRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/settings', settingRoutes); 
 
 // 6. Test Route
 app.get('/', (req, res) => {
     res.send(' LegAI Engine is running on Port ' + PORT);
 });
 
-//  Khối logic  (node-cron) canh giờ Auto Crawl
+// Khối logic (node-cron) canh giờ Auto Crawl
 cron.schedule('* * * * *', async () => {
     const now = new Date();
     const currentHourMinute = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -109,14 +112,11 @@ cron.schedule('* * * * *', async () => {
 
                 let urlList = [];
                 try {
-                    // Cố gắng đọc theo chuẩn JSON ( ["url1", "url2"])
                     urlList = JSON.parse(settings.TargetUrls);
                 } catch (e) {
-                  
                     urlList = settings.TargetUrls.split(/[\s,;]+/).map(u => u.trim()).filter(u => u !== '');
                 }
 
-                // Chạy Crawler
                 if (urlList.length > 0) {
                     processLegalCrawl(urlList, io);
                 } else {
@@ -129,19 +129,26 @@ cron.schedule('* * * * *', async () => {
     }
 });
 
-// 7. Start Server
+// 7. Start Server 
 const startServer = async () => {
     try {
-        console.log("⏳ Đang khởi động AI Engine...");
+        console.log(" Đang khởi động AI Engine...");
+
+        
+        await poolConnect;
+
+        // Load SystemConfig từ DB một cách an toàn
+        const SystemConfig = require('./config/SystemConfig');
+        await SystemConfig.loadFromDB();
 
         server.listen(PORT, () => {
             console.log(`\n========================================`);
             console.log(` LEGAI BACKEND & SOCKET.IO STARTED AT: http://localhost:${PORT}`);
-            console.log(` Chế độ: Full Modular + Real-time Socket.io + Auto Scheduler`);
+            console.log(`Chế độ: Full Modular + Real-time Socket.io + Auto Scheduler`);
             console.log(`========================================\n`);
         });
     } catch (error) {
-        console.error("❌ Không thể khởi động Server:", error);
+        console.error(" Không thể khởi động Server:", error);
     }
 };
 

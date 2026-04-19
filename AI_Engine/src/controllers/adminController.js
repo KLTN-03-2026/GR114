@@ -562,37 +562,41 @@ const getAiHistory = async (req, res) => {
         res.status(500).json({ success: false, message: 'Lỗi server khi lấy lịch sử phân tích AI' });
     }
 };
+// Hàm lấy tính năng được sử dụng nhiều nhất (Dựa trên bảng AIFeatureUsage)
 const getFeatureUsage = async (req, res) => {
     try {
-        const timeframe = String(req.query.timeframe || 'week').toLowerCase();
-        let whereClause = `WHERE ch.CreatedAt >= DATEADD(WEEK, -1, SYSUTCDATETIME())`;
+        const timeframe = String(req.query.timeframe || req.query.filter || 'week').toLowerCase();
+        
+        let whereClause = `WHERE CreatedAt >= DATEADD(WEEK, -1, GETDATE()) AND FeatureName != 'CRAWL_DATA'`;
 
         if (timeframe === 'month') {
-            whereClause = `WHERE ch.CreatedAt >= DATEADD(MONTH, -1, SYSUTCDATETIME())`;
+            whereClause = `WHERE CreatedAt >= DATEADD(MONTH, -1, GETDATE()) AND FeatureName != 'CRAWL_DATA'`;
         } else if (timeframe === 'year') {
-            whereClause = `WHERE ch.CreatedAt >= DATEADD(YEAR, -1, SYSUTCDATETIME())`;
+            whereClause = `WHERE CreatedAt >= DATEADD(YEAR, -1, GETDATE()) AND FeatureName != 'CRAWL_DATA'`;
+        } else if (timeframe === 'all') {
+            whereClause = `WHERE FeatureName != 'CRAWL_DATA'`;
         }
 
         await poolConnect;
         const request = pool.request();
         const query = `
             SELECT TOP (10)
-                ch.RecordType AS FeatureName,
-                COUNT(*) AS UsageCount
-            FROM dbo.ContractHistory ch
+                FeatureName,
+                SUM(UsageCount) AS UsageCount  
+            FROM [LegalBotDB].[dbo].[AIFeatureUsage]
             ${whereClause}
-            GROUP BY ch.RecordType
+            GROUP BY FeatureName
             ORDER BY UsageCount DESC
         `;
+        
         const result = await request.query(query);
 
         res.json({ success: true, data: result.recordset || [], timeframe });
     } catch (error) {
-        console.error('❌ Lỗi lấy Tính năng Sử dụng Nhiều nhất:', error);
-        res.status(500).json({ success: false, message: 'Lỗi server khi lấy dữ liệu tính năng hot' });
+        console.error(' Lỗi lấy Tính năng Sử dụng Nhiều nhất:', error);
+        res.status(500).json({ success: false, message: 'Lỗi server' });
     }
 };
-
 const getCrawlerStatus = async (req, res) => {
     try {
         const status = crawlService.getCrawlStatus();

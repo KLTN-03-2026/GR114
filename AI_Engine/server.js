@@ -65,7 +65,7 @@ cron.schedule('* * * * *', async () => {
         const currentMinute = now.getMinutes();
 
         if (currentHour !== hour || currentMinute !== minute) {
-            console.log(`⏰ Chưa đến giờ crawl. Hiện tại: ${currentHour}:${currentMinute}, Cần: ${hour}:${minute}`);
+            console.log(` Chưa đến giờ crawl. Hiện tại: ${currentHour}:${currentMinute}, Cần: ${hour}:${minute}`);
             return;
         }
 

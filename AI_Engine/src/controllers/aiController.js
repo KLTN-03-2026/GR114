@@ -1,4 +1,3 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
@@ -8,26 +7,7 @@ const sql = require('mssql');
 const { pool } = require('../config/db');
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
-// Cấu hình Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-
-
-// Dùng bản 1.5-flash và bật chế độ ép trả về JSON 100%
-const model = genAI.getGenerativeModel({
-    model: "gemini-flash-lite-latest"
-
-});
-/**
- * Hàm hỗ trợ: Cạo sạch thẻ Markdown bọc ngoài JSON của AI
- */
-const cleanAIJsonString = (rawString) => {
-    if (!rawString) return "{}";
-    return rawString.replace(/```json/gi, '')
-        .replace(/```html/gi, '')
-        .replace(/```/g, '')
-        .trim();
-};
+const geminiService = require('../services/geminiService');
 /**
  * Hàm hỗ trợ làm sạch URL Video để tối ưu hóa Cache (Tiết kiệm 100 request CrawlKit)
  */
@@ -87,32 +67,7 @@ exports.analyzeContract = async (req, res) => {
         // 3. Gửi cho Gemini phân tích
         console.log("🤖 Đang gửi nội dung cho Gemini phân tích...");
 
-        const prompt = `
-        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON.
-        
-        Nội dung hợp đồng:
-        """${contractText}"""
-
-        Yêu cầu output JSON format:
-        {
-            "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
-            "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
-            "risks": [
-                {
-                    "clause": "Trích dẫn điều khoản gốc gây rủi ro",
-                    "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
-                    "severity": "High" | "Medium" | "Low"
-                }
-            ],
-            "recommendation": "Lời khuyên tổng quan của luật sư"
-        }
-        `;
-
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-
-        const cleanedText = cleanAIJsonString(responseText);
-        const analysisResult = JSON.parse(cleanedText);
+        const analysisResult = await geminiService.analyzeContract(contractText);
 
         console.log("✅ Phân tích xong!");
         res.json(analysisResult);
@@ -202,13 +157,7 @@ exports.generateForm = async (req, res) => {
         }`;
 
         // Gọi Gemini (dùng luôn model đã config JSON MimeType ở trên)
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-
-        // Parse JSON trả về
-        // Đưa qua dao cạo trước khi parse
-        const cleanedText = cleanAIJsonString(responseText);
-        const aiData = JSON.parse(cleanedText);
+        const aiData = await geminiService.generateForm(text, history);
 
         console.log("📤 AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
         res.json(aiData);
@@ -283,10 +232,7 @@ exports.generatePlanning = async (req, res) => {
         Lưu ý: Chỉ trả về JSON, không kèm giải thích hay markdown.
         `;
 
-        const result = await model.generateContent(prompt);
-        // 3. Parse JSON từ Gemini
-        const responseText = result.response.text();
-        const planningResult = JSON.parse(responseText);
+        const planningResult = await geminiService.generatePlan(rawText, combinedText);
 
         // 4. LƯU VÀO SQL SERVER (KÉT SẮT CỦA DUY)
         try {
@@ -390,10 +336,7 @@ exports.analyzeVideo = async (req, res) => {
             }
         `;
 
-        const aiResult = await model.generateContent(prompt);
-        const responseText = aiResult.response.text();
-        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-        const aiData = JSON.parse(cleanedJson);
+        const aiData = await geminiService.analyzeVideo(transcript);
 
         // --- 4. LƯU DATABASE (SỬA ĐỂ KHỚP VỚI AI DATA MỚI) ---
         const saveRequest = pool.request();
@@ -408,7 +351,7 @@ exports.analyzeVideo = async (req, res) => {
         saveRequest.input('TrustScore', sql.Int, aiData.audit_metrics?.trust_score || 0);
         saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
 
-        // Lưu vào cả 2 bảng (Duy để nguyên tên model 'gemini-flash-lite-latest' là chuẩn rồi)
+        // Lưu vào cả 2 bảng 
         await saveRequest.query(`
             INSERT INTO VideoHistory (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AIModel, CreatedAt)
             VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, 'gemini-flash-lite-latest', GETDATE())

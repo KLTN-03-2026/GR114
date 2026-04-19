@@ -8,7 +8,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const documentController = require('../controllers/documentController');
 const authController = require('../controllers/authController');
 const historyController = require('../controllers/historyController');
-const aiController = require('../controllers/aiController'); // Duy nhớ thêm ông này vào nhé!
+const aiController = require('../controllers/aiController'); 
 
 // ============================================================
 // NHÓM 1: ROUTES CÔNG KHAI (KHÔNG CẦN LOGIN)

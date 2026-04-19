@@ -1,20 +1,20 @@
 const { sql, pool } = require('./db');
 
 class SystemConfig {
-    static appName = '';
-    static adminEmail = '';
+    static appName = 'LEGAI HUB';
+    static adminEmail = 'admin@legai.vn';
     static geminiApiKey = '';
-    static geminiModel = '';
+    static geminiModel = 'gemini-1.5-flash';
     static temperature = 0.3;
     static pineconeApiKey = '';
-    static pineconeIndex = '';
+    static pineconeIndex = 'legal-vectors';
 
-    // Hàm load dữ liệu từ DB vào class
+    // Hàm load dữ liệu từ DB vào static properties
     static async loadFromDB() {
         try {
-            const poolConnection = await pool;
-            const result = await poolConnection.request()
-                .query('SELECT * FROM SystemSettings WHERE id = 1');
+            const poolConnect = await pool;
+            const result = await poolConnect.request()
+                .query('SELECT * FROM AppConfigurations WHERE id = 1');
 
             if (result.recordset.length > 0) {
                 const data = result.recordset[0];
@@ -25,17 +25,17 @@ class SystemConfig {
                 this.temperature = parseFloat(data.temperature);
                 this.pineconeApiKey = data.pineconeApiKey;
                 this.pineconeIndex = data.pineconeIndex;
-                console.log('SystemConfig loaded from DB successfully');
+                console.log('SystemConfig loaded from DB');
             } else {
-                console.log('No SystemSettings found in DB, using defaults');
+                console.log('No AppConfigurations found in DB, using defaults');
             }
         } catch (error) {
             console.error('Error loading SystemConfig from DB:', error);
         }
     }
 
-    // Hàm lấy config dưới dạng object (cho internal use)
-    static getConfig() {
+    // Hàm lấy tất cả settings (dùng cho internal)
+    static getAll() {
         return {
             appName: this.appName,
             adminEmail: this.adminEmail,

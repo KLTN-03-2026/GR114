@@ -1,7 +1,7 @@
--- Script tạo bảng SystemSettings cho SQL Server
+-- Script tạo bảng AppConfigurations cho SQL Server
 -- Chạy trong SQL Server Management Studio hoặc qua query
 
-CREATE TABLE SystemSettings (
+CREATE TABLE AppConfigurations (
     id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),  -- Đảm bảo chỉ có 1 dòng duy nhất
     appName NVARCHAR(255) NOT NULL,
     adminEmail NVARCHAR(255) NOT NULL,
