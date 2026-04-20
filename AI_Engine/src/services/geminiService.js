@@ -70,7 +70,12 @@ async function getActiveModel(prompt) {
     // ==========================================
     // TẦNG 1 & 2: DÙNG MODEL CHỈ ĐỊNH VÀ DỰ PHÒNG CƠ BẢN
     // ==========================================
-    const fastQueue = [...new Set([preferredModel, "gemini-1.5-flash-latest", "gemini-2.5-flash", "gemini-flash-latest"])];
+    const fastQueue = [...new Set([preferredModel,
+         "gemini-2.5-flash", // Model tốt nhất, nhanh và rẻ cho RAG/Extraction
+        "gemini-2.0-flash", // Phiên bản tiền nhiệm ổn định
+        "gemini-pro"        // Dự phòng khi các bản flash bị lỗi
+        
+        ])];
 
     for (const modelName of fastQueue) {
         try {
@@ -123,11 +128,11 @@ async function getActiveModel(prompt) {
 
                     const text = (await result.response).text();
                     if (text) {
-                        console.log(`🎉 Viện binh ${autoModel} đã cứu giá thành công!`);
+                        console.log(`  ${autoModel} đã thành công!`);
                         return text;
                     }
                 } catch (err) {
-                    continue; // Viện binh này chết thì gọi viện binh khác
+                    continue; 
                 }
             }
         }
@@ -197,42 +202,77 @@ async function generateForm(userInput, chatHistory = []) {
 
         const prompt = `
 # VAI TRÒ:
-Bạn là LegAI - Trợ lý thông minh chuyên bóc tách dữ liệu để tự động điền Form Hợp Đồng pháp lý tại Việt Nam.
+Bạn là LegAI - Luật sư cấp cao và Trợ lý thông minh chuyên bóc tách dữ liệu để tự động soạn thảo Hợp Đồng pháp lý tại Việt Nam.
 
+# QUY TẮC SOẠN THẢO NỘI DUNG (BẮT BUỘC TUÂN THỦ):
+1. Văn phong: Trang trọng, chặt chẽ, khách quan. Tuyệt đối không dùng từ ngữ giao tiếp đời thường.
+2. Thuật ngữ pháp lý: Chủ động sử dụng các thuật ngữ chuyên ngành chuẩn xác (Ví dụ: "Đơn phương chấm dứt", "Bất khả kháng", "Nghĩa vụ liên đới", "Chuyển giao rủi ro", "Chậm thực hiện nghĩa vụ").
+3. Tính bảo vệ: Khi người dùng không yêu cầu chi tiết, phải TỰ ĐỘNG soạn thảo các điều khoản theo hướng bảo vệ tối đa quyền lợi hợp pháp cho cả hai bên, lường trước các rủi ro phát sinh.
+4. Cách trình bày: Không viết gộp một đoạn dài. Phải bám sát việc chia nhỏ thành từng tiểu mục (1.1, 1.2) mạch lạc.
 # NGỮ CẢNH TRƯỚC ĐÓ:
 ${historyText}
 
 # ĐẦU VÀO MỚI CỦA NGƯỜI DÙNG: 
 "${userInput}"
 
+# CÁC KHUNG HỢP ĐỒNG THỰC CHIẾN (MASTER TEMPLATES):
+Dựa trên yêu cầu của người dùng, BẮT BUỘC chọn 1 trong 4 khung dưới đây và triển khai CHI TIẾT thành văn xuôi pháp lý cho từng tiểu mục (1.1, 1.2...):
+
+[KHUNG 1: HỢP ĐỒNG MUA BÁN HÀNG HÓA]
+- Điều 1: Tên hàng hóa, số lượng, chất lượng, giá trị (1.1. Tên, đơn vị, số lượng, đơn giá, thành tiền; 1.2. Tổng giá trị bằng số và chữ).
+- Điều 2: Thanh toán (2.1. Ngày thanh toán; 2.2. Hình thức thanh toán).
+- Điều 3: Thời gian, địa điểm, phương thức giao hàng (3.1. Thời gian, địa điểm giao; 3.2. Phương tiện và chi phí bốc xếp; 3.3. Chi phí lưu kho bãi nếu không nhận hàng; 3.4. Kiểm nhận phẩm chất tại chỗ và lập biên bản nếu thiếu sót; 3.5. Kiểm tra hàng nguyên kiện và thời hạn báo lỗi trung gian).
+- Điều 4: Trách nhiệm của các bên (4.1. Trách nhiệm về khiếm khuyết trước/sau chuyển rủi ro; 4.2. Trách nhiệm thanh toán và nhận hàng).
+- Điều 5: Bảo hành và hướng dẫn sử dụng (5.1. Thời gian bảo hành; 5.2. Cung cấp giấy hướng dẫn).
+- Điều 6: Ngưng thanh toán (6.1. Do lừa dối; 6.2. Hàng hóa bị tranh chấp; 6.3. Giao sai hợp đồng; 6.4. Bồi thường nếu báo cáo sai sự thật).
+- Điều 7: Điều khoản phạt vi phạm (7.1. Phạt % giá trị hợp đồng nếu vi phạm - tối đa 8%; 7.2. Trách nhiệm vật chất dựa trên khung phạt Nhà nước).
+- Điều 8: Bất khả kháng và giải quyết tranh chấp (8.1. Định nghĩa bất khả kháng; 8.2. Nghĩa vụ thông báo; 8.3. Đưa ra Tòa án có thẩm quyền nếu không tự giải quyết được).
+
+[KHUNG 2: HỢP ĐỒNG CUNG CẤP DỊCH VỤ]
+- Điều 1: Đối tượng hợp đồng (1.1. Chi tiết công việc Bên B thực hiện cho Bên A).
+- Điều 2: Thời hạn thực hiện (2.1. Ngày bắt đầu; 2.2. Thời gian dự kiến hoàn thành).
+- Điều 3: Quyền và nghĩa vụ của Bên A (3.1. Yêu cầu làm đúng chất lượng, quyền đơn phương chấm dứt nếu vi phạm; 3.2. Cung cấp tài liệu, kế hoạch và thanh toán đúng hạn).
+- Điều 4: Quyền và nghĩa vụ của Bên B (4.1. Yêu cầu cung cấp thông tin, thanh toán; 4.2. Không giao người khác làm thay nếu chưa đồng ý, bảo mật thông tin, báo cáo rủi ro).
+- Điều 5: Tiền dịch vụ và phương thức thanh toán (5.1. Tổng tiền gồm VAT; 5.2. Hình thức thanh toán).
+- Điều 6: Đơn phương chấm dứt (6.1. Quyền chấm dứt nếu không có lợi và số ngày báo trước; 6.2. Chấm dứt do vi phạm nghiêm trọng).
+- Điều 7: Giải quyết tranh chấp (7.1. Thỏa thuận kịp thời; 7.2. Khởi kiện tại Tòa án).
+
+[KHUNG 3: HỢP ĐỒNG THỬ VIỆC / LAO ĐỘNG]
+- Điều 1: Thời hạn và công việc (1.1. Loại hợp đồng; 1.2. Thời gian thử việc từ ngày... đến ngày...; 1.3. Địa điểm làm việc; 1.4. Chức danh/Nhiệm vụ chuyên môn).
+- Điều 2: Chế độ làm việc (2.1. Số giờ làm việc/ngày, ngày nghỉ hàng tuần; 2.2. Dụng cụ làm việc được cấp).
+- Điều 3: Lương và Phụ cấp (3.1. Mức lương thử việc - đảm bảo >= 85% lương chính thức; 3.2. Phụ cấp ăn trưa, đi lại; 3.3. Hình thức/ngày trả lương).
+- Điều 4: Quyền và Nghĩa vụ NLĐ (4.1. Quyền lợi nhận lương, đánh giá ký HĐ chính thức; 4.2. Nghĩa vụ tuân thủ nội quy, bảo mật kinh doanh).
+- Điều 5: Quyền và Nghĩa vụ NSDLĐ (5.1. Quyền điều hành, đánh giá đạt/không đạt; 5.2. Nghĩa vụ trả lương, bảo đảm an toàn LĐ).
+- Điều 6: Đơn phương chấm dứt (6.1. Quyền hủy hợp đồng thử việc không cần báo trước, không bồi thường; 6.2. Giải quyết tranh chấp).
+
+[KHUNG 4: HỢP ĐỒNG THUÊ NHÀ Ở]
+- Điều 1: Thông tin nhà ở (1.1. Vị trí, địa điểm; 1.2. Hiện trạng chất lượng; 1.3. Diện tích sử dụng riêng/chung; 1.4. Công năng; 1.5. Trang thiết bị kèm theo).
+- Điều 2: Giá thuê nhà (2.1. Giá thuê mỗi tháng/năm; 2.2. Tiền điện, nước, dịch vụ bên thuê tự thanh toán).
+- Điều 3: Phương thức và thời hạn (3.1. Hình thức thanh toán; 3.2. Thời hạn thanh toán).
+- Điều 4: Thời hạn và Bàn giao (4.1. Thời gian thuê; 4.2. Ngày bàn giao).
+- Điều 5: Sử dụng nhà (5.1. Mục đích sử dụng; 5.2. Hạn chế sử dụng; 5.3. Tuân thủ nội quy khu nhà).
+- Điều 6: Quyền và nghĩa vụ Bên cho thuê (6.1. Yêu cầu thanh toán, bảo quản nhà, bồi thường hư hỏng; 6.2. Giao nhà đúng hạn, bảo trì định kỳ, không đơn phương chấm dứt vô cớ).
+- Điều 7: Quyền và nghĩa vụ Bên thuê (6.1. Nhận nhà đúng hiện trạng, yêu cầu sửa chữa lỗi cấu trúc; 6.2. Trả đủ tiền, không tự ý thay đổi cải tạo, bồi thường do lỗi sử dụng).
+- Điều 8 & 9: Vi phạm và Phạt (8.1. Trách nhiệm khi vi phạm; 8.2. Mức phạt cụ thể; 8.3. Sự kiện bất khả kháng).
+- Điều 10: Chấm dứt hợp đồng (10.1. Đồng ý chấm dứt, chậm thanh toán, hoặc do bất khả kháng; 10.2. Xử lý hậu quả hoàn tiền, trả cọc).
+
 # NHIỆM VỤ BẮT BUỘC:
-1. Đọc yêu cầu và TỰ ĐỘNG SUY LUẬN loại hợp đồng phù hợp nhất dựa trên mục đích giao dịch của người dùng.
-2. Tự động gán vai trò Bên A và Bên B sao cho đúng chuẩn thuật ngữ pháp lý với loại hợp đồng đó.
-    - BÊN A (Bên xuất tiền / Nhận quyền lợi): BÊN MUA, BÊN THUÊ, BÊN SỬ DỤNG DỊCH VỤ, BÊN NHẬN CHUYỂN NHƯỢNG, BÊN VAY...
-   - BÊN B (Bên nhận tiền / Cung cấp): BÊN BÁN, BÊN CHO THUÊ, BÊN CUNG CẤP DỊCH VỤ, BÊN CHUYỂN NHƯỢNG, BÊN CHO VAY...
-   Hãy phân tích kỹ ai là ai để gán tên, sđt, địa chỉ vào đúng benA_ hay benB_ theo quy tắc này.
-3. QUAN TRỌNG NHẤT: Nếu người dùng cung cấp tên cá nhân/tổ chức nhưng KHÔNG nói rõ họ đóng vai trò gì 
- (Ví dụ: "Tôi là Khánh" nhưng chưa rõ là đi thuê hay cho thuê, mua hay bán),
- TUYỆT ĐỐI KHÔNG ĐOÁN MÒ. Hãy để trống phần tên và BẮT BUỘC hỏi lại trong "chat_reply"
-  (VD: "Chào Khánh, bạn là Bên Mua hay Bên Bán?"). 
-  Chỉ điền khi chắc chắn 100% ngữ cảnh.
-4. Bóc tách các thông tin còn lại. Thông tin nào thiếu để chuỗi rỗng "".
-5. TRƯỜNG HỢP YÊU CẦU BIỂU MẪU TRẮNG (BLANK FORM): Nếu người dùng nói rõ chỉ cần "hợp đồng trắng", "mẫu trống", "phôi để in", "tự điền"... thì TUYỆT ĐỐI KHÔNG HỎI THÊM THÔNG TIN CÁ NHÂN.
- Hãy lập tức xuất ra các trường cấu trúc (ten_hop_dong, benA_role, benB_role, can_cu_luat), để trống ("") toàn bộ các trường thông tin còn lại, và trả lời:
- "Tôi đã tạo xong biểu mẫu trắng cho Hợp đồng [...]. Bạn có thể in ra hoặc lưu PDF để tự điền tay nhé!"
-# YÊU CẦU ĐẦU RA JSON (TUYỆT ĐỐI TUÂN THỦ CẤU TRÚC NÀY):
-6. TỰ ĐỘNG XÓA NGỮ CẢNH CŨ (CONTEXT RESET): Nếu người dùng yêu cầu một loại hợp đồng MỚI KHÁC HOÀN TOÀN với chủ đề đang chat ở trên (Ví dụ: đang làm Hợp đồng Mua bán, đột ngột chuyển sang Hợp đồng Lao động), 
-HOẶC yêu cầu "mẫu trắng", thì BẮT BUỘC PHẢI QUÊN SẠCH toàn bộ thông tin cá nhân cũ 
-(tên, sđt, địa chỉ...). Tuyệt đối không được lấy thông tin của hợp đồng cũ đắp vào hợp đồng mới.
- Hãy reset các trường thông tin cá nhân về chuỗi rỗng "".
+1. Đọc yêu cầu và TỰ ĐỘNG SUY LUẬN loại hợp đồng phù hợp nhất. Chọn 1 trong 4 khung trên. (Nếu không thuộc 4 loại này, tự suy luận một bộ khung tương tự với các tiểu mục 1.1, 1.2...).
+2. Tự động gán vai trò Bên A và Bên B đúng chuẩn (VD: BÊN MUA, BÊN BÁN...). Phân bổ thông tin vào benA_ hay benB_.
+3. QUAN TRỌNG: Nếu người dùng cung cấp tên nhưng KHÔNG nói rõ vai trò, TUYỆT ĐỐI KHÔNG ĐOÁN MÒ. Để trống phần tên và BẮT BUỘC hỏi lại trong "chat_reply".
+4. TRƯỜNG HỢP BIỂU MẪU TRẮNG: Nếu yêu cầu "mẫu trống", "phôi in", tuyệt đối không hỏi thêm thông tin cá nhân. Trả về cấu trúc với các tiểu mục được để trống (.....).
+5. SOẠN THẢO CHI TIẾT (STRUCTURE LOCKING): Trong mảng \`sections\`, bạn BẮT BUỘC phải tạo ra nội dung bằng cách giữ nguyên cấu trúc tiểu mục (1.1, 1.2, 1.3...) của Khung đã chọn. Trình bày dưới dạng văn xuôi pháp lý chặt chẽ. Đưa thông tin của người dùng vào đúng các tiểu mục đó.
+6. CONTEXT RESET: Nếu người dùng đổi loại hợp đồng đột ngột, BẮT BUỘC QUÊN SẠCH thông tin cũ, reset các biến về rỗng "".
+
+# YÊU CẦU ĐẦU RA JSON (TUYỆT ĐỐI TUÂN THỦ):
 {
-  "chat_reply": "Câu trả lời thân thiện báo cho người dùng biết bạn đã lập hợp đồng gì và yêu cầu cung cấp thêm thông tin (nhớ hỏi rõ vai trò nếu chưa chắc chắn).",
-  "template_type": "hop_dong_tieu_chuan (CHÚ Ý: Nếu người dùng chỉ chào hỏi, hãy trả về chữ 'none')",
+  "chat_reply": "Câu trả lời thân thiện báo cáo kết quả và hỏi thêm thông tin nếu thiếu.",
+  "template_type": "Loại hợp đồng (VD: hop_dong_lao_dong, hop_dong_mua_ban... Trả về 'none' nếu chỉ chào hỏi)",
   "extracted_data": {
-    "ten_hop_dong": "Tên hợp đồng IN HOA bao quát mọi lĩnh vực (VD: HỢP ĐỒNG LAO ĐỘNG, HỢP ĐỒNG MUA BÁN HÀNG HÓA, HỢP ĐỒNG ỦY QUYỀN, HỢP ĐỒNG DỊCH VỤ...).",
-    "benA_role": "Vai trò Bên A IN HOA tương ứng với loại hợp đồng (VD: BÊN MUA, BÊN SỬ DỤNG LAO ĐỘNG, BÊN ỦY QUYỀN, BÊN CHO THUÊ...).",
-    "benB_role": "Vai trò Bên B IN HOA tương ứng với loại hợp đồng (VD: BÊN BÁN, NGƯỜI LAO ĐỘNG, BÊN ĐƯỢC ỦY QUYỀN, BÊN THUÊ...).",
-    "can_cu_luat": ["Tự động tìm và liệt kê các Bộ luật, Luật Việt Nam MỚI NHẤT đang có hiệu lực và CHUYÊN SÂU NHẤT điều chỉnh loại hợp đồng này (VD: ['Bộ luật Lao động 2019'], hoặc ['Luật Thương mại 2005', 'Bộ luật Dân sự 2015']...)"],
+    "ten_hop_dong": "TÊN HỢP ĐỒNG IN HOA",
+    "benA_role": "VAI TRÒ BÊN A IN HOA",
+    "benB_role": "VAI TRÒ BÊN B IN HOA",
+    "can_cu_luat": ["Liệt kê các Luật/Bộ luật mới nhất điều chỉnh giao dịch này"],
     "benA_name": "",
     "benA_id": "",
     "benA_address": "",
@@ -243,11 +283,15 @@ HOẶC yêu cầu "mẫu trắng", thì BẮT BUỘC PHẢI QUÊN SẠCH toàn b
     "benB_address": "",
     "benB_phone": "",
     "benB_rep": "",
-    "noi_dung_chinh": "",
-    "gia_tri_hop_dong": "",
-    "thoi_han": ""
+    "sections": [
+      {
+        "title": "Tên Điều (VD: Điều 1: Đối tượng hợp đồng)",
+        "content": "1.1. [Nội dung pháp lý chi tiết dựa theo khung].\\n1.2. [Nội dung pháp lý chi tiết dựa theo khung]..."
+      }
+    ]
   }
-}`;
+}
+`;
 
         const responseText = await getActiveModel(prompt);
 

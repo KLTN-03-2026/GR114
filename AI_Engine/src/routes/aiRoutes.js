@@ -9,15 +9,20 @@ const upload = multer({
     dest: path.join(__dirname, '../../uploads/')
 });
 
+// 1. Chat / RAG
+router.post('/ask', aiController.ask);
 
-
-//1/ Route Phân tích hợp đồng (Nhận file hợp đồng và trả về kết quả phân tích)
+// 2. Phân tích hợp đồng (File Upload)
 router.post('/analyze-contract', upload.single('file'), aiController.analyzeContract);
-// 2. Route Lập kế hoạch báo cáo (Nhận yêu cầu và trả về kế hoạch đã lập)
+
+// 3. Lập kế hoạch báo cáo (File Upload)
 router.post('/generate-planning', upload.array('files', 10), aiController.generatePlanning);
-// 3. Route Soạn thảo văn bản (Nhận yêu cầu và trả về văn bản đã soạn thảo)
+router.post('/generate-plan', upload.array('files', 10), aiController.generatePlanning);
+
+// 4. Soạn thảo văn bản
 router.post('/generate-form', aiController.generateForm);
-// 4. Route Thẩm định Video (Bóc tách link TikTok/YouTube và đối soát)
+
+// 5. Phân tích Video
 router.post('/analyze-video', aiController.analyzeVideo);
 
 module.exports = router;

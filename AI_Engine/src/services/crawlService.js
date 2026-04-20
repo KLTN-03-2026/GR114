@@ -4,13 +4,22 @@ const axios = require('axios');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const geminiService = require('./geminiService');
 
+
+
+// 1. Kiểm tra Key trước khi khởi tạo
+if (!process.env.GEMINI_API_KEY || !process.env.PINECONE_API_KEY) {
+    console.error("\n [CẢNH BÁO]: Thiếu API Key trong file .env!");
+    console.error(" Vui lòng kiểm tra GEMINI_API_KEY và PINECONE_API_KEY.\n");
+    process.exit(1);
+}
+
 // Khởi tạo Gemini cho embedding
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "dummy-key");
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
 // Khởi tạo Pinecone client
 const pc = new Pinecone({
-    apiKey: process.env.PINECONE_API_KEY
+    apiKey: process.env.PINECONE_API_KEY || "dummy-key"
 });
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));

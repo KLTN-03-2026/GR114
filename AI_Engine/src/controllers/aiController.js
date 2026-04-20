@@ -1,12 +1,13 @@
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
-const { CrawlKit } = require('paparusi-crawlkit'); // Dùng để gọi CrawlKit API
+const path = require('path');
 const axios = require('axios');
 const sql = require('mssql');
 const { pool } = require('../config/db');
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
+const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
 /**
  * Hàm hỗ trợ làm sạch URL Video để tối ưu hóa Cache (Tiết kiệm 100 request CrawlKit)
@@ -28,6 +29,45 @@ const cleanVideoUrl = (url) => {
         return url;
     } catch (e) { return url; }
 };
+
+exports.ask = async (req, res) => {
+    try {
+        const { question, message } = req.body;
+        const userQuery = question || message;
+
+        if (!userQuery) {
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
+        }
+
+        console.log(`🤖 LegAI nhận câu hỏi: "${userQuery}"`);
+
+        let relatedDocs = [];
+        try {
+            relatedDocs = await ragService.query(userQuery);
+        } catch (err) {
+            console.error('⚠️ Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
+        }
+
+        const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
+
+        return res.json({
+            success: true,
+            answer,
+            sources: relatedDocs.map(doc => ({
+                title: doc.title,
+                source: doc.sourceUrl || 'Cơ sở dữ liệu nội bộ'
+            }))
+        });
+    } catch (error) {
+        console.error('❌ Lỗi Chat Controller:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',
+            error: error.message
+        });
+    }
+};
+
 // ==============================================================================
 // 1. API THẨM ĐỊNH HỢP ĐỒNG (FILE SCANNER)
 // ==============================================================================
