@@ -6,7 +6,8 @@ import {
     CheckBadgeIcon,
     ArrowPathIcon,
     ExclamationTriangleIcon,
-    StopIcon
+    StopIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import aiClient from "../../api/aiClient";
 import axios from "axios";
@@ -21,7 +22,7 @@ export default function ContractAnalysis() {
     const abortControllerRef = useRef(null);
     const intervalRef = useRef(null);
     const [isSaved, setIsSaved] = useState(false);
-
+    const fileInputRef = useRef(null);
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -109,7 +110,7 @@ export default function ContractAnalysis() {
             }
         } catch (saveErr) {
             console.error("Lỗi lưu SQL:", saveErr);
-            alert("❌ Lỗi khi lưu hồ sơ vào Database.");
+            alert(" Lỗi khi lưu hồ sơ vào Database.");
         } finally {
             setIsSaving(false);
         }
@@ -127,10 +128,32 @@ export default function ContractAnalysis() {
         { name: 'An toàn', value: result.risk_score ?? result.riskScore ?? 0, color: '#06b6d4' },
         { name: 'Rủi ro', value: 100 - (result.risk_score ?? result.riskScore ?? 0), color: '#ef4444' }
     ] : [];
+    // Helper: Reset tất cả trạng thái về ban đầu, bao gồm cả giá trị thẻ input
+    const resetAll = () => {
+        setFile(null);
+        setResult(null);
+        setProgress(0);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""; // ĐÂY LÀ CHÌA KHÓA: Xóa giá trị thẻ input
+        }
+    };
+    // xử lý khi người dùng muốn xóa file đã chọn (nếu có) và reset trạng thái về ban đầu
+    const handleRemoveFile = (e) => {
+
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+
+
+        resetAll();
+        console.log("Đã xóa file và reset trạng thái.");
+    };
 
     return (
         <div className="w-full relative">
-            {/* Progress Bar duy nhất của Duy */}
+            {/* Progress Bar  */}
             {isAnalyzing && (
                 <div className="absolute top-0 left-0 w-full h-1 bg-transparent z-[9999]">
                     <div
@@ -150,51 +173,100 @@ export default function ContractAnalysis() {
                         </h1>
                     </div>
 
-                    {/* KHU VỰC CHỌN FILE (LUÔN LUÔN HIỆN) */}
-                    <div className="bg-[#0a0a0a]/80 rounded-[2.3rem] p-8 text-center text-white border border-white/10 shadow-2xl backdrop-blur-xl">
-                        <label className="block w-full cursor-pointer group mb-6">
-                            <input type="file" className="hidden" onChange={handleFileChange} />
-                            <div className={`border-2 border-dashed rounded-3xl p-8 transition-all ${file ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/20 hover:border-cyan-400/50'}`}>
+                    <div className="w-full flex flex-col gap-4"> {/* Flex bọc cả cụm lại cho gọn */}
+                        <label className="block w-full cursor-pointer group relative shadow-2xl">
+                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+
+                            {/* Upload hiệu ứng kính mờ - Phiên bản viền Bold & Glow */}
+                            <div className={`group bg-white/5 backdrop-blur-2xl rounded-[2rem] p-10 text-center transition-all duration-500 relative flex flex-col items-center justify-center min-h-[200px]
+    /* Cấu hình viền: to (border-4) và nét đứt (border-dashed) */
+    border-4 border-dashed 
+    ${file
+                                    ? 'border-cyan-400 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.15)] scale-[1.02]'
+                                    : 'border-white/30 hover:border-cyan-400 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]'
+                                }`}
+                            >
+
                                 {file ? (
-                                    <div className="text-cyan-400 flex flex-col items-center gap-2">
-                                        <DocumentTextIcon className="w-10 h-10 animate-pulse" />
-                                        <span className="text-white font-bold break-all">{file.name}</span>
-                                    </div>
+                                    <>
+                                        {/* Nút xóa file */}
+                                        <button
+                                            onClick={ handleRemoveFile}
+                                            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-red-500/20 hover:text-red-500 text-gray-400 transition-all z-20 border border-white/5 hover:border-red-500/40"
+                                            title="Xóa file"
+                                        >
+                                            <XMarkIcon className="w-6 h-6" />
+                                        </button>
+
+                                        {/* Hiển thị file đã chọn */}
+                                        <div className="text-cyan-400 flex flex-col items-center gap-3">
+                                            <div className="relative">
+                                                <DocumentTextIcon className="w-16 h-16 animate-pulse" />
+                                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full blur-sm animate-ping"></div>
+                                            </div>
+                                            <span className="text-white font-bold break-all px-4 tracking-wide">{file.name}</span>
+                                            <span className="text-cyan-400/60 text-xs uppercase font-black tracking-widest">Sẵn sàng phân tích</span>
+                                        </div>
+                                    </>
                                 ) : (
-                                    <div className="text-gray-400 flex flex-col items-center">
-                                        <CloudArrowUpIcon className="w-8 h-8 mb-2" />
-                                        <span className="text-[10px] uppercase tracking-widest font-bold">Tải lên tài liệu (.pdf, .doc)</span>
+                                    /* Trạng thái chờ upload */
+                                    <div className="flex flex-col items-center cursor-pointer">
+                                        <CloudArrowUpIcon className="w-14 h-14 mb-4 text-white/40 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-300" />
+                                        <span className="text-[16px] text-white/70 group-hover:text-white uppercase tracking-[0.3em] font-black transition-colors">
+                                            Tải lên tài liệu pháp lý
+                                        </span>
+                                        <span className="text-[14px] text-white/30 mt-2 font-medium">Hỗ trợ PDF, DOCX </span>
                                     </div>
                                 )}
                             </div>
                         </label>
 
-                        {/* LOGIC NÚT BẤM DƯỚI KHUNG UPLOAD */}
-                        {!isAnalyzing && !result && (
+                        {/* LOGIC NÚT BẤM */}
+                        {isAnalyzing ? (
+                            <button
+                                onClick={handleCancelAnalysis}
+                                className="
+                            /* 1. KÍCH THƯỚC: Thu gọn ngang và dọc, căn giữa */
+                            w-fit px-8 py-2 mx-auto rounded-xl 
+        
+                            /* 2. CHỮ: Giảm độ dày và kích thước cho thanh thoát */
+                            font-bold text-[12px] text-red-400 flex items-center justify-center gap-2 tracking-wider 
+        
+                             /* 3. HIỆU ỨNG: Glassmorphism nhẹ nhàng, bớt nhấp nháy mạnh */
+                                bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 hover:border-red-500/40 
+                            transition-all backdrop-blur-md group  "
+
+                            >
+                                {/* Icon nhỏ lại và chỉ nháy nhẹ khi hover hoặc đang chạy */}
+                                <StopIcon className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+                                <span>DỪNG PHÂN TÍCH</span>
+                            </button>
+                        ) : result ? (
+                            <button onClick={() => { setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-full py-4 rounded-2xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all backdrop-blur-md">
+                                <ArrowPathIcon className="w-5 h-5" /> PHÂN TÍCH VĂN BẢN KHÁC
+                            </button>
+                        ) : file && (
                             <button
                                 onClick={handleAnalyze}
                                 disabled={!file}
-                                className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-3 tracking-widest transition-all ${!file ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-[1.02]'}`}
+                                className={`
+                                /* 1. ĐIỀU CHỈNH KÍCH THƯỚC: Thu ngắn chiều ngang (mx-auto để căn giữa) và giảm chiều cao */
+                                w-fit px-10 py-2.5 mx-auto rounded-xl 
+        
+                                /* 2. CHỈNH CHỮ: Giảm độ dày (bold thay vì black) và khoảng cách vừa phải */
+                                font-bold text-[13px] text-white flex items-center justify-center gap-2 tracking-wider 
+        
+                                /* 3. HIỆU ỨNG: Giữ sự mượt mà */
+                                transition-all shadow-lg backdrop-blur-md 
+        
+        ${!file
+                                        ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/10'
+                                        : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-105 active:scale-95 border border-cyan-400/30 shadow-cyan-500/20 hover:shadow-cyan-500/40'
+                                    }
+    `}
                             >
-                                <ShieldCheckIcon className="w-5 h-5" /> THẨM ĐỊNH NGAY
-                            </button>
-                        )}
-
-                        {isAnalyzing && (
-                            <button
-                                onClick={handleCancelAnalysis}
-                                className="w-full py-4 rounded-2xl font-black text-white bg-red-500/10 border border-red-500/40 hover:bg-red-500/20 flex items-center justify-center gap-3 tracking-widest transition-all animate-pulse"
-                            >
-                                <StopIcon className="w-6 h-6 text-red-500" /> DỪNG PHÂN TÍCH
-                            </button>
-                        )}
-
-                        {result && !isAnalyzing && (
-                            <button
-                                onClick={() => { setFile(null); setResult(null); }}
-                                className="w-full py-4 rounded-2xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all"
-                            >
-                                <ArrowPathIcon className="w-5 h-5" /> PHÂN TÍCH VĂN BẢN KHÁC
+                                <ShieldCheckIcon className="w-4 h-4" />
+                                <span>THẨM ĐỊNH NGAY</span>
                             </button>
                         )}
                     </div>
@@ -254,12 +326,40 @@ export default function ContractAnalysis() {
                             </div>
                             <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                                 {result.risks?.map((risk, index) => (
-                                    <div key={index} className="bg-white/5 border border-white/5 rounded-2xl p-5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="bg-white/10 text-gray-300 px-3 py-1 rounded-lg text-[11px] font-mono truncate max-w-[70%]">"{risk.clause}"</div>
+                                    // Đổi background nhẹ tùy theo severity để phân cấp tốt hơn
+                                    <div key={index} className={`border rounded-2xl p-5 ${risk.severity === 'High' ? 'bg-red-500/5 border-red-500/20' :
+                                        risk.severity === 'Medium' ? 'bg-orange-500/5 border-orange-500/20' :
+                                            'bg-white/5 border-white/10'
+                                        }`}>
+                                        <div className="flex justify-between items-start mb-4">
+                                            {/* Phần trích dẫn được làm nổi bật hơn */}
+                                            <div className="bg-[#0a0a0a] border border-white/10 text-gray-400 px-3 py-2 rounded-xl text-xs font-mono w-[80%] italic">
+                                                "{risk.clause}"
+                                            </div>
                                             {getSeverityBadge(risk.severity)}
                                         </div>
-                                        <p className="text-gray-400 text-sm"><span className="text-red-400 font-bold">Vấn đề: </span>{risk.issue}</p>
+
+                                        <div className="space-y-3">
+                                            {/* VẤN ĐỀ (Màu đỏ/cam tùy severity) */}
+                                            <p className="text-gray-300 text-sm leading-relaxed">
+                                                <span className={`${risk.severity === 'High' ? 'text-red-400' : 'text-orange-400'} font-bold flex items-center gap-1 mb-1`}>
+                                                    <ShieldExclamationIcon className="w-4 h-4" /> Phân tích rủi ro:
+                                                </span>
+                                                {risk.issue}
+                                            </p>
+
+                                            {/* ĐỀ XUẤT SỬA ĐỔI (Trường mới thêm vào) */}
+                                            {risk.solution && (
+                                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mt-2">
+                                                    <p className="text-emerald-100 text-sm leading-relaxed">
+                                                        <span className="text-emerald-400 font-bold flex items-center gap-1 mb-1">
+                                                            <CheckBadgeIcon className="w-4 h-4" /> Đề xuất sửa đổi:
+                                                        </span>
+                                                        {risk.solution}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

@@ -54,9 +54,17 @@ export default function FormGeneration() {
                 text: inputValue,
                 history: chatHistory
             });
-            const aiData = response.data;
+            // tránh data bị undefined nếu API lỗi hoặc trả về không đúng
+            const aiData = response?.data || response;
 
-            setCurrentTemplate(aiData.template_type);
+            // Kiểm tra log ngay tại đây để xem cấu thực tế
+            console.log("Dữ liệu AI trả về:", aiData);
+
+            if (!aiData || Object.keys(aiData).length === 0) {
+                throw new Error("Dữ liệu AI trống");
+            }
+
+            setCurrentTemplate(aiData?.template_type ?? 'none');
 
             setFormData(prev => {
                 const newData = { ...prev };
@@ -80,13 +88,23 @@ export default function FormGeneration() {
 
     // 4. HÀM LƯU VÀO SQL SERVER
     const handleSaveToHistory = async () => {
-        if (currentTemplate === 'none') return;
+        if (currentTemplate === 'none') {
+            alert("Vui lòng nhập thông tin để AI tạo biểu mẫu trước khi lưu.");
+            return;
+
+
+        }
         setIsSaving(true);
         try {
             const token = localStorage.getItem("accessToken");
             const userStr = localStorage.getItem("user");
-            const user = userStr ? JSON.parse(userStr) : { id: 1 };
-            const userId = user.id ?? user.Id ?? user.ID;
+            let userId = 1;
+            try {
+                const user = userStr ? JSON.parse(userStr) : null;
+                userId = user?.id ?? user?.Id ?? user?.ID ?? 1;
+            } catch (pErr) {
+                console.error("Lỗi parse user data:", pErr);
+            }
 
             const payload = {
                 userId: userId,
@@ -103,11 +121,11 @@ export default function FormGeneration() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert("✅ Đã lưu biểu mẫu vào Kho lưu trữ số thành công!");
+                alert(" Đã lưu biểu mẫu vào Kho lưu trữ số thành công!");
             }
         } catch (err) {
             console.error("Lỗi lưu Form:", err);
-            alert("❌ Lỗi: " + (err.response?.status === 401 ? "Hết hạn phiên làm việc!" : "Không thể lưu."));
+            alert(" Lỗi: " + (err.response?.status === 401 ? "Hết hạn phiên làm việc!" : "Không thể lưu."));
         } finally {
             setIsSaving(false);
         }
@@ -131,7 +149,7 @@ export default function FormGeneration() {
 
     return (
         <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col md:flex-row gap-6 text-white">
-            
+
             {/* CỘT TRÁI: CHAT AI */}
             <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full ${glassPanel} overflow-hidden flex-shrink-0`}>
                 <div className="p-5 border-b border-white/10 bg-white/5 flex items-center gap-3">
@@ -216,12 +234,13 @@ export default function FormGeneration() {
                             </div>
                             <div className="text-center mb-6">
                                 <h1 className="text-xl font-black uppercase mb-1">
-                                    <input type="text" value={formData.ten_hop_dong} onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)} className="w-full text-center bg-transparent focus:outline-none" />
+                                    <input type="text" value={formData.ten_hop_dong || ''} onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)} className="w-full text-center bg-transparent focus:outline-none" />
                                 </h1>
                                 <p className="text-sm text-gray-600 italic">Hôm nay, tại ........................................</p>
                             </div>
+
                             <div className="space-y-6 text-justify">
-                                {formData.can_cu_luat.length > 0 && (
+                                {formData.can_cu_luat && formData.can_cu_luat.length > 0 && (
                                     <div className="italic text-sm space-y-1 mb-4">
                                         <p className="font-semibold">- Căn cứ theo:</p>
                                         {formData.can_cu_luat.map((luat, idx) => (
@@ -229,9 +248,10 @@ export default function FormGeneration() {
                                         ))}
                                     </div>
                                 )}
+
                                 <div className="space-y-4">
                                     <div>
-                                        <h2 className="font-bold uppercase mb-2">BÊN A (BÊN THUÊ):</h2>
+                                        <h2 className="font-bold uppercase mb-2">BÊN A ({formData.benA_role || 'BÊN THUÊ'}):</h2>
                                         <div className="pl-4">
                                             <FieldInput label="Tên Cá nhân/Tổ chức" field="benA_name" />
                                             <FieldInput label="MST / CCCD" field="benA_id" />
@@ -241,7 +261,7 @@ export default function FormGeneration() {
                                         </div>
                                     </div>
                                     <div>
-                                        <h2 className="font-bold uppercase mb-2">BÊN B (BÊN CUNG CẤP):</h2>
+                                        <h2 className="font-bold uppercase mb-2">BÊN B ({formData.benB_role || 'BÊN CUNG CẤP'}):</h2>
                                         <div className="pl-4">
                                             <FieldInput label="Tên Cá nhân/Tổ chức" field="benB_name" />
                                             <FieldInput label="MST / CCCD" field="benB_id" />
@@ -251,25 +271,54 @@ export default function FormGeneration() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <h2 className="font-bold uppercase">Điều 1: Nội dung công việc</h2>
-                                    <textarea value={formData.noi_dung_chinh} onChange={(e) => handleFormChange('noi_dung_chinh', e.target.value)} className="w-full min-h-[60px] bg-transparent border-b border-dashed border-gray-400 focus:outline-none" />
-                                    <h2 className="font-bold uppercase">Điều 2: Giá trị & Thanh toán</h2>
-                                    <div className="flex items-center gap-2">
-                                        <span>- Tổng giá trị:</span>
-                                        <input type="text" value={formData.gia_tri_hop_dong} onChange={(e) => handleFormChange('gia_tri_hop_dong', e.target.value)} className="w-48 bg-transparent border-b border-dashed border-gray-400 text-center font-bold" />
-                                    </div>
+
+                                {/*  RENDER MẢNG SECTIONS ĐỘNG */}
+                                <div className="space-y-6 pt-4">
+                                    {formData.sections && formData.sections.length > 0 ? (
+                                        formData.sections.map((section, index) => (
+                                            <div key={index} className="space-y-2">
+                                                <h2 className="font-bold uppercase text-[15px]">{section.title}</h2>
+                                                <textarea
+                                                    value={section.content}
+                                                    onChange={(e) => {
+                                                        // Cập nhật giá trị content của riêng section này
+                                                        const newSections = [...formData.sections];
+                                                        newSections[index].content = e.target.value;
+                                                        handleFormChange('sections', newSections);
+                                                    }}
+                                                    className="w-full bg-transparent border-none focus:ring-1 focus:ring-cyan-500/50 rounded resize-none overflow-hidden leading-relaxed whitespace-pre-wrap"
+                                                    style={{ minHeight: '60px' }}
+                                                    // Thủ thuật ép textarea tự co giãn theo nội dung
+                                                    ref={(el) => {
+                                                        if (el) {
+                                                            el.style.height = 'auto';
+                                                            el.style.height = el.scrollHeight + 'px';
+                                                        }
+                                                    }}
+                                                    onInput={(e) => {
+                                                        e.target.style.height = 'auto';
+                                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                                    }}
+                                                />
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-gray-400 italic text-center py-10">
+                                            AI đang xử lý và phân tích các điều khoản hợp đồng...
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="pt-16 pb-10 grid grid-cols-2 gap-8 text-center">
+
+                                <div className="pt-16 pb-10 grid grid-cols-2 gap-8 text-center break-inside-avoid">
                                     <div>
                                         <h3 className="font-bold uppercase mb-1">Bên A</h3>
                                         <p className="text-[12px] italic text-gray-500 mb-20">(Ký và ghi rõ họ tên)</p>
-                                        <p className="font-bold uppercase">{formData.benA_rep || formData.benA_name}</p>
+                                        <p className="font-bold uppercase">{formData.benA_rep || formData.benA_name || '........................'}</p>
                                     </div>
                                     <div>
                                         <h3 className="font-bold uppercase mb-1">Bên B</h3>
                                         <p className="text-[12px] italic text-gray-500 mb-20">(Ký và ghi rõ họ tên)</p>
-                                        <p className="font-bold uppercase">{formData.benB_rep || formData.benB_name}</p>
+                                        <p className="font-bold uppercase">{formData.benB_rep || formData.benB_name || '........................'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -277,7 +326,6 @@ export default function FormGeneration() {
                     )}
                 </div>
             </div>
-
             <style>
                 {`
                     .custom-scrollbar::-webkit-scrollbar { width: 6px; }

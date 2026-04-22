@@ -2,19 +2,33 @@ import axios from "axios";
 
 // 1. Cấu hình Axios Instance
 const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_AI_API_URL,
+   
+    baseURL: import.meta.env.VITE_AI_API_URL, 
     headers: {
         "Content-Type": "application/json",
     },
 });
 
+//  Tự động đính kèm Token cho mọi yêu cầu 
+axiosInstance.interceptors.request.use((config) => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
+
 const aiClient = {
     /**
-     * Chức năng 1: Chat với Bot
+     * Chức năng 1: Chat với Bot (RAG)
+    
      */
     ask: async (question, signal) => {
         try {
-            const response = await axiosInstance.post('/chat/ask',
+            // SỬA TẠI ĐÂY: Đường dẫn mới khớp với aiRoutes.js
+            const response = await axiosInstance.post('/ai/ask', 
                 { question },
                 { signal }
             );
@@ -45,53 +59,43 @@ const aiClient = {
             return response.data;
         } catch (error) {
             if (axios.isCancel(error)) {
-                console.warn("Bạn đã hủy yêu cầu thẩm định hợp đồng.");
+                console.warn("Hủy yêu cầu thẩm định.");
                 return null;
             }
-            console.error("Lỗi khi gọi API Phân tích:", error);
+            console.error("Lỗi API Phân tích:", error);
             throw error;
         }
     },
 
-    /*
-     *  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
+    /**
+     * Chức năng 3: Sinh Biểu mẫu AI
      */
     generateForm: async (payload, signal) => {
         try {
-            // Route bên Node.js  (VD: /ai/generate-form)
             const response = await axiosInstance.post('/ai/generate-form', payload, { signal });
-            return response;
+            return response.data;
         } catch (error) {
-            if (axios.isCancel(error)) {
-                console.log("Form generation canceled");
-            } else {
-                console.error("Lỗi khi gọi API Generate Form:", error);
-                throw error;
-            }
+            console.error("Lỗi API Generate Form:", error);
+            throw error;
         }
     },
 
     /**
-     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
-     * Gửi cả text và file lên Backend
+     * Chức năng 4: Lập kế hoạch thực thi (Planning)
      */
-    /**
-     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
-     * Gửi cả text và file lên Backend
-     */
-    // Thêm tham số config vào để nhận Header từ UI truyền xuống
     generatePlan: async (formData, config = {}) => { 
         try {
+            // Đã đổi route cho đồng bộ
             const response = await axiosInstance.post('/ai/generate-plan', formData, {
-                ...config, // Giải nén config (bao gồm headers) vào đây
+                ...config,
                 headers: { 
-                    ...config.headers, // Giữ các header truyền từ ngoài vào
+                    ...config.headers,
                     "Content-Type": "multipart/form-data" 
                 }
             });
             return response.data;
         } catch (error) {
-            console.error("Lỗi khi gọi API Generate Plan:", error);
+            console.error("Lỗi API Generate Plan:", error);
             throw error;
         }
     }

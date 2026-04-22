@@ -141,7 +141,14 @@ export default function AdminDashboard() {
     newSocket.on('crawl-progress', (data) => {
       setCrawlerStatus(data);
     });
-
+    //Theo dõi hoạt động AI 
+    newSocket.on('new_activity', (data) => {
+      console.log(' AI vừa được sử dụng:', data);
+      
+     
+      // : timeframe phải là giá trị mới nhất (week/month/year)
+      fetchFeatureUsage(timeframe); 
+    });
     newSocket.on('connect_error', (err) => {
       console.error('Socket connect error', err);
     });
@@ -151,7 +158,7 @@ export default function AdminDashboard() {
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, [timeframe]); // Thêm timeframe vào dependency để khi đổi timeframe thì cũng reconnect socket lấy dữ liệu mới nhất
 
   const getStepIcon = (step) => {
     switch (step) {
@@ -179,7 +186,7 @@ export default function AdminDashboard() {
       return `Đang tự động thu thập: ${crawlerStatus.current}/${crawlerStatus.total} văn bản`;
     }
 
-   
+
     if (crawlerStatus.step === 'done') {
       return 'Hoàn thành thu thập';
     }
@@ -289,8 +296,13 @@ export default function AdminDashboard() {
                   /* --- LOGIC MERGE BASELINE: ĐẢM BẢO LUÔN HIỆN 5 CỘT --- */
                   (() => {
                     // 1. Danh sách tính năng cốt lõi (Gắn cứng)
-                    const CORE_FEATURES = ['VIDEO_ANALYSIS', 'CONTRACT_REVIEW', 'CRAWL_DATA', 'PLANNING', 'CHAT'];
-
+                    const CORE_FEATURES = [
+                      'VIDEO_ANALYSIS',
+                      'CONTRACT_REVIEW',
+                      'FORM_GENERATOR',
+                      'PLANNING',
+                      'CHATBOT_QA'
+                    ];
                     // 2. Map data: Tìm trong API, có thì lấy số, không có thì ép về 0
                     const displayFeatures = CORE_FEATURES.map(featName => {
                       const found = featureUsage.find(item => item.FeatureName === featName);
