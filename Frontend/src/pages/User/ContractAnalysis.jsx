@@ -7,6 +7,7 @@ import {
     ArrowPathIcon,
     ExclamationTriangleIcon,
     StopIcon,
+    ShieldExclamationIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import aiClient from "../../api/aiClient";
@@ -173,7 +174,7 @@ export default function ContractAnalysis() {
                         </h1>
                     </div>
 
-                    <div className="w-full flex flex-col gap-4"> {/* Flex bọc cả cụm lại cho gọn */}
+                    <div className="w-full flex flex-col gap-4"> 
                         <label className="block w-full cursor-pointer group relative shadow-2xl">
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
 
@@ -192,7 +193,7 @@ export default function ContractAnalysis() {
                                         {/* Nút xóa file */}
                                         <button
                                             onClick={ handleRemoveFile}
-                                            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-red-500/20 hover:text-red-500 text-gray-400 transition-all z-20 border border-white/5 hover:border-red-500/40"
+                                            className="absolute top-5 right-5 p-2 rounded-full bg-white/70 hover:bg-red-500/20 hover:text-red-500 text-gray-400 transition-all z-20 border border-white/5 hover:border-red-500/40"
                                             title="Xóa file"
                                         >
                                             <XMarkIcon className="w-6 h-6" />
@@ -242,7 +243,7 @@ export default function ContractAnalysis() {
                                 <span>DỪNG PHÂN TÍCH</span>
                             </button>
                         ) : result ? (
-                            <button onClick={() => { setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-full py-4 rounded-2xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all backdrop-blur-md">
+                            <button onClick={() => { setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-fit px-8 py-2 mx-auto  rounded-xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all backdrop-blur-md">
                                 <ArrowPathIcon className="w-5 h-5" /> PHÂN TÍCH VĂN BẢN KHÁC
                             </button>
                         ) : file && (

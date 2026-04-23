@@ -60,32 +60,21 @@ export default function AIPlanning() {
         setProgress(1);
 
         try {
-            // 3. Khởi tạo FormData (Phải có đoạn này thì Backend mới nhận được file/prompt)
             const formData = new FormData();
-            formData.append('prompt', rawText);
+            formData.append('prompt', rawText); // Thống nhất dùng 'prompt'
             attachedFiles.forEach(file => formData.append('files', file));
 
-            // 4. Gọi API
             const result = await aiClient.generatePlan(formData, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            console.log("📦 Kết quả từ Backend:", result);
-            if (result && result.success) {
-                // result.plan lúc này sẽ là cái mảng JSON mà Backend trả về
-                let finalArray = [];
+            console.log("Kết quả từ Backend:", result);
 
-                if (Array.isArray(result.plan)) {
-                    finalArray = result.plan;
-                } else if (result.plan && typeof result.plan === 'object') {
-                    // Nếu AI vẫn cố tình trả về { plan: [...] } hoặc { ke_hoach: [...] }
-                    const key = Object.keys(result.plan).find(k => Array.isArray(result.plan[k]));
-                    finalArray = key ? result.plan[key] : [];
-                }
+            //  Backend trả về result.data
+            if (result && result.success && result.data) {
+                let finalArray = Array.isArray(result.data) ? result.data : [];
 
-                // Gán dữ liệu và hoàn tất
                 if (finalArray.length > 0) {
-                    // Thêm status mặc định nếu AI quên trả về
                     const processedData = finalArray.map(item => ({
                         ...item,
                         status: item.status || 'pending'
@@ -93,13 +82,13 @@ export default function AIPlanning() {
                     setPlanData(processedData);
                     setProgress(3);
                 } else {
-                    alert("AI không tạo được danh sách công việc chi tiết. Duy hãy cung cấp thêm hồ sơ!");
+                    alert("AI không tạo được danh sách công việc. Hãy thử lại!");
                     setProgress(0);
                 }
             }
         } catch (error) {
-            console.error("💥 Lỗi kết nối server:", error.message);
-            alert("Server đang bận hoặc bị sập. Duy hãy kiểm tra lại Terminal Backend!");
+            console.error(" Lỗi kết nối server:", error.message);
+            alert("Server đang bận hoặc bị sập. hãy kiểm tra lại Terminal Backend!");
             setProgress(0);
         } finally {
             setIsProcessing(false);
@@ -129,16 +118,24 @@ export default function AIPlanning() {
 
             if (res.data.success) {
                 setIsSaved(true);
-                alert("✅ Đã lưu Kế hoạch thành công!");
+                alert(" Đã lưu Kế hoạch thành công!");
             }
         } catch (err) {
             console.error("Lỗi lưu:", err);
-            alert("❌ Lỗi lưu trữ Database.");
+            alert(" Lỗi lưu trữ Database.");
         } finally {
             setIsSaving(false);
         }
     };
-
+    //  return giao diện
+    const groupedPlan = planData?.reduce((acc, task) => {
+        const phaseName = task.phase || 'Giai đoạn khác';
+        if (!acc[phaseName]) {
+            acc[phaseName] = [];
+        }
+        acc[phaseName].push(task);
+        return acc;
+    }, {});
     const handlePrint = () => window.print();
 
     const glassPanel = "bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl";
@@ -275,31 +272,48 @@ export default function AIPlanning() {
                         </div>
                     ) : (
                         // CHỈ KHI NÀO LÀ MẢNG THÌ MỚI MAP
-                        <div className="max-w-3xl mx-auto space-y-4 print:space-y-8">
+                        <div className="max-w-3xl mx-auto space-y-8 print:space-y-8">
                             <h2 className="hidden print:block text-2xl font-bold text-center mb-8 uppercase">Lộ trình giải quyết pháp lý</h2>
-                            {planData.map((task, index) => (
-                                <div key={task.id || index} className="p-6 rounded-2xl bg-white/5 border border-white/10 ...">
-                                    {/* Giữ nguyên nội dung Card */}
-                                    <span className="text-[9px] font-black uppercase text-indigo-400 ...">
-                                        {task.phase || `Giai đoạn ${index + 1}`}
-                                    </span>
-                                    <h3 className="text-lg font-bold mt-2 text-indigo-100">{task.title}</h3>
 
-                                    {/* THÊM PHẦN MÔ TẢ CHI TIẾT */}
-                                    {task.description && (
-                                        <p className="mt-3 text-sm text-gray-400 leading-relaxed border-l-2 border-white/10 pl-4 py-1">
-                                            {task.description}
-                                        </p>
-                                    )}
-                                 
+                            {groupedPlan && Object.keys(groupedPlan).map((phaseName, phaseIndex) => (
+                                <div key={phaseIndex} className="phase-group">
 
-                                    <div className="flex gap-6 mt-4 opacity-70 text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <UserCircleIcon className="w-4 h-4" /> {task.assignee || "Chưa phân công"}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <ClockIcon className="w-4 h-4" /> {task.deadline || "N/A"}
-                                        </div>
+                                    {/* TIÊU ĐỀ GIAI ĐOẠN */}
+                                    <div className="py-3 mb-4 border-b border-indigo-500/30 print:border-black">
+                                        <h3 className="text-lg font-black uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                                            <span className="bg-indigo-500/20 px-2 py-1 rounded text-sm">Bước {phaseIndex + 1}</span>
+                                            {phaseName}
+                                        </h3>
+                                    </div>
+
+                                    {/* DANH SÁCH TASK TRONG GIAI ĐOẠN ĐÓ */}
+                                    <div className="space-y-4 pl-2 md:pl-4 border-l-2 border-white/5 print:border-black/10">
+                                        {groupedPlan[phaseName].map((task, index) => (
+                                            <div key={task.id || index} className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors print:border-black/20 print:bg-white">
+                                                <h4 className="text-lg font-bold text-indigo-100">{task.title}</h4>
+
+                                                {(task.legal_notes || task.description) && (
+                                                    <div className="mt-3 text-sm text-gray-300 leading-relaxed border-l-2 border-indigo-500 pl-4 py-2 bg-indigo-500/5 rounded-r-lg print:text-black">
+                                                        <span className="font-semibold text-indigo-300 block mb-1">⚖️ Góc nhìn pháp lý:</span>
+                                                        {task.legal_notes || task.description}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-6 mt-4 opacity-70 text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <UserCircleIcon className="w-4 h-4" /> {task.assignee || "Chưa phân công"}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <ClockIcon className="w-4 h-4" /> {task.deadline || "N/A"}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-white/10 px-2 py-0.5 rounded-full text-[10px] uppercase">
+                                                            {task.status || "Pending"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             ))}

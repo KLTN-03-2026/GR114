@@ -88,10 +88,7 @@ const aiClient = {
             // Đã đổi route cho đồng bộ
             const response = await axiosInstance.post('/ai/generate-plan', formData, {
                 ...config,
-                headers: { 
-                    ...config.headers,
-                    "Content-Type": "multipart/form-data" 
-                }
+               
             });
             return response.data;
         } catch (error) {

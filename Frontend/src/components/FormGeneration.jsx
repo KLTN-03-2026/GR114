@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import {
     PaperAirplaneIcon,
@@ -21,6 +21,16 @@ export default function FormGeneration() {
     const [isTyping, setIsTyping] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
+    //  REF CHO TEXTAREA (nếu cần thao tác trực tiếp)
+    const textAreaRef = useRef(null);
+    // điều khiển ô nhập liệu ở đây
+    useEffect(() => {
+        const el = textAreaRef.current;
+        if (el) {
+            el.style.height = 'auto'; // Reset chiều cao
+            el.style.height = el.scrollHeight + 'px'; // Nở ra theo nội dung
+        }
+    }, [inputValue]);
 
     // 2. STATE QUẢN LÝ BIỂU MẪU
     const [currentTemplate, setCurrentTemplate] = useState('none');
@@ -131,6 +141,7 @@ export default function FormGeneration() {
         }
     };
 
+
     const handlePrint = () => window.print();
     const glassPanel = "bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl";
 
@@ -184,11 +195,16 @@ export default function FormGeneration() {
                 <div className="p-4 border-t border-white/10 bg-black/40">
                     <form onSubmit={handleSendMessage} className="relative flex items-end">
                         <textarea
+                            ref={textAreaRef} // Gán ref vào đây
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="Nhập yêu cầu soạn hợp đồng..."
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-cyan-500/50 resize-none"
+                            placeholder="Nhập yêu cầu soạn hợp đồng (Ví dụ: Soạn hợp đồng thuê nhà...)"
                             rows={1}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-cyan-500/50 resize-none transition-all duration-200 custom-scrollbar"
+                            style={{
+                                minHeight: '56px',
+                                maxHeight: '200px' // Giới hạn chiều cao tối đa để không choán hết màn hình
+                            }}
                         />
                         <button type="submit" disabled={isTyping || !inputValue.trim()} className="absolute right-2 bottom-2 h-[36px] w-[36px] flex items-center justify-center rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black disabled:opacity-50 transition-colors">
                             <PaperAirplaneIcon className="w-5 h-5" />

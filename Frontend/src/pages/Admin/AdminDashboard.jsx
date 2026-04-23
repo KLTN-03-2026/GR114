@@ -144,10 +144,10 @@ export default function AdminDashboard() {
     //Theo dõi hoạt động AI 
     newSocket.on('new_activity', (data) => {
       console.log(' AI vừa được sử dụng:', data);
-      
-     
+
+
       // : timeframe phải là giá trị mới nhất (week/month/year)
-      fetchFeatureUsage(timeframe); 
+      fetchFeatureUsage(timeframe);
     });
     newSocket.on('connect_error', (err) => {
       console.error('Socket connect error', err);
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
                 <select
                   value={timeframe}
                   onChange={(e) => handleTimeframeChange(e.target.value)}
-                  className="bg-white/5 border border-white/10 text-[10px] text-white px-3 py-1.5 rounded-xl outline-none focus:border-cyan-500"
+                  className="bg-black border border-white/10 text-[10px] text-white px-3 py-1.5 rounded-xl outline-none focus:border-cyan-500"
                 >
                   <option value="week">Tuần</option>
                   <option value="month">Tháng</option>
