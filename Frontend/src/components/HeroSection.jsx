@@ -11,7 +11,12 @@ import {
     DocumentTextIcon,
     DocumentPlusIcon,
     PresentationChartLineIcon,
-    ArrowDownIcon
+    ArrowDownIcon,
+    MagnifyingGlassIcon,
+    ArrowUpIcon,
+    VideoCameraIcon,
+    ChartBarIcon,
+    ShieldExclamationIcon
 } from '@heroicons/react/24/outline';
 
 export default function HeroSection() {
@@ -58,7 +63,7 @@ export default function HeroSection() {
         animation: 'shinyFlow 5s linear infinite',
         willChange: 'background-position',
     };
-
+    
     // --- DATA ---
     const stats = [
         { id: 1, label: "Hợp đồng phân tích", value: "10,000+", icon: CpuChipIcon },
@@ -73,7 +78,9 @@ export default function HeroSection() {
         { title: "Lập Kế hoạch AI", desc: "Agentic Workflow biến dữ liệu thô thành lộ trình chi tiết, đồng thời hỗ trợ xuất trực tiếp ra Slide thuyết trình.", icon: PresentationChartLineIcon, color: "from-purple-500 to-indigo-400" },
         { title: "Hồ sơ Pháp lý", desc: "Kho lưu trữ thông minh cho mọi văn bản, lịch sử phân tích và kết quả trò chuyện với AI của riêng bạn.", icon: UserGroupIcon, color: "from-emerald-500 to-teal-400" },
         { title: "Tra cứu Văn bản", desc: "Thư viện luật số hóa, giúp bạn truy xuất nhanh các điều khoản mà không cần tìm kiếm rời rạc trên Google.", icon: CpuChipIcon, color: "from-orange-500 to-amber-400" },
-        { title: "Chatbot Tư vấn AI", desc: "Trò chuyện pháp luật với ngôn ngữ gần gũi như một cộng sự thực thụ, hỗ trợ giải đáp thắc mắc 24/7.", icon: SparklesIcon, color: "from-red-500 to-orange-400" }
+        { title: "Chatbot Tư vấn AI", desc: "Trò chuyện pháp luật với ngôn ngữ gần gũi như một cộng sự thực thụ, hỗ trợ giải đáp thắc mắc 24/7.", icon: SparklesIcon, color: "from-red-500 to-orange-400" },
+        { title: "Xác thực Video", desc: "Tự động phân tích, tóm tắt và trích xuất nội dung pháp lý từ các clip short video trên YouTube.", icon: VideoCameraIcon, color: "from-violet-500 to-fuchsia-400" }
+        
     ];
 
     // --- FRAMER MOTION VARIANTS TỐI ƯU ---
@@ -133,32 +140,133 @@ export default function HeroSection() {
                     
                 </motion.div>
             </section>
+{/* ==========================================================
+    SECTION 3: TÍNH NĂNG (Full 3D Ecosystem - Final)
+========================================================== */}
+<section className="relative w-full max-w-7xl mx-auto px-6 py-12 md:py-20 z-20 flex flex-col justify-center min-h-[800px]">
 
-            {/* ==========================================================
-                SECTION 3: TÍNH NĂNG (Bento Box)
-            ========================================================== */}
-            <section className="relative w-full max-w-7xl mx-auto px-6 py-12 md:py-16 z-20 flex flex-col justify-center min-h-[calc(100vh-80px)]">
-                <motion.div className="text-center mb-10" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeUpItem}>
-                    <div className="inline-flex items-center gap-2 bg-black/40 border border-white/10 px-4 py-1.5 rounded-full text-xs font-bold backdrop-blur-md mb-4 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
-                        <SparklesIcon className="w-4 h-4 text-cyan-400" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Hệ sinh thái LegAI</span>
+    {/* ================= STYLES ================= */}
+    <style>{`
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-15px); } }
+        @keyframes float-slow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        .animate-float { animation: float 5s ease-in-out infinite; }
+        .animate-float-slow { animation: float-slow 7s ease-in-out infinite; }
+    `}</style>
+
+{/* ================= LAYER 0: NỀN TYPOGRAPHY (Z-0) ================= */}
+    <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+        <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            className="absolute top-[5%] md:top-[8%] left-0 w-full flex flex-col items-center justify-center text-center"
+        >
+            {/* Chữ LEGAL: Trắng tinh khiết + Bóng glow màu Vàng Hổ Phách rực rỡ */}
+            <h1 className="text-[28vw] md:text-[15vw] font-black text-white tracking-tighter leading-none select-none uppercase drop-shadow-[0_0_40px_rgba(245,158,11,0.5)]">
+                LEGAL
+            </h1>
+        </motion.div>
+
+    </div>
+
+
+    {/* ================= LAYER 1: CÁC KHỐI LƠ LỬNG (Z-20) ================= */}
+    <div className="absolute inset-0 w-full max-w-7xl mx-auto pointer-events-none z-20 hidden lg:block">
+        
+        {/* --- WIDGET TO TRÁI (Đổi sang tone AMBER/ORANGE) --- */}
+        <div className="absolute left-6 top-[32%] animate-float pointer-events-auto">
+            <div className="bg-[#0a0a0a]/40 backdrop-blur-xl border border-amber-500/20 p-5 rounded-[2rem] shadow-[0_10px_40px_rgba(245,158,11,0.15)] w-48 hover:bg-[#0a0a0a]/60 hover:border-amber-400/40 transition-all cursor-default">
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/40">
+                        <ChartBarIcon className="w-5 h-5 text-amber-400" />
                     </div>
-                    <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Tính năng <span className="text-cyan-400">Cốt lõi</span></h2>
-                </motion.div>
+                    <span className="text-[10px] text-amber-100/70 font-black uppercase tracking-widest">Database</span>
+                </div>
+                <h4 className="text-2xl font-black text-white leading-none">14,203</h4>
+                <p className="text-[10px] text-amber-100/50 mt-1 font-medium">Hợp đồng đã quét</p>
+                <div className="mt-4 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-amber-500 to-orange-400 w-[75%] shadow-[0_0_10px_#f59e0b]"></div>
+                </div>
+            </div>
+        </div>
 
-                <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
-                    {features.map((item, idx) => (
-                        <motion.div key={idx} variants={fadeUpItem} className={`${darkGlassClass} p-6 rounded-2xl hover:bg-black/80 hover:border-cyan-500/30 transition-all duration-500 group hover:-translate-y-1.5 flex flex-col items-start text-left`}>
-                            <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center bg-gradient-to-br ${item.color} shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
-                                <item.icon className="w-5 h-5 text-white" />
+        {/* --- WIDGET TO PHẢI (Giữ tone RED nhưng làm viền sáng hơn) --- */}
+        <div className="absolute right-6 top-[28%] animate-float-slow pointer-events-auto">
+            <div className="bg-[#0a0a0a]/40 backdrop-blur-xl border border-rose-500/20 p-5 rounded-[2rem] shadow-[0_10px_40px_rgba(244,63,94,0.15)] w-56 hover:bg-[#0a0a0a]/60 hover:border-rose-400/40 transition-all cursor-default">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-rose-500 blur-md opacity-60 animate-pulse"></div>
+                        <ShieldExclamationIcon className="w-5 h-5 text-rose-400 relative z-10" />
+                    </div>
+                    <span className="text-[10px] text-rose-100/70 font-black uppercase tracking-widest">Cảnh báo rủi ro</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                    <div className="border-l-2 border-rose-500 pl-3 relative group">
+                        <p className="text-[10px] text-white font-bold leading-tight">Điều khoản bảo mật</p>
+                        <p className="text-[9px] text-rose-200/50">Thiếu cam kết 2 chiều</p>
+                    </div>
+                    <div className="border-l-2 border-orange-500/50 pl-3 opacity-60">
+                        <p className="text-[10px] text-white font-bold leading-tight">Tranh chấp tài phán</p>
+                        <p className="text-[9px] text-gray-400">Chưa rõ cơ quan</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* --- WIDGET MINI TRÁI (Đổi sang tone EMERALD/NEON GREEN) --- */}
+        <motion.div animate={{ y: [0, -15, 0], rotate: [0, 2, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[12%] left-[8%] md:left-[12%] bg-[#0a0a0a]/50 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-3 shadow-[0_10px_30px_rgba(16,185,129,0.2)] flex items-center gap-3 pointer-events-auto">
+            <div className="p-1.5 bg-emerald-500/20 rounded-lg border border-emerald-500/50">
+                <CheckBadgeIcon className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+                <p className="text-[9px] text-emerald-100/60 uppercase tracking-widest">AI Confidence</p>
+                <p className="text-sm font-bold text-white drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]">99.8%</p>
+            </div>
+        </motion.div>
+
+        {/* --- WIDGET MINI PHẢI (Đổi sang tone FUCHSIA/HỒNG TÍM) --- */}
+        <motion.div animate={{ y: [0, 15, 0], rotate: [0, -2, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }} className="absolute top-[10%] right-[8%] md:right-[12%] bg-[#0a0a0a]/50 backdrop-blur-md border border-fuchsia-500/30 rounded-2xl p-3 shadow-[0_10px_30px_rgba(217,70,239,0.2)] flex items-center gap-3 pointer-events-auto">
+            <div className="p-1.5 bg-fuchsia-500/20 rounded-lg border border-fuchsia-500/50">
+                <ClockIcon className="w-4 h-4 text-fuchsia-400" />
+            </div>
+            <div>
+                <p className="text-[9px] text-fuchsia-100/60 uppercase tracking-widest">Tốc độ quét</p>
+                <p className="text-sm font-bold text-white drop-shadow-[0_0_5px_rgba(217,70,239,0.5)]">1.2s / Trang</p>
+            </div>
+        </motion.div>
+
+        
+    </div>
+
+
+    {/* ================= LAYER 2: INTERACTIVE DOCK & HEADER (Z-50) ================= */}
+    <div className="relative z-50 flex flex-col w-full h-full justify-between mt-10">
+        
+        {/* DOCK WRAPPER */}
+        <div className="w-full flex justify-center pt-40 pb-10">
+            <motion.div variants={fadeUpItem} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="relative inline-flex flex-wrap justify-center items-end gap-3 md:gap-6 bg-white/5 border border-white/10 rounded-[2.5rem] px-6 md:px-10 py-4 shadow-2xl backdrop-blur-lg">
+                {features.map((item, idx) => (
+                    <div key={idx} className="relative group flex flex-col items-center justify-end cursor-pointer">
+                        {/* TOOLTIP */}
+                        <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-[260px] opacity-0 translate-y-8 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-out z-[60]">
+                            <div className="bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.6)] flex flex-col items-start text-left relative">
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#0a0a0a]/90 border-b border-r border-white/20 rotate-45"></div>
+                                <h3 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 uppercase tracking-tight">{item.title}</h3>
+                                <p className="text-xs text-gray-300 leading-relaxed font-medium">{item.desc}</p>
                             </div>
-                            <h3 className="text-lg md:text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{item.title}</h3>
-                            <p className="text-sm text-gray-300 leading-snug font-medium">{item.desc}</p>
-                        </motion.div>
-                    ))}
-                </motion.div>
-            </section>
+                        </div>
 
+                        {/* ICON */}
+                        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-[1.2rem] flex items-center justify-center bg-gradient-to-br ${item.color} shadow-lg transition-transform duration-300 ease-out origin-bottom group-hover:scale-[1.4] group-hover:-translate-y-4 group-hover:shadow-[0_10px_30px_rgba(34,211,238,0.4)] border border-white/10`}>
+                            <item.icon className="w-7 h-7 md:w-8 md:h-8 text-white drop-shadow-md" />
+                        </div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute -bottom-2 left-1/2 -translate-x-1/2 shadow-[0_0_8px_#22d3ee]"></div>
+                    </div>
+                ))}
+            </motion.div>
+        </div>
+    </div>
+</section>
             {/* ==========================================================
     SECTION 4: GIỚI THIỆU & THỐNG KÊ (Đã tối ưu Performance)
 ========================================================== */}
