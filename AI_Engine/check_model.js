@@ -24,12 +24,12 @@ async function listAvailableModels() {
       console.log("------------------------------------------------");
       data.models.forEach(m => {
         // Chỉ hiện các model tạo nội dung (generateContent)
-        if (m.supportedGenerationMethods.includes("generateContent") || m.supportedGenerationMethods.includes("embedContent")) {
+        if (m.supportedGenerationMethods.includes("embedContent")) {
           console.log(`🔹 Tên chuẩn: ${m.name.replace('models/', '')}`);
         }
       });
       console.log("------------------------------------------------");
-
+      console.log("👉 Hãy copy một cái tên ở trên (ví dụ: gemini-1.5-flash) và dán vào file geminiService.js");
     } else {
       console.log("⚠️ Lạ quá, không có lỗi nhưng cũng không có danh sách model.");
     }

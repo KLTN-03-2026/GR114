@@ -1,145 +1,58 @@
 import axios from "axios";
 
-// 1. Cấu hình Axios Instance
+// 1. Cấu hình Axios Instance (Kết nối đến AI Server)
+// Lưu ý: Đảm bảo biến môi trường VITE_AI_API_URL="http://localhost:8000/api"
 const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_AI_API_URL,
+    baseURL: import.meta.env.VITE_AI_API_URL || "http://localhost:8000/api",
     headers: {
         "Content-Type": "application/json",
     },
 });
 
+// 2. Định nghĩa các chức năng
 const aiClient = {
     /**
-     * Chức năng 1: Chat với Bot
+     * Chức năng 1: Chat với Bot (Dùng cho ChatbotAI.jsx)
+     * Endpoint: /api/chat/ask
      */
-    ask: async (question, signal) => {
+    ask: async (question) => {
         try {
-            const response = await axiosInstance.post('/chat/ask',
-                { question },
-                { signal }
-            );
+            const response = await axiosInstance.post('/chat/ask', { question });
             return response.data;
         } catch (error) {
-            if (axios.isCancel(error)) {
-                console.log("Chat request canceled");
-            } else {
-                console.error("Lỗi khi gọi API Chat:", error);
-                throw error;
-            }
+            console.error("Lỗi khi gọi API Chat:", error);
+            throw error;
         }
     },
 
     /**
-     * Chức năng 2: Thẩm định Hợp đồng 
+     * Chức năng 2: Thẩm định Hợp đồng (Dùng cho trang Booking/ContractReview mới)
+     * Endpoint: /api/ai/analyze-contract
+     * Input: contractText (Nội dung hợp đồng dạng chữ)
+     * Output: JSON { risk_score, risks, ... }
      */
-    analyzeContract: async (fileObject, signal) => {
+    analyzeContract: async (fileObjectOrFiles) => {
         try {
             const formData = new FormData();
-            formData.append('file', fileObject);
+            const files = Array.isArray(fileObjectOrFiles) ? fileObjectOrFiles : [fileObjectOrFiles];
+            if (files.length === 1) {
+                formData.append('file', files[0]);
+            } else {
+                files.forEach((file) => {
+                    formData.append('files', file);
+                });
+            }
 
+            // Gọi axiosInstance nhưng GHI ĐÈ header Content-Type
             const response = await axiosInstance.post('/ai/analyze-contract', formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-                signal,
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
             });
 
             return response.data;
         } catch (error) {
-            if (axios.isCancel(error)) {
-                console.warn("Bạn đã hủy yêu cầu thẩm định hợp đồng.");
-                return null;
-            }
             console.error("Lỗi khi gọi API Phân tích:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Phân tích hàng loạt: gửi nhiều file lên server (field: 'files')
-     */
-    analyzeContractsBatch: async (fileList, signal) => {
-        try {
-            const formData = new FormData();
-            if (!fileList || fileList.length === 0) return null;
-            for (let i = 0; i < fileList.length; i++) {
-                formData.append('files', fileList[i]);
-            }
-
-            const response = await axiosInstance.post('/ai/analyze-contracts', formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-                signal,
-            });
-
-            return response.data;
-        } catch (error) {
-            if (axios.isCancel(error)) {
-                console.warn("Bạn đã hủy yêu cầu thẩm định hàng loạt.");
-                return null;
-            }
-            console.error("Lỗi khi gọi API Phân tích hàng loạt:", error);
-            throw error;
-        }
-    },
-
-    // Chức năng mới: So sánh 2 phiên bản hợp đồng
-    compareContracts: async (fileA, fileB, signal) => {
-        try {
-            const formData = new FormData();
-            formData.append('fileA', fileA); // Tên trường 'fileA'
-            formData.append('fileB', fileB); // Tên trường 'fileB'
-
-            const response = await axiosInstance.post('/ai/compare-contracts', formData, { // Endpoint mới
-                headers: { "Content-Type": "multipart/form-data" },
-                signal,
-            });
-
-            return response.data;
-        } catch (error) {
-            if (axios.isCancel(error)) {
-                console.warn("Bạn đã hủy yêu cầu so sánh hợp đồng.");
-                return null;
-            }
-            console.error("Lỗi khi gọi API So sánh hợp đồng:", error);
-            throw error;
-        }
-    },
-
-    //  Chức năng 3: Sinh Biểu mẫu AI (AI Form Generator)
-    generateForm: async (payload, signal) => {
-        try {
-            // Route bên Node.js  (VD: /ai/generate-form)
-            const response = await axiosInstance.post('/ai/generate-form', payload, { signal });
-            return response;
-        } catch (error) {
-            if (axios.isCancel(error)) {
-                console.log("Form generation canceled");
-            } else {
-                console.error("Lỗi khi gọi API Generate Form:", error);
-                throw error;
-            }
-        }
-    },
-
-    /**
-     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
-     * Gửi cả text và file lên Backend
-     */
-    /**
-     * Chức năng 4: Lập kế hoạch thực thi (AI Planning Workflow)
-     * Gửi cả text và file lên Backend
-     */
-    // Thêm tham số config vào để nhận Header từ UI truyền xuống
-    generatePlan: async (formData, config = {}) => { 
-        try {
-            const response = await axiosInstance.post('/ai/generate-plan', formData, {
-                ...config, // Giải nén config (bao gồm headers) vào đây
-                headers: { 
-                    ...config.headers, // Giữ các header truyền từ ngoài vào
-                    "Content-Type": "multipart/form-data" 
-                }
-            });
-            return response.data;
-        } catch (error) {
-            console.error("Lỗi khi gọi API Generate Plan:", error);
             throw error;
         }
     }

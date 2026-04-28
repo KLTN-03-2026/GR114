@@ -1,137 +1,219 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import UploadBox from "../../components/UploadBox";
-import axiosClient from "../../api/axiosClient";
+import axios from "axios";
+import {
+    ArrowLeftIcon,
+    ArrowDownTrayIcon,
+    ShareIcon,
+    TrashIcon,
+    CheckIcon
+} from "@heroicons/react/24/outline";
 
 export default function EditLegalRecord() {
     const { id } = useParams();
     const navigate = useNavigate();
 
+    const [record, setRecord] = useState(null);
     const [title, setTitle] = useState("");
     const [category, setCategory] = useState("");
     const [description, setDescription] = useState("");
-    const [file, setFile] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
-        setTitle("GIẤY MUA BÁN NHÀ ĐẤT");
-        setCategory("Hợp đồng kinh doanh");
-        setDescription("Hồ sơ mua bán nhà đất tại quận 1");
+        const fetchDetail = async () => {
+            setLoading(true);
+            try {
+                const res = await axios.get(`http://localhost:8000/api/history/detail/${id}`);
+                if (res.data?.success) {
+                    const data = res.data.data;
+                    setRecord(data);
+                    const parsed = (() => {
+                        try {
+                            return JSON.parse(data.AnalysisJson || "{}");
+                        } catch {
+                            return {};
+                        }
+                    })();
+                    const meta = parsed?.meta && typeof parsed.meta === "object" ? parsed.meta : {};
+                    setTitle(meta.title ?? data.FileName ?? "");
+                    setCategory(meta.category ?? "");
+                    setDescription(meta.description ?? "");
+                } else {
+                    setRecord(null);
+                }
+            } catch (err) {
+                console.error("Get detail error:", err);
+                setRecord(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetail();
     }, [id]);
 
     const handleCancel = () => {
-        if (window.confirm("Bạn có chắc muốn huỷ các thay đổi?")) {
-            navigate(-1);
+        navigate(-1);
+    };
+
+    const handleShare = async () => {
+        try {
+            const url = `${window.location.origin}/ho-so/chi-tiet/${id}`;
+            await navigator.clipboard.writeText(url);
+            alert("Đã sao chép link hồ sơ vào bộ nhớ tạm!");
+        } catch {
+            alert("Lỗi khi sao chép link.");
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!record) return;
+        if (!window.confirm(`Đưa hồ sơ vào thùng rác (tự xóa sau 30 ngày): ${record.FileName}?`)) return;
+        setDeleting(true);
+        try {
+            await axios.delete(`http://localhost:8000/api/history/delete/${record.Id}`);
+            navigate("/ho-so-phap-ly");
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("Xóa thất bại. Vui lòng thử lại.");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const handleExportPdf = async () => {
+        if (!record) return;
+        setExporting(true);
+        try {
+            const res = await axios.post(
+                `http://localhost:8000/api/history/export-pdf/${record.Id}`,
+                {},
+                { responseType: "blob" }
+            );
+            const blob = new Blob([res.data], { type: "application/pdf" });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `LegAI_${record.Id}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Export error:", err);
+            alert("Xuất PDF thất bại. Vui lòng thử lại.");
+        } finally {
+            setExporting(false);
         }
     };
 
     const handleUpdate = async () => {
         if (!title.trim()) return alert("Vui lòng nhập tiêu đề");
-
-        setLoading(true);
-        const formData = new FormData();
-        formData.append("title", title);
-        formData.append("category", category);
-        formData.append("description", description);
-        if (file) formData.append("contract", file);
-
+        setSaving(true);
         try {
-
-
-            alert("Hệ thống lưu thay đổi và hiển thị hồ sơ với bản đã chỉnh sửa thành công!");
-            navigate("/ho-so-phap-ly");
+            await axios.put(`http://localhost:8000/api/history/meta/${id}`, { title, category, description });
+            alert("Đã lưu thay đổi!");
+            navigate(`/ho-so/chi-tiet/${id}`);
         } catch (err) {
+            console.error("Update error:", err);
             alert("Lỗi: " + (err.response?.data?.message || err.message));
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
-    return (
-        <div className="min-h-screen bg-white flex flex-col">
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-cyan-500">Đang tải...</div>;
+    if (!record) return <div className="min-h-screen bg-black text-white flex justify-center pt-20">Không tìm thấy hồ sơ</div>;
 
-            <main className="max-w-7xl mx-auto w-full px-6 py-10 flex-grow">
-                <div className="flex justify-between items-center mb-10">
+    return (
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-cyan-500/30 relative overflow-x-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
+
+            <main className="max-w-5xl mx-auto w-full px-6 py-10 relative z-10">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                     <button
-                        onClick={() => navigate(-1)}
-                        className="px-6 py-1.5 bg-gray-100 rounded-full font-bold text-gray-600 hover:bg-gray-200"
+                        onClick={handleCancel}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition text-gray-300"
                     >
-                        Quay lại
+                        <ArrowLeftIcon className="w-4 h-4" /> Quay lại
                     </button>
-                    <div className="flex gap-3">
-                        <button className="px-6 py-2 bg-green-500 text-white rounded-lg font-bold text-sm">Tải xuống</button>
-                        <button className="px-6 py-2 bg-blue-400 text-white rounded-lg font-bold text-sm">Chia sẻ</button>
-                        <button className="px-6 py-2 bg-pink-400 text-white rounded-lg font-bold text-sm">Phân tích</button>
-                        <button className="px-6 py-2 bg-red-500 text-white rounded-lg font-bold text-sm">Xoá</button>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            onClick={handleExportPdf}
+                            disabled={exporting}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl font-bold text-sm hover:scale-[1.02] transition disabled:opacity-60"
+                        >
+                            <ArrowDownTrayIcon className="w-4 h-4" /> {exporting ? "Đang xuất..." : "Xuất PDF"}
+                        </button>
+                        <button
+                            onClick={handleShare}
+                            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition text-gray-300"
+                        >
+                            <ShareIcon className="w-4 h-4" /> Chia sẻ
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/15 border border-red-500/30 rounded-xl hover:bg-red-500/25 transition text-red-300 disabled:opacity-60"
+                        >
+                            <TrashIcon className="w-4 h-4" /> {deleting ? "Đang xóa..." : "Xóa"}
+                        </button>
                     </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-16">
-                    <div className="space-y-8">
-                        <div>
-                            <label className="block font-black text-gray-800 mb-2 uppercase italic tracking-tighter">Tiêu đề</label>
-                            <input
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Nhập tiêu đề hồ sơ"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block font-black text-gray-800 mb-2 uppercase italic tracking-tighter">Mô tả</label>
-                            <textarea
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 h-48 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Nhập mô tả hồ sơ"
-                            />
-                        </div>
+                <div className="bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+                    <div className="p-8 border-b border-white/10">
+                        <div className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2">Chỉnh sửa hồ sơ</div>
+                        <div className="text-2xl font-black uppercase tracking-wide">{record.FileName}</div>
                     </div>
 
-                    <div className="space-y-8">
-                        <div>
-                            <label className="block font-black text-gray-800 mb-2 uppercase italic tracking-tighter">Danh mục</label>
-                            <select
-                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                value={category}
-                                onChange={(e) => setCategory(e.target.value)}
-                            >
-                                <option value="">Chọn danh mục hồ sơ</option>
-                                <option>Hợp đồng lao động</option>
-                                <option>Hợp đồng thuê nhà</option>
-                                <option>Hợp đồng kinh doanh</option>
-                            </select>
+                    <div className="p-8 grid md:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 ml-1">Tiêu đề</label>
+                                <input
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="Nhập tiêu đề hồ sơ"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 ml-1">Danh mục</label>
+                                <input
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    placeholder="Ví dụ: Hợp đồng lao động"
+                                />
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block font-black text-gray-800 mb-2 uppercase italic tracking-tighter">Thay thế file</label>
-                            <div className="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-2">
-                                <UploadBox onFileSelect={setFile} />
-                                {file && (
-                                    <p className="mt-2 text-sm text-blue-600 font-medium text-center">
-                                        File mới: {file.name}
-                                    </p>
-                                )}
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 ml-1">Mô tả</label>
+                                <textarea
+                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all min-h-[172px] resize-none"
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="Nhập mô tả hồ sơ"
+                                />
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="flex justify-center gap-6 mt-16 border-t pt-10">
-                    <button
-                        onClick={handleCancel}
-                        className="px-12 py-2.5 rounded-lg bg-gray-200 text-gray-700 font-black uppercase tracking-widest hover:bg-gray-300 transition"
-                    >
-                        Huỷ
-                    </button>
-                    <button
-                        onClick={handleUpdate}
-                        disabled={loading}
-                        className="px-12 py-2.5 rounded-lg bg-blue-500 text-white font-black uppercase tracking-widest hover:bg-blue-600 transition shadow-lg disabled:bg-gray-400"
-                    >
-                        {loading ? "Đang lưu..." : "Lưu thay đổi"}
-                    </button>
+                    <div className="p-8 border-t border-white/10 flex items-center justify-end gap-3">
+                        <button
+                            onClick={handleUpdate}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-black text-sm uppercase tracking-widest hover:opacity-95 transition disabled:opacity-60"
+                        >
+                            <CheckIcon className="w-5 h-5" /> {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                        </button>
+                    </div>
                 </div>
             </main>
         </div>

@@ -1,194 +1,461 @@
-﻿//const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
-const { CrawlKit } = require('paparusi-crawlkit'); // Dùng để gọi CrawlKit API
-const axios = require('axios');
-const sql = require('mssql');
-const { pool } = require('../config/db');
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
-// Helper: Decode double-encoded UTF-8 filenames (fix garbled Vietnamese)
-function decodeFilename(str) {
-    if (!str) return str;
-    try {
-        // If string is double-encoded (UTF-8 → Latin1), fix it
-        const fixed = Buffer.from(str, 'latin1').toString('utf8');
-        // If the result still has garbage, try direct buffer conversion
-        if (fixed.includes('�') || fixed.includes('Ã') || fixed.includes('Ä')) {
-            return Buffer.from(str).toString('utf8');
+const path = require('path');
+const os = require('os');
+const { spawn } = require('child_process');
+const { pathToFileURL } = require('url');
+
+const extractPdfText = async (dataBuffer) => {
+    const renderPage = async (pageData) => {
+        const textContent = await pageData.getTextContent({
+            normalizeWhitespace: false,
+            disableCombineTextItems: false
+        });
+
+        const items = (textContent.items || [])
+            .filter((it) => it && typeof it.str === 'string' && it.str.trim().length > 0)
+            .map((it) => ({
+                str: it.str,
+                x: Array.isArray(it.transform) ? Number(it.transform[4] || 0) : 0,
+                y: Array.isArray(it.transform) ? Number(it.transform[5] || 0) : 0,
+                w: Number(it.width || 0)
+            }))
+            .sort((a, b) => (b.y - a.y) || (a.x - b.x));
+
+        const lines = [];
+        let lineParts = [];
+        let lastY = null;
+        let lastX = null;
+        let lastW = 0;
+        const yThreshold = 2.0;
+
+        const flushLine = () => {
+            if (!lineParts.length) return;
+            const line = lineParts.join('')
+                .replace(/[ \t]+/g, ' ')
+                .replace(/\u00a0/g, ' ')
+                .trimEnd();
+            if (line) lines.push(line);
+            lineParts = [];
+            lastX = null;
+            lastW = 0;
+        };
+
+        for (const it of items) {
+            if (lastY === null) {
+                lastY = it.y;
+            }
+
+            const sameLine = Math.abs(it.y - lastY) <= yThreshold;
+            if (!sameLine) {
+                flushLine();
+                lastY = it.y;
+            }
+
+            if (lineParts.length > 0 && lastX !== null) {
+                const gap = it.x - (lastX + lastW);
+                if (gap > 1.5) lineParts.push(' ');
+            }
+            lineParts.push(it.str);
+            lastX = it.x;
+            lastW = it.w;
         }
-        return fixed;
-    } catch (e) {
-        return str;
-    }
-}
 
+        flushLine();
+        return lines.join('\n') + '\n';
+    };
 
-// Cấu hình Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-
-
-// Dùng bản 1.5-flash và bật chế độ ép trả về JSON 100%
-const model = genAI.getGenerativeModel({
-    model: "gemini-flash-lite-latest"
-
-});
-/**
- * Hàm hỗ trợ: Cạo sạch thẻ Markdown bọc ngoài JSON của AI
- */
-const cleanAIJsonString = (rawString) => {
-    if (!rawString) return "{}";
-    return rawString.replace(/```json/gi, '')
-        .replace(/```html/gi, '')
-        .replace(/```/g, '')
+    const normalizeText = (raw) => String(raw || '')
+        .normalize('NFC')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/\u0000/g, '')
+        .replace(/\n{3,}/g, '\n\n')
         .trim();
-};
-/**
- * Hàm hỗ trợ làm sạch URL Video để tối ưu hóa Cache (Tiết kiệm 100 request CrawlKit)
- */
-const cleanVideoUrl = (url) => {
+
     try {
-        const urlObj = new URL(url);
-        // YouTube Shorts/Watch
-        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
-            let videoId = urlObj.pathname.includes('/shorts/')
-                ? urlObj.pathname.split('/shorts/')[1].split('/')[0]
-                : urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
-            return `https://www.youtube.com/watch?v=${videoId.split('?')[0]}`;
-        }
-        // TikTok
-        if (urlObj.hostname.includes('tiktok.com')) {
-            return `https://www.tiktok.com${urlObj.pathname.split('?')[0]}`;
-        }
-        return url;
-    } catch (e) { return url; }
+        const data = await pdf(dataBuffer, { pagerender: renderPage });
+        const next = normalizeText(data?.text || '');
+        if (next && next.length >= 10) return next;
+    } catch {
+    }
+
+    const fallback = await pdf(dataBuffer);
+    return normalizeText(fallback?.text || '');
 };
-// ==============================================================================
-// 1. API THẨM ĐỊNH HỢP ĐỒNG (FILE SCANNER)
-// ==============================================================================
+
+const ensureGeminiKeyLoaded = () => {
+    if (process.env.GEMINI_API_KEY && String(process.env.GEMINI_API_KEY).trim()) return;
+    try {
+        const envPath = path.join(__dirname, '../../.env');
+        if (!fs.existsSync(envPath)) return;
+        const text = fs.readFileSync(envPath, 'utf-8');
+        const m = text.match(/^\s*GEMINI_API_KEY\s*=\s*(.*)\s*$/m);
+        if (!m) return;
+        const raw = String(m[1] || '').trim();
+        const val = raw.replace(/^['"]|['"]$/g, '').trim();
+        if (!val) return;
+        process.env.GEMINI_API_KEY = val;
+    } catch {
+    }
+};
+
+const pickLibreOfficePath = () => {
+    const candidates = [
+        process.env.LEGAI_LIBREOFFICE_PATH,
+        'C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.exe',
+        'C:\\\\Program Files\\\\LibreOffice\\\\program\\\\soffice.com',
+        'C:\\\\Program Files (x86)\\\\LibreOffice\\\\program\\\\soffice.exe',
+        'C:\\\\Program Files (x86)\\\\LibreOffice\\\\program\\\\soffice.com',
+        '/usr/bin/soffice',
+        '/usr/local/bin/soffice'
+    ].filter(Boolean);
+
+    for (const exePath of candidates) {
+        try {
+            if (fs.existsSync(exePath)) return exePath;
+        } catch {
+        }
+    }
+    return null;
+};
+
+const convertDocFileToDocxPath = async (docPath, sofficePath) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legai-doc-'));
+    const userProfileDir = path.join(tmpDir, 'lo-profile');
+    const inputPath = path.join(tmpDir, 'input.doc');
+    const outputPath = path.join(tmpDir, 'input.docx');
+
+    try {
+        fs.mkdirSync(userProfileDir, { recursive: true });
+        fs.copyFileSync(docPath, inputPath);
+        const userInstallation = pathToFileURL(`${userProfileDir}${path.sep}`).toString();
+        await new Promise((resolve, reject) => {
+            const p = spawn(sofficePath, [
+                '--headless',
+                '--nologo',
+                '--nofirststartwizard',
+                '--invisible',
+                `-env:UserInstallation=${userInstallation}`,
+                '--convert-to',
+                'docx',
+                '--outdir',
+                tmpDir,
+                inputPath
+            ], {
+                windowsHide: true
+            });
+            let stderr = '';
+            p.stderr.on('data', (d) => {
+                stderr += String(d);
+            });
+            p.on('error', reject);
+            p.on('exit', (code) => {
+                if (code === 0) return resolve();
+                reject(new Error(stderr || `LibreOffice convert failed (${code})`));
+            });
+        });
+        if (!fs.existsSync(outputPath)) throw new Error('Chuyển đổi DOC -> DOCX thất bại.');
+        return { docxPath: outputPath, tmpDir };
+    } catch (e) {
+        try {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {
+        }
+        throw e;
+    }
+};
+
+let localOcrPromise = null;
+const getLocalOcr = async () => {
+    if (localOcrPromise) return localOcrPromise;
+    localOcrPromise = (async () => {
+        const { pipeline, RawImage, env } = await import('@xenova/transformers');
+        if (env) {
+            env.allowRemoteModels = true;
+        }
+        const ocr = await pipeline('image-to-text', 'Xenova/trocr-base-printed');
+        return { ocr, RawImage };
+    })();
+    return localOcrPromise;
+};
+
+const tryLocalOcrFromPath = async (imagePath) => {
+    try {
+        const { ocr, RawImage } = await getLocalOcr();
+        const image = await RawImage.read(imagePath);
+        const output = await ocr(image);
+        const text = Array.isArray(output) && output[0] && typeof output[0].generated_text === 'string'
+            ? output[0].generated_text
+            : '';
+        return text;
+    } catch (err) {
+        console.error('Local OCR error:', err?.message || err);
+        return '';
+    }
+};
+
+const createLocalFallback = (contractText) => {
+    const normalized = (contractText || '').toLowerCase();
+    const risks = [];
+
+    if (normalized.includes('phạt')) {
+        risks.push({
+            clause: 'Điều khoản phạt vi phạm',
+            issue: 'Cần kiểm tra mức phạt có vượt giới hạn pháp luật hoặc gây bất lợi quá mức cho một bên hay không.',
+            severity: 'Medium'
+        });
+    }
+
+    if (normalized.includes('đơn phương chấm dứt')) {
+        risks.push({
+            clause: 'Điều khoản đơn phương chấm dứt',
+            issue: 'Cần rà soát điều kiện chấm dứt, nghĩa vụ báo trước và bồi thường để tránh tranh chấp.',
+            severity: 'High'
+        });
+    }
+
+    if (normalized.includes('đặt cọc') || normalized.includes('thanh toán')) {
+        risks.push({
+            clause: 'Điều khoản đặt cọc/thanh toán',
+            issue: 'Nên làm rõ thời hạn, phương thức thanh toán và điều kiện hoàn trả để hạn chế rủi ro.',
+            severity: 'Medium'
+        });
+    }
+
+    return {
+        summary: 'Hệ thống đang dùng chế độ phân tích tạm thời do chưa kết nối được dịch vụ AI hoặc khóa Gemini. Kết quả này chỉ mang tính tham khảo để bạn tiếp tục thao tác giao diện.',
+        risk_score: risks.length === 0 ? 82 : Math.max(45, 82 - risks.length * 12),
+        risks: risks.length > 0 ? risks : [
+            {
+                clause: 'Tổng quan hợp đồng',
+                issue: 'Chưa phát hiện điều khoản rủi ro nổi bật bằng bộ phân tích tạm thời. Nên kiểm tra thêm điều khoản thanh toán, chấm dứt, phạt vi phạm và bồi thường.',
+                severity: 'Low'
+            }
+        ],
+        recommendation: 'Khi cấu hình xong Gemini và cơ sở dữ liệu, bạn nên chạy phân tích lại để có kết quả pháp lý chi tiết hơn.'
+    };
+};
+
+const createImageFallback = () => {
+    return {
+        summary: 'Không thể trích xuất nội dung hợp đồng từ ảnh. Gemini chưa được cấu hình và OCR cục bộ không sẵn sàng trên máy chủ hiện tại.',
+        risk_score: 50,
+        risks: [
+            {
+                clause: 'Tài liệu dạng ảnh',
+                issue: 'Vui lòng cấu hình GEMINI_API_KEY để OCR + phân tích chính xác; hoặc cài đặt môi trường để OCR cục bộ (Transformers.js) có thể tải model.',
+                severity: 'Medium'
+            }
+        ],
+        recommendation: 'Nếu cần kết quả ngay, hãy tải lên file PDF/DOCX/TXT; hoặc cấu hình Gemini để hỗ trợ OCR ảnh.'
+    };
+};
+
+const getModel = () => {
+    ensureGeminiKeyLoaded();
+    if (!process.env.GEMINI_API_KEY) return null;
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    return genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: { responseMimeType: "application/json" }
+    });
+};
+
 exports.analyzeContract = async (req, res) => {
     let filePath = null;
+    let uploadedPaths = [];
+    let contractText = "";
+    let isImage = false;
+    let isMultiImage = false;
 
     try {
+        const singleFile = req.file || (req.files?.file && req.files.file[0]) || null;
+        const multiFiles = Array.isArray(req.files?.files) ? req.files.files : [];
+
         // 1. Kiểm tra xem có file gửi lên không
-        if (!req.file) {
+        if (!singleFile && multiFiles.length === 0) {
             return res.status(400).json({ error: "Vui lòng upload file hợp đồng!" });
         }
 
-        filePath = req.file.path;
-        const mimeType = req.file.mimetype;
-        let contractText = "";
+        if (multiFiles.length > 0) {
+            isMultiImage = true;
+            const allImage = multiFiles.every((f) => Boolean(f?.mimetype) && f.mimetype.startsWith('image/'));
+            if (!allImage) {
+                return res.status(400).json({ error: "Khi upload nhiều file, chỉ hỗ trợ nhiều ảnh (png/jpg/jpeg/webp)." });
+            }
+            isImage = true;
+            uploadedPaths = multiFiles.map((f) => f.path).filter(Boolean);
+        } else {
+            filePath = singleFile.path;
+            uploadedPaths = filePath ? [filePath] : [];
+            const mimeType = singleFile.mimetype;
+            isImage = Boolean(mimeType && mimeType.startsWith('image/'));
+        }
 
         // 2. Phân loại và Đọc file
-        console.log(`🕵️‍♂️ Đang đọc file: ${decodeFilename(req.file.originalname)} (${mimeType})`);
-
-        if (mimeType === 'application/pdf') {
-            const dataBuffer = fs.readFileSync(filePath);
-            const data = await pdf(dataBuffer);
-            contractText = data.text;
-        }
-        else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-            const result = await mammoth.extractRawText({ path: filePath });
-            contractText = result.value;
-        }
-        else {
-            contractText = fs.readFileSync(filePath, 'utf-8');
+        if (isMultiImage) {
+            console.log(`🕵️‍♂️ Đang đọc ${multiFiles.length} ảnh: ${multiFiles.map((f) => f.originalname).join(', ')}`);
+        } else {
+            console.log(`🕵️‍♂️ Đang đọc file: ${singleFile.originalname} (${singleFile.mimetype})`);
         }
 
-        if (!contractText || contractText.trim().length < 10) {
+        if (!isMultiImage) {
+            const mimeType = singleFile.mimetype;
+            const ext = path.extname(singleFile.originalname || filePath || '').toLowerCase();
+            const isPdf = mimeType === 'application/pdf' || ext === '.pdf';
+            const isDoc = mimeType === 'application/msword' || ext === '.doc';
+            const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === '.docx';
+            const isTxt = mimeType === 'text/plain' || ext === '.txt';
+
+            if (isPdf) {
+                const dataBuffer = fs.readFileSync(filePath);
+                contractText = await extractPdfText(dataBuffer);
+            } else if (isDoc) {
+                const sofficePath = pickLibreOfficePath();
+                if (!sofficePath) {
+                    return res.status(409).json({ error: "Không tìm thấy LibreOffice (soffice). Cài LibreOffice hoặc chuyển file .doc sang .docx/.pdf trước khi upload." });
+                }
+                let tmp = null;
+                try {
+                    tmp = await convertDocFileToDocxPath(filePath, sofficePath);
+                    const result = await mammoth.extractRawText({ path: tmp.docxPath });
+                    contractText = String(result.value || '')
+                        .normalize('NFC')
+                        .replace(/\r\n/g, '\n')
+                        .replace(/\r/g, '\n')
+                        .replace(/\u0000/g, '')
+                        .trim();
+                } finally {
+                    if (tmp?.tmpDir) {
+                        try {
+                            fs.rmSync(tmp.tmpDir, { recursive: true, force: true });
+                        } catch {
+                        }
+                    }
+                }
+            } else if (isDocx) {
+                const result = await mammoth.extractRawText({ path: filePath });
+                contractText = String(result.value || '')
+                    .normalize('NFC')
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n')
+                    .replace(/\u0000/g, '')
+                    .trim();
+            } else if (isImage) {
+                contractText = "";
+            } else if (isTxt) {
+                contractText = String(fs.readFileSync(filePath, 'utf-8') || '')
+                    .normalize('NFC')
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n')
+                    .replace(/\u0000/g, '')
+                    .trim();
+            } else {
+                return res.status(400).json({ error: "Định dạng file không được hỗ trợ. Vui lòng upload PDF, DOC, DOCX, TXT hoặc ảnh." });
+            }
+        }
+
+        if (!isImage && (!contractText || contractText.trim().length < 10)) {
             return res.status(400).json({ error: "Không đọc được nội dung file hoặc file quá ngắn." });
         }
 
-        // 3. Gửi cho Gemini phân tích
         console.log("🤖 Đang gửi nội dung cho Gemini phân tích...");
+        const model = getModel();
+        let analysisResult = null;
 
-        const prompt = `
-        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON.
-        
-        Nội dung hợp đồng:
-        """${contractText}"""
+        if (isMultiImage) {
+            if (model) {
+                const multiImagePrompt = `
+                Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy đọc nội dung hợp đồng trong NHIỀU ẢNH đính kèm theo đúng thứ tự (OCR) và phân tích hợp đồng đó theo luật Việt Nam.
+                Trả về kết quả dưới dạng JSON (chỉ JSON, không có markdown). Ngoài các trường phân tích, hãy trả thêm trường "contract_text" là toàn bộ nội dung OCR được (chuỗi) theo đúng thứ tự trang.
 
-        Yêu cầu output JSON format:
-        {
-            "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
-            "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
-            "risks": [
+                Yêu cầu output JSON format:
                 {
-                    "clause": "Trích dẫn điều khoản gốc gây rủi ro",
-                    "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
-                    "severity": "High" | "Medium" | "Low"
+                    "contract_text": "Toàn bộ văn bản OCR được từ các ảnh theo thứ tự",
+                    "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
+                    "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
+                    "risks": [
+                        {
+                            "clause": "Trích dẫn điều khoản gốc gây rủi ro",
+                            "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
+                            "severity": "High" | "Medium" | "Low"
+                        }
+                    ],
+                    "recommendation": "Lời khuyên tổng quan của luật sư"
                 }
-            ],
-            "recommendation": "Lời khuyên tổng quan của luật sư"
-        }
-        `;
+                `;
 
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+                const parts = [multiImagePrompt, ...multiFiles.map((f) => {
+                    const dataBuffer = fs.readFileSync(f.path);
+                    return {
+                        inlineData: {
+                            data: dataBuffer.toString('base64'),
+                            mimeType: f.mimetype
+                        }
+                    };
+                })];
 
-        const cleanedText = cleanAIJsonString(responseText);
-        const analysisResult = JSON.parse(cleanedText);
-
-        console.log("✅ Phân tích xong!");
-        res.json(analysisResult);
-
-    } catch (error) {
-        console.error("❌ Lỗi phân tích:", error);
-        res.status(500).json({ error: "Lỗi hệ thống khi phân tích hợp đồng. Chi tiết: " + error.message });
-    } finally {
-        // Luôn dọn rác ổ cứng dù thành công hay thất bại
-        if (filePath && fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            console.log("🧹 Đã dọn dẹp file tạm.");
-        }
-    }
-};
-
-// ==============================================================================
-// API PHÂN TÍCH HÀNG LOẠT NHIỀU HỢP ĐỒNG
-// ==============================================================================
-exports.analyzeContractsBatch = async (req, res) => {
-    try {
-        const files = req.files || [];
-        if (!files || files.length === 0) {
-            return res.status(400).json({ error: "Vui lòng upload ít nhất 1 file!" });
-        }
-
-        const results = [];
-
-        for (const f of files) {
-            let filePath = f.path;
-            const mimeType = f.mimetype;
-            let contractText = "";
-
-            try {
-                console.log(`🕵️‍♂️ Đang đọc file (batch): ${decodeFilename(f.originalname)} (${mimeType})`);
-
-                if (mimeType === 'application/pdf') {
-                    const dataBuffer = fs.readFileSync(filePath);
-                    const data = await pdf(dataBuffer);
-                    contractText = data.text;
-                } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                    const r = await mammoth.extractRawText({ path: filePath });
-                    contractText = r.value;
-                } else {
-                    contractText = fs.readFileSync(filePath, 'utf-8');
+                const result = await model.generateContent(parts);
+                const responseText = result.response.text();
+                analysisResult = JSON.parse(responseText);
+                contractText = typeof analysisResult?.contract_text === 'string' ? analysisResult.contract_text : "";
+            } else {
+                const texts = [];
+                for (const f of multiFiles) {
+                    const t = await tryLocalOcrFromPath(f.path);
+                    if (t && t.trim()) texts.push(t.trim());
                 }
+                contractText = texts.join('\n\n');
+                analysisResult = contractText.trim().length >= 10 ? createLocalFallback(contractText) : createImageFallback();
+            }
+        } else if (isImage) {
+            if (model) {
+                const mimeType = singleFile.mimetype;
+                const imagePrompt = `
+                Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy đọc nội dung hợp đồng trong ảnh đính kèm (OCR) và phân tích hợp đồng đó theo luật Việt Nam.
+                Trả về kết quả dưới dạng JSON (chỉ JSON, không có markdown). Ngoài các trường phân tích, hãy trả thêm trường "contract_text" là toàn bộ nội dung OCR được (chuỗi).
 
-                if (!contractText || contractText.trim().length < 10) {
-                    results.push({ fileName: f.originalname, error: "Không đọc được nội dung file hoặc file quá ngắn." });
-                    continue;
+                Yêu cầu output JSON format:
+                {
+                    "contract_text": "Toàn bộ văn bản OCR được từ ảnh",
+                    "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
+                    "risk_score": (Số nguyên từ 0-100, càng cao càng an toàn),
+                    "risks": [
+                        {
+                            "clause": "Trích dẫn điều khoản gốc gây rủi ro",
+                            "issue": "Giải thích tại sao rủi ro theo luật Việt Nam",
+                            "severity": "High" | "Medium" | "Low"
+                        }
+                    ],
+                    "recommendation": "Lời khuyên tổng quan của luật sư"
                 }
+                `;
 
-                const prompt = `
-            Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON.
-            (File name: ${f.originalname})
+                const dataBuffer = fs.readFileSync(filePath);
+                const imagePart = {
+                    inlineData: {
+                        data: dataBuffer.toString('base64'),
+                        mimeType
+                    }
+                };
+                const result = await model.generateContent([imagePrompt, imagePart]);
+                const responseText = result.response.text();
+                analysisResult = JSON.parse(responseText);
+                contractText = typeof analysisResult?.contract_text === 'string' ? analysisResult.contract_text : "";
+            } else {
+                contractText = await tryLocalOcrFromPath(filePath);
+                analysisResult = contractText && contractText.trim().length >= 10 ? createLocalFallback(contractText) : createImageFallback();
+            }
+        } else {
+            const prompt = `
+            Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích hợp đồng dưới đây và trả về kết quả dưới dạng JSON (chỉ JSON, không có markdown).
+            
             Nội dung hợp đồng:
             """${contractText}"""
-
+    
             Yêu cầu output JSON format:
             {
                 "summary": "Tóm tắt ngắn gọn nội dung hợp đồng (2-3 câu)",
@@ -204,470 +471,34 @@ exports.analyzeContractsBatch = async (req, res) => {
             }
             `;
 
+            if (model) {
                 const result = await model.generateContent(prompt);
                 const responseText = result.response.text();
+                analysisResult = JSON.parse(responseText);
+            } else {
+                analysisResult = createLocalFallback(contractText);
+            }
+        }
 
-                let analysisResult = null;
+        console.log("✅ Phân tích xong!");
+        res.json({ ...analysisResult, contract_text: contractText });
+
+    } catch (error) {
+        console.error("❌ Lỗi phân tích:", error);
+        const fallbackResult = isImage ? createImageFallback() : createLocalFallback(contractText);
+        res.json({ ...fallbackResult, contract_text: contractText });
+    } finally {
+        // Luôn dọn rác ổ cứng dù thành công hay thất bại
+        uploadedPaths.forEach((p) => {
+            if (p && fs.existsSync(p)) {
                 try {
-                    analysisResult = JSON.parse(responseText);
-                } catch (parseErr) {
-                    analysisResult = { parseError: true, raw: responseText };
+                    fs.unlinkSync(p);
+                } catch {
                 }
-
-                results.push({ fileName: decodeFilename(f.originalname), analysis: analysisResult });
-
-            } catch (errFile) {
-                console.error('❌ Lỗi xử lý file batch:', decodeFilename(f.originalname), errFile);
-                results.push({ fileName: decodeFilename(f.originalname), error: errFile.message || 'Lỗi xử lý file.' });
-            } finally {
-                if (filePath && fs.existsSync(filePath)) {
-                    try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
-                }
-            }
-        }
-
-        // Tính toán báo cáo tổng hợp
-        const total = results.length;
-        const valid = results.filter(r => r.analysis && (typeof (r.analysis.risk_score ?? r.analysis.riskScore) === 'number'));
-        const sum = valid.reduce((s, r) => s + ((r.analysis.risk_score ?? r.analysis.riskScore) || 0), 0);
-        const average = total > 0 ? Math.round(sum / total) : 0;
-
-        const aggregated = {
-            average_risk_score: average,
-            total_files: total,
-            summary: `Phân tích ${total} file - điểm an toàn trung bình ${average}`
-        };
-
-        res.json({ aggregated, files: results });
-
-    } catch (error) {
-        console.error('❌ Lỗi batch analyze:', error);
-        res.status(500).json({ error: 'Lỗi hệ thống khi phân tích batch: ' + (error.message || error) });
-    }
-};
-
-// ==============================================================================
-// 2. API TẠO BIỂU MẪU (FORM GENERATOR)
-// ==============================================================================
-exports.generateForm = async (req, res) => {
-    try {
-        const { text, history } = req.body;
-
-        if (!text) {
-            return res.status(400).json({ error: "Thiếu nội dung chat" });
-        }
-
-        console.log("📥 Đang nhận yêu cầu tạo Form từ Frontend:", text);
-
-        // Nối lịch sử chat để AI có "trí nhớ"
-        const historyText = history && history.length > 0
-            ? history.map(msg => `${msg.role === 'user' ? 'NGƯỜI DÙNG' : 'LEGAI'}: ${msg.content}`).join("\n\n")
-            : "Chưa có lịch sử.";
-
-        const prompt = `
-        # VAI TRÒ:
-        Bạn là LegAI - Trợ lý thông minh chuyên bóc tách dữ liệu để tự động điền Form Hợp Đồng pháp lý tại Việt Nam.
-
-        # NGỮ CẢNH TRƯỚC ĐÓ:
-        ${historyText}
-
-        # ĐẦU VÀO MỚI CỦA NGƯỜI DÙNG: 
-        "${text}"
-
-        # NHIỆM VỤ BẮT BUỘC:
-        1. Đọc yêu cầu và TỰ ĐỘNG SUY LUẬN loại hợp đồng phù hợp nhất dựa trên mục đích giao dịch của người dùng.
-        2. Tự động gán vai trò Bên A và Bên B sao cho đúng chuẩn thuật ngữ pháp lý với loại hợp đồng đó.
-            - BÊN A (Bên xuất tiền / Nhận quyền lợi): BÊN MUA, BÊN THUÊ, BÊN SỬ DỤNG DỊCH VỤ, BÊN NHẬN CHUYỂN NHƯỢNG, BÊN VAY...
-           - BÊN B (Bên nhận tiền / Cung cấp): BÊN BÁN, BÊN CHO THUÊ, BÊN CUNG CẤP DỊCH VỤ, BÊN CHUYỂN NHƯỢNG, BÊN CHO VAY...
-           Hãy phân tích kỹ ai là ai để gán tên, sđt, địa chỉ vào đúng benA_ hay benB_ theo quy tắc này.
-        3. QUAN TRỌNG NHẤT: Nếu người dùng cung cấp tên cá nhân/tổ chức nhưng KHÔNG nói rõ họ đóng vai trò gì 
-        (Ví dụ: "Tôi là Khánh" nhưng chưa rõ là đi thuê hay cho thuê, mua hay bán),
-         TUYỆT ĐỐI KHÔNG ĐOÁN MÒ. Hãy để trống phần tên và BẮT BUỘC hỏi lại trong "chat_reply"
-          (VD: "Chào Khánh, bạn là Bên Mua hay Bên Bán?"). 
-          Chỉ điền khi chắc chắn 100% ngữ cảnh.
-        4. Bóc tách các thông tin còn lại. Thông tin nào thiếu để chuỗi rỗng "".
-        5. TRƯỜNG HỢP YÊU CẦU BIỂU MẪU TRẮNG (BLANK FORM): Nếu người dùng nói rõ chỉ cần "hợp đồng trắng", "mẫu trống", "phôi để in", "tự điền"... thì TUYỆT ĐỐI KHÔNG HỎI THÊM THÔNG TIN CÁ NHÂN.
-         Hãy lập tức xuất ra các trường cấu trúc (ten_hop_dong, benA_role, benB_role, can_cu_luat), để trống ("") toàn bộ các trường thông tin còn lại, và trả lời:
-         "Tôi đã tạo xong biểu mẫu trắng cho Hợp đồng [...]. Bạn có thể in ra hoặc lưu PDF để tự điền tay nhé!"
-        # YÊU CẦU ĐẦU RA JSON (TUYỆT ĐỐI TUÂN THỦ CẤU TRÚC NÀY):
-        6. TỰ ĐỘNG XÓA NGỮ CẢNH CŨ (CONTEXT RESET): Nếu người dùng yêu cầu một loại hợp đồng MỚI KHÁC HOÀN TOÀN với chủ đề đang chat ở trên (Ví dụ: đang làm Hợp đồng Mua bán, đột ngột chuyển sang Hợp đồng Lao động), 
-        HOẶC yêu cầu "mẫu trắng", thì BẮT BUỘC PHẢI QUÊN SẠCH toàn bộ thông tin cá nhân cũ 
-        (tên, sđt, địa chỉ...). Tuyệt đối không được lấy thông tin của hợp đồng cũ đắp vào hợp đồng mới.
-         Hãy reset các trường thông tin cá nhân về chuỗi rỗng "".
-        {
-          "chat_reply": "Câu trả lời thân thiện báo cho người dùng biết bạn đã lập hợp đồng gì và yêu cầu cung cấp thêm thông tin (nhớ hỏi rõ vai trò nếu chưa chắc chắn).",
-          "template_type": "hop_dong_tieu_chuan (CHÚ Ý: Nếu người dùng chỉ chào hỏi, hãy trả về chữ 'none')",
-          "extracted_data": {
-            "ten_hop_dong": "Tên hợp đồng IN HOA bao quát mọi lĩnh vực (VD: HỢP ĐỒNG LAO ĐỘNG, HỢP ĐỒNG MUA BÁN HÀNG HÓA, HỢP ĐỒNG ỦY QUYỀN, HỢP ĐỒNG DỊCH VỤ...).",
-            "benA_role": "Vai trò Bên A IN HOA tương ứng với loại hợp đồng (VD: BÊN MUA, BÊN SỬ DỤNG LAO ĐỘNG, BÊN ỦY QUYỀN, BÊN CHO THUÊ...).",
-            "benB_role": "Vai trò Bên B IN HOA tương ứng với loại hợp đồng (VD: BÊN BÁN, NGƯỜI LAO ĐỘNG, BÊN ĐƯỢC ỦY QUYỀN, BÊN THUÊ...).",
-            "can_cu_luat": ["Tự động tìm và liệt kê các Bộ luật, Luật Việt Nam MỚI NHẤT đang có hiệu lực và CHUYÊN SÂU NHẤT điều chỉnh loại hợp đồng này (VD: ['Bộ luật Lao động 2019'], hoặc ['Luật Thương mại 2005', 'Bộ luật Dân sự 2015']...)"],
-            "benA_name": "",
-            "benA_id": "",
-            "benA_address": "",
-            "benA_phone": "",
-            "benA_rep": "",
-            "benB_name": "",
-            "benB_id": "",
-            "benB_address": "",
-            "benB_phone": "",
-            "benB_rep": "",
-            "noi_dung_chinh": "",
-            "gia_tri_hop_dong": "",
-            "thoi_han": ""
-          }
-        }`;
-
-        // Gọi Gemini (dùng luôn model đã config JSON MimeType ở trên)
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-
-        // Parse JSON trả về
-        // Đưa qua dao cạo trước khi parse
-        const cleanedText = cleanAIJsonString(responseText);
-        const aiData = JSON.parse(cleanedText);
-
-        console.log("📤 AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
-        res.json(aiData);
-
-    } catch (error) {
-        console.error("❌ Lỗi API Generate Form:", error);
-        res.status(500).json({ error: "Lỗi hệ thống LegAI khi tạo Form" });
-    }
-};
-
-// ==========================================
-// 3. TÍNH NĂNG LẬP KẾ HOẠCH (AI PLANNING)
-// ==========================================
-exports.generatePlanning = async (req, res) => {
-    let filePaths = [];
-
-    try {
-        const { rawText } = req.body;
-        let combinedText = rawText || "";
-
-        // 1. Phân loại và Đọc các file đính kèm (nếu có)
-        if (req.files && req.files.length > 0) {
-            console.log(`📂 Đang xử lý ${req.files.length} file đính kèm...`);
-
-            for (const file of req.files) {
-                const filePath = file.path;
-                filePaths.push(filePath);
-                const mimeType = file.mimetype;
-
-                let fileText = "";
-                if (mimeType === 'application/pdf') {
-                    const dataBuffer = fs.readFileSync(filePath);
-                    const data = await pdf(dataBuffer);
-                    fileText = data.text;
-                }
-                else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                    const result = await mammoth.extractRawText({ path: filePath });
-                    fileText = result.value;
-                }
-                else {
-                    fileText = fs.readFileSync(filePath, 'utf-8');
-                }
-
-                combinedText += `\n\n--- NỘI DUNG TỪ FILE [${file.originalname}] ---\n${fileText}`;
-            }
-        }
-
-        if (!combinedText || combinedText.trim().length < 5) {
-            return res.status(400).json({ error: "Vui lòng nhập nội dung hoặc upload file để lập kế hoạch!" });
-        }
-
-        // 2. Gửi cho Gemini lập kế hoạch (Prompt chuyên dụng cho Pháp lý)
-        console.log("🤖 Đang gửi dữ liệu cho Gemini lập kế hoạch Agentic...");
-
-        const prompt = `
-        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích yêu cầu dưới đây và lập một kế hoạch thực thi pháp lý chi tiết (AI Legal Planning).
-        
-        Nội dung yêu cầu/hồ sơ:
-        """${combinedText}"""
-
-        Yêu cầu output JSON format (Danh sách các tasks):
-        [
-            {
-                "id": 1,
-                "phase": "Giai đoạn 1",
-                "title": "Tên nhiệm vụ cụ thể",
-                "assignee": "Người phụ trách (Luật sư A, Trợ lý, hoặc Chờ phân công)",
-                "deadline": "Thời gian dự kiến (VD: 3 ngày, 1 tuần)",
-                "status": "pending" | "locked"
-            }
-        ]
-        Lưu ý: Chỉ trả về JSON, không kèm giải thích hay markdown.
-        `;
-
-        const result = await model.generateContent(prompt);
-        // 3. Parse JSON từ Gemini
-        const responseText = result.response.text();
-        const planningResult = JSON.parse(responseText);
-
-        // 4. LƯU VÀO SQL SERVER (KÉT SẮT CỦA DUY)
-        try {
-            // Lấy userId từ token (đã qua authMiddleware)
-            const userId = req.user ? req.user.id : 1; // Fallback về 1 nếu chưa login (để test)
-
-            const request = pool.request();
-            request.input('UserId', sql.Int, userId);
-            request.input('RecordType', sql.NVarChar(50), 'PLANNING');
-            request.input('Title', sql.NVarChar(500), `Kế hoạch: ${planningResult[0]?.title || 'Tư vấn pháp lý'}`);
-
-            request.input('Folder', sql.NVarChar(200), 'Kế hoạch AI');
-            request.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(planningResult));
-            request.input('AIModel', sql.NVarChar(100), 'gemini-1.5-flash');
-
-            const query = `
-                INSERT INTO dbo.ContractHistory (UserId, RecordType, Title, Folder, AnalysisJson, AIModel, CreatedAt)
-                VALUES (@UserId, @RecordType, @Title, @Folder, @AnalysisJson, @AIModel, GETDATE())
-            `;
-
-            await request.query(query);
-            console.log("📂 Đã lưu kế hoạch vào Hồ sơ pháp lý thành công!");
-        } catch (dbErr) {
-            console.error("⚠️ Lỗi lưu DB (nhưng vẫn trả kết quả cho User):", dbErr);
-        }
-
-        console.log(`✅ Lập kế hoạch xong! Đã tạo ${planningResult.length} bước.`);
-        res.json({
-            success: true,
-            data: planningResult,
-            message: "Kế hoạch đã được tạo và lưu vào hồ sơ!"
-        });
-    } catch (error) {
-        console.error("❌ Lỗi lập kế hoạch:", error);
-        res.status(500).json({ error: "Lỗi hệ thống khi lập kế hoạch AI. Chi tiết: " + error.message });
-    } finally {
-        // Dọn dẹp tất cả file tạm
-        filePaths.forEach(fp => {
-            if (fs.existsSync(fp)) {
-                fs.unlinkSync(fp);
             }
         });
-        if (filePaths.length > 0) console.log("🧹 Đã dọn dẹp các file tạm.");
-    }
-};
-// ==============================================================================
-// 4. MỚI: API THẨM ĐỊNH VIDEO (CRAWLKIT + AI SCANNER) - BẢN KHỚP DATA 100%
-// ==============================================================================
-exports.analyzeVideo = async (req, res) => {
-    const { url } = req.body;
-    const userId = req.user ? req.user.id : 1;
-    const apiKey = process.env.CRAWLKIT_API_KEY ? process.env.CRAWLKIT_API_KEY.trim() : null;
-
-    if (!apiKey) return res.status(500).json({ error: "Thiếu CRAWLKIT_API_KEY trong .env" });
-    if (!url) return res.status(400).json({ error: "Vui lòng dán link video!" });
-
-    const cleanedUrl = cleanVideoUrl(url);
-
-    try {
-        // --- 1. KIỂM TRA CACHE ---
-        const checkRequest = pool.request();
-        checkRequest.input('Url', sql.NVarChar(500), cleanedUrl);
-        const cache = await checkRequest.query("SELECT * FROM VideoHistory WHERE VideoUrl = @Url");
-
-        if (cache.recordset.length > 0) {
-            console.log("🚀 Lấy dữ liệu từ Cache SQL Server.");
-            return res.json({ success: true, data: cache.recordset[0], source: 'database' });
-        }
-
-        // --- 2. GỌI API CRAWLKIT ---
-        console.log("📡 Đang bóc tách video qua api.crawlkit.org...");
-        const crawlResponse = await axios.post('https://api.crawlkit.org/v1/scrape',
-            { url: cleanedUrl },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            }
-        );
-
-        const rawData = crawlResponse.data.data;
-        const transcript = rawData.transcript || rawData.content;
-        const videoTitle = rawData.title || "Video Pháp luật";
-
-        if (!transcript) throw new Error("Không lấy được nội dung video.");
-
-        // --- 3. GEMINI: CHIẾN THUẬT 'LEGAL AUDITOR' ---
-        console.log("🕵️‍♂️ Đang thực hiện kiểm toán pháp lý chuyên sâu...");
-        const prompt = `
-            Bạn là Trợ lý Pháp lý Cao cấp (LegAI Analyst). 
-            Nhiệm vụ: Thực hiện 'Legal Audit' nội dung video.
-            Nội dung Transcript: """${transcript}"""
-            Yêu cầu JSON format (CHỈ TRẢ VỀ JSON):
-            {
-              "analysis_report": "Nội dung báo cáo dạng Markdown...",
-              "legal_map": [{ "law_name": "...", "article": "...", "status": "..." }],
-              "action_plan": ["..."],
-              "audit_metrics": { "trust_score": 95, "complexity_level": "...", "fact_check_result": "..." }
-            }
-        `;
-
-        const aiResult = await model.generateContent(prompt);
-        const responseText = aiResult.response.text();
-        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-        const aiData = JSON.parse(cleanedJson);
-
-        // --- 4. LƯU DATABASE (SỬA ĐỂ KHỚP VỚI AI DATA MỚI) ---
-        const saveRequest = pool.request();
-        saveRequest.input('UserId', sql.Int, userId);
-        saveRequest.input('Url', sql.NVarChar(500), cleanedUrl);
-        saveRequest.input('Title', sql.NVarChar(500), videoTitle);
-        saveRequest.input('Transcript', sql.NVarChar(sql.MAX), transcript);
-
-        // 🟢 SỬA TẠI ĐÂY: Đọc đúng Key từ JSON của Gemini
-        saveRequest.input('Summary', sql.NVarChar(sql.MAX), aiData.analysis_report);
-        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), JSON.stringify(aiData.legal_map));
-        saveRequest.input('TrustScore', sql.Int, aiData.audit_metrics?.trust_score || 0);
-        saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
-
-        // Lưu vào cả 2 bảng (Duy để nguyên tên model 'gemini-flash-lite-latest' là chuẩn rồi)
-        await saveRequest.query(`
-            INSERT INTO VideoHistory (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AIModel, CreatedAt)
-            VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, 'gemini-flash-lite-latest', GETDATE())
-        `);
-
-        await saveRequest.query(`
-            INSERT INTO ContractHistory (UserId, RecordType, Title, Folder, AnalysisText, AnalysisJson, RiskScore, AIModel, CreatedAt, IsFinal)
-            VALUES (@UserId, 'VIDEO_ANALYSIS', @Title, N'Phân tích Video', @Summary, @AnalysisJson, @TrustScore, 'gemini-flash-lite-latest', GETDATE(), 1)
-        `);
-
-        console.log("✅ HOÀN TẤT: Dữ liệu đã nằm trong SQL Server!");
-        res.json({ success: true, data: { transcript, ...aiData, Title: videoTitle } });
-
-    } catch (error) {
-        console.error("❌ Lỗi Video Analysis:", error.response?.data || error.message);
-        res.status(500).json({
-            error: "Lỗi hệ thống: " + (error.response?.data?.message || error.message)
-        });
-    }
-};
-
-// SO SÁNH HAI PHIÊN BẢN HỢP ĐỒNG
-exports.compareContracts = async (req, res) => {
-    let filePathA = null; // Khai báo biến để giữ đường dẫn file tạm thời A
-    let filePathB = null; 
-
-    try {
-        // 1. Kiểm tra xem có đủ 2 file gửi lên không
-        // req.files sẽ là một đối tượng khi dùng upload.fields
-        if (!req.files || !req.files['fileA'] || !req.files['fileB'] || req.files['fileA'].length === 0 || req.files['fileB'].length === 0) {
-            return res.status(400).json({ error: "Vui lòng upload cả hai file hợp đồng để so sánh!" });
-        }
-
-        const fileA = req.files['fileA'][0]; // Lấy đối tượng file A đầu tiên
-        const fileB = req.files['fileB'][0]; 
-
-        filePathA = fileA.path; // Lấy đường dẫn file tạm thời
-        filePathB = fileB.path; 
-
-        let contractTextA = "";
-        let contractTextB = "";
-
-        // Helper function để đọc nội dung file từ đường dẫn và mimeType
-        const readContractFile = async (path, mimeType) => {
-            if (mimeType === 'application/pdf') {
-                const dataBuffer = fs.readFileSync(path);
-                const data = await pdf(dataBuffer);
-                return data.text;
-            } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || mimeType === 'application/msword') {
-                const result = await mammoth.extractRawText({ path: path });
-                return result.value;
-            } else { // text/plain hoặc các loại khác mà fs.readFileSync có thể xử lý
-                return fs.readFileSync(path, 'utf-8');
-            }
-        };
-
-        // 2. Đọc nội dung của cả hai file
-        console.log(`🕵️‍♂️ Đang đọc file A: ${decodeFilename(fileA.originalname)} (${fileA.mimetype})`);
-        contractTextA = await readContractFile(filePathA, fileA.mimetype);
-
-        console.log(`🕵️‍♂️ Đang đọc file B: ${decodeFilename(fileB.originalname)} (${fileB.mimetype})`);
-        contractTextB = await readContractFile(filePathB, fileB.mimetype);
-
-        // Kiểm tra nội dung file có đủ dài không
-        if (!contractTextA || contractTextA.trim().length < 50 || !contractTextB || contractTextB.trim().length < 50) {
-            return res.status(400).json({ error: "Không đọc được nội dung đầy đủ từ một hoặc cả hai file, hoặc file quá ngắn. Cần ít nhất 50 ký tự." });
-        }
-
-        // 3. Xây dựng Prompt cho Gemini
-        console.log("🤖 Đang gửi nội dung hai hợp đồng cho Gemini so sánh...");
-
-        const prompt = `
-        Bạn là một Luật sư AI chuyên nghiệp, có nhiệm vụ so sánh hai phiên bản của một hợp đồng và chỉ ra các điểm khác biệt.
-        Hãy chú ý đến các điều khoản, số liệu, thời gian, tên các bên, và bất kỳ thay đổi nào về ngôn ngữ hoặc cấu trúc.
-
-        Phiên bản Hợp đồng CŨ (A - Tên file: ${decodeFilename(fileA.originalname)}):
-        """
-        ${contractTextA}
-        """
-
-        Phiên bản Hợp đồng MỚI (B - Tên file: ${decodeFilename(fileB.originalname)}):
-        """
-        ${contractTextB}
-        """
-
-        Hãy phân tích và trả về kết quả dưới dạng JSON.
-        Các điểm khác biệt phải được chỉ rõ: THÊM MỚI, SỬA ĐỔI, hoặc BỊ XÓA.
-        Đối với "SỬA ĐỔI", cần cung cấp cả nội dung cũ và mới.
-        Cố gắng trích dẫn chính xác các đoạn văn bản liên quan để dễ dàng đối chiếu.
-
-        Yêu cầu output JSON format:
-        {
-            "overall_summary": "Tóm tắt ngắn gọn các điểm khác biệt chính và ý nghĩa của chúng (2-4 câu).",
-            "differences": [
-                {
-                    "type": "added" | "modified" | "removed", // Loại thay đổi
-                    "section_identifier": "Điều, khoản hoặc đoạn văn bản bị ảnh hưởng (ví dụ: 'Điều 3 Khoản 2', 'Đoạn mở đầu', 'Phụ lục 1'). Nếu không xác định được chính xác, có thể bỏ trống hoặc mô tả chung.",
-                    "old_text": "Đoạn văn bản từ phiên bản CŨ (chỉ nếu type là 'modified' hoặc 'removed'). Giới hạn 200-300 ký tự.",
-                    "new_text": "Đoạn văn bản từ phiên bản MỚI (chỉ nếu type là 'modified' hoặc 'added'). Giới hạn 200-300 ký tự.",
-                    "explanation": "Giải thích ngắn gọn (1-2 câu) về sự thay đổi này và tác động tiềm năng của nó theo pháp luật Việt Nam (nếu có thể)."
-                }
-            ],
-            "recommendations": "Lời khuyên tổng quan của luật sư về các thay đổi được phát hiện (ví dụ: cần xem xét kỹ điều khoản nào, có rủi ro pháp lý tiềm ẩn không)."
-        }
-        `;
-
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-
-        // Parse thẳng vì API đã đảm bảo format JSON
-        // Thêm một khối try-catch để bắt lỗi nếu Gemini trả về non-JSON bất ngờ
-        let comparisonResult;
-        try {
-            comparisonResult = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error("❌ Lỗi parse JSON từ Gemini:", parseError);
-            console.error("Phản hồi gốc từ Gemini:", responseText);
-            return res.status(500).json({ error: "Gemini trả về phản hồi không đúng định dạng JSON. Vui lòng thử lại.", rawResponse: responseText });
-        }
-        
-
-        console.log("✅ So sánh hợp đồng xong!");
-        res.json({
-            ...comparisonResult, // Bao gồm overall_summary, differences, recommendations từ Gemini
-            originalContractA: contractTextA, // Thêm nội dung gốc của file A
-            originalContractB: contractTextB, // Thêm nội dung gốc của file B
-            fileNameA: decodeFilename(fileA.originalname), // Thêm tên file A
-            fileNameB: decodeFilename(fileB.originalname)  // Thêm tên file B
-        });
-
-    } catch (error) {
-        console.error("❌ Lỗi hệ thống khi so sánh hợp đồng:", error);
-        res.status(500).json({ error: "Lỗi hệ thống khi so sánh hợp đồng. Chi tiết: " + error.message });
-    } finally {
-        // Luôn dọn dẹp các file tạm đã upload dù thành công hay thất bại
-        if (filePathA && fs.existsSync(filePathA)) {
-            fs.unlinkSync(filePathA);
-            console.log(`🧹 Đã dọn dẹp file tạm A: ${filePathA}`);
-        }
-        if (filePathB && fs.existsSync(filePathB)) {
-            fs.unlinkSync(filePathB);
-            console.log(`🧹 Đã dọn dẹp file tạm B: ${filePathB}`);
+        if (uploadedPaths.length > 0) {
+            console.log("🧹 Đã dọn dẹp file tạm.");
         }
     }
 };
