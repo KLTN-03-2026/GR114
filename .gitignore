@@ -50,11 +50,3 @@ npm-debug.log*
 # Chặn các file dữ liệu cũ/tạm thời (đã chuyển sang dùng Pinecone Cloud)
 AI_Engine/src/data/vector_store.json
 AI_Engine/src/data/legal_data_old.json
-# Chặn file trạng thái nạp luật (Tránh xung đột khi chạy máy khác)
-/AI_Engine/data/law_status_map.json
-/AI_Engine/scripts/progress.txt
-/AI_Engine/scripts/upload.log
-
-# Chặn file cấu hình nếu Duy lỡ để Key cứng trong đó (Vô cùng quan trọng!)
-/AI_Engine/config.js
-/AI_Engine/src/config/config.js

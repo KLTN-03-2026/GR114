@@ -1,95 +1,65 @@
-const { sql, pool, poolConnect } = require('../config/db');
+// ...existing code...
+const { sql, pool, poolConnect, isDbReady } = require('../config/db');
 
-/**
- * GET /api/documents
- * Lấy danh sách văn bản có Phân trang & Lọc
- */
-exports.getAllDocuments = async (req, res) => {
-  try {
-    await poolConnect;
-    const request = pool.request();
-
-    // 1. Lấy và làm sạch tham số từ URL
-    const search = (req.query.search || '').trim();
-    const category = (req.query.category || '').trim();
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    // 2. Xây dựng bộ lọc WHERE
-    let whereClause = ` WHERE 1=1 `;
-
-    if (search) {
-      whereClause += ` AND (Title LIKE @search OR DocumentNumber LIKE @search)`;
-      request.input('search', sql.NVarChar, `%${search}%`);
-    }
-
-    // Nếu category không phải là rỗng và không phải các nhãn "Tất cả"
-    if (category && category !== 'Tất cả' && category !== 'Xem tất cả') {
-      whereClause += ` AND Category = @category`;
-      request.input('category', sql.NVarChar, category);
-    }
-
-    // 3. Thực hiện đếm tổng số bản ghi (Phải đếm dựa trên bộ lọc WHERE ở trên)
-    const countResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments ${whereClause}`);
-    const totalDocs = countResult.recordset[0].Total;
-
-    // 4. Lấy dữ liệu trang hiện tại
-    // Dùng input cho offset và limit để an toàn tuyệt đối
-    request.input('offset', sql.Int, offset);
-    request.input('limit', sql.Int, limit);
-
-    const sqlText = `
-      SELECT Id, Title, DocumentNumber, IssueYear, Status, Category 
-      FROM LegalDocuments 
-      ${whereClause}
-      ORDER BY IssueYear DESC, CreatedAt DESC
-      OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
-    `;
-
-    const result = await request.query(sqlText);
-
-    // 5. Trả về format chuẩn để Frontend nhảy số trang
-    return res.json({
-      success: true,
-      data: result.recordset,
-      totalDocs: totalDocs,
-      totalPages: Math.ceil(totalDocs / limit),
-      currentPage: page,
-      limit: limit
-    });
-
-  } catch (err) {
-    console.error('GetAllDocuments Error:', err);
-    return res.status(500).json({ success: false, message: err.message });
+const sampleDocuments = [
+  {
+    Id: 1,
+    Title: 'Bộ luật Dân sự 2015',
+    SubTitle: 'BỘ LUẬT',
+    DocumentNumber: '91/2015/QH13',
+    DocumentType: 'Bộ luật',
+    Agency: 'Quốc hội',
+    IssueDate: '2015-11-24',
+    Description: 'Văn bản mẫu tạm thời khi hệ thống chưa kết nối được cơ sở dữ liệu.',
+    Content: 'Nội dung văn bản mẫu để giao diện tra cứu vẫn chạy được trong chế độ offline.'
+  },
+  {
+    Id: 2,
+    Title: 'Luật Thương mại 2005',
+    SubTitle: 'LUẬT',
+    DocumentNumber: '36/2005/QH11',
+    DocumentType: 'Luật',
+    Agency: 'Quốc hội',
+    IssueDate: '2005-06-14',
+    Description: 'Dữ liệu mẫu dự phòng cho module văn bản pháp luật.',
+    Content: 'Hệ thống đang dùng dữ liệu mẫu vì SQL Server chưa sẵn sàng.'
   }
+];
+
+const canUseDb = async () => {
+  await poolConnect;
+  return isDbReady();
 };
 
 /**
- * GET /api/document-stats
- * Lấy số lượng thực tế để nhảy số trên Sidebar
+ * GET /api/documents
+ * Optional query: ?search=keyword
  */
-exports.getDocumentStats = async (req, res) => {
+exports.getAllDocuments = async (req, res) => {
   try {
-    await poolConnect;
+    const search = (req.query.search || '').trim().toLowerCase();
+    if (!(await canUseDb())) {
+      const data = search
+        ? sampleDocuments.filter((item) =>
+            [item.Title, item.DocumentType, item.Description].filter(Boolean).some((text) => text.toLowerCase().includes(search))
+          )
+        : sampleDocuments;
+      return res.json({ success: true, data });
+    }
+
     const request = pool.request();
+    const rawSearch = (req.query.search || '').trim();
+    let sqlText = `SELECT * FROM dbo.LegalDocuments`;
+    if (rawSearch) {
+      sqlText += ` WHERE Title LIKE @search OR DocumentType LIKE @search`;
+      request.input('search', sql.NVarChar(sql.MAX), `%${rawSearch}%`);
+    }
+    sqlText += ` ORDER BY IssueDate DESC`;
 
-    // Lấy stats theo từng nhóm
-    const statsResult = await request.query(`
-      SELECT Category, COUNT(*) as Count 
-      FROM LegalDocuments 
-      GROUP BY Category
-    `);
-
-    // Lấy tổng số lượng
-    const totalResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments`);
-
-    return res.json({
-      success: true,
-      stats: statsResult.recordset,
-      total: totalResult.recordset[0].Total
-    });
+    const result = await request.query(sqlText);
+    return res.json({ success: true, data: result.recordset });
   } catch (err) {
+    console.error('GetAllDocuments Error:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -99,19 +69,28 @@ exports.getDocumentStats = async (req, res) => {
  */
 exports.getDocumentDetail = async (req, res) => {
   try {
-    const { id } = req.params;
-    await poolConnect;
-    const request = pool.request();
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ success: false, message: 'id required' });
 
-    request.input('Id', sql.NVarChar(100), id); 
-    const result = await request.query(`SELECT * FROM dbo.LegalDocuments WHERE Id = @Id`);
-
-    if (!result.recordset[0]) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy văn bản' });
+    if (!(await canUseDb())) {
+      const row = sampleDocuments.find((item) => String(item.Id) === String(id));
+      if (!row) return res.status(404).json({ success: false, message: 'Document not found' });
+      return res.json({ success: true, data: row });
     }
 
-    return res.json({ success: true, data: result.recordset[0] });
+    const request = pool.request();
+    request.input('Id', sql.Int, id);
+
+    const sqlText = `SELECT * FROM dbo.LegalDocuments WHERE Id = @Id`;
+    const result = await request.query(sqlText);
+    const row = result.recordset && result.recordset[0];
+
+    if (!row) return res.status(404).json({ success: false, message: 'Document not found' });
+
+    return res.json({ success: true, data: row });
   } catch (err) {
+    console.error('GetDocumentDetail Error:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+// ...existing code...

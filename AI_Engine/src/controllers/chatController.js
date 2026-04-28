@@ -1,61 +1,46 @@
-const { sql, pool, poolConnect } = require('../config/db');
-
 const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
 
 exports.ask = async (req, res) => {
     try {
-        const { question, chatHistory } = req.body;
+        // 1. Nhận câu hỏi từ Frontend
+        const { question, message } = req.body;
+        const userQuery = question || message; // Chấp nhận cả 2 key
 
-        if (!question) {
-            return res.status(400).json({ success: false, message: "Thiếu câu hỏi." });
+        if (!userQuery) {
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
         }
 
-        // 1. Tìm tài liệu liên quan từ Pinecone (RAG)
-        // Lưu ý: Hàm này trong ragService.js của bạn tên là 'query'
-        const documents = await ragService.query(question);
+        console.log(`🤖 LegAI nhận câu hỏi: "${userQuery}"`);
 
-        // 2. Gửi sang Gemini để lấy câu trả lời
-        const aiResponse = await geminiService.generateAnswerWithGemini(question, documents, chatHistory || []);
-
-        // 3. LOGIC BƯỚC 3: Kiểm tra tín hiệu Fallback [CONTACT_LAWYER]
-        if (aiResponse.includes('[CONTACT_LAWYER]')) {
-            await poolConnect;
-            
-            // Lấy ngẫu nhiên 1 luật sư từ Database (Bước 2 bạn đã tạo bảng Lawyers)
-            const result = await pool.request().query(`
-                SELECT TOP 1 FullName, Phone, Specialty 
-                FROM dbo.Lawyers 
-                WHERE IsActive = 1 
-                ORDER BY NEWID()
-            `);
-            
-            const lawyer = result.recordset[0];
-
-            return res.json({
-                success: true,
-                type: 'contact', // Tín hiệu cho Frontend
-                answer: "Rất tiếc, câu hỏi của bạn nằm ngoài phạm vi dữ liệu hiện tại của hệ thống. Để đảm bảo quyền lợi, bạn nên kết nối trực tiếp với Luật sư chuyên trách của chúng tôi.",
-                lawyer: {
-                    name: lawyer.FullName,
-                    phone: lawyer.Phone,
-                    specialty: lawyer.Specialty
-                }
-            });
+        // 2. Gọi RAG tìm luật (Sử dụng hàm 'query' như trong file ragService bạn gửi)
+        let relatedDocs = [];
+        try {
+            relatedDocs = await ragService.query(userQuery);
+        } catch (err) {
+            console.error("⚠️ Lỗi RAG (sẽ trả lời bằng kiến thức chung):", err.message);
         }
+        
+        // 3. Gọi Gemini trả lời (kèm theo tài liệu vừa tìm được)
+        const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
 
-        // 4. Trả về kết quả bình thường
-        res.json({
+        // 4. Trả về kết quả JSON
+        return res.json({
             success: true,
-            type: 'text',
-            answer: aiResponse
+            answer: answer,
+            // Trả về nguồn tham khảo để FE hiển thị
+            sources: relatedDocs.map(doc => ({
+                title: doc.title,
+                source: doc.sourceUrl || 'Cơ sở dữ liệu nội bộ'
+            }))
         });
 
     } catch (error) {
-        console.error("❌ Lỗi Chat Controller:", error);
-        res.status(500).json({ 
+        console.error('❌ Lỗi Chat Controller:', error);
+        return res.status(500).json({ 
             success: false, 
-            error: error.message // Sẽ không còn báo 'ragService is not defined' nữa
+            message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',
+            error: error.message 
         });
     }
 };

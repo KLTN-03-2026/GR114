@@ -2,7 +2,6 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
-import stylisticCss from '@stylistic/eslint-plugin-css'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
@@ -25,15 +24,6 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
-    },
-  },
-  {
-    files: ['**/*.css'],
-    plugins: {
-      '@stylistic/css': stylisticCss,
-    },
-    rules: {
-      '@stylistic/css/no-empty-source': 'off',
     },
   },
 ])

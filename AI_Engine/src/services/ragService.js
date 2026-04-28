@@ -1,7 +1,6 @@
 // File: src/services/ragService.js
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { Pinecone } = require('@pinecone-database/pinecone');
 
 const PINECONE_INDEX_NAME = "legai-index";
 let genAI;
@@ -12,11 +11,23 @@ let embedModel;
 // 1. Khởi tạo kết nối hệ thống
 const initCloudServices = () => {
     if (!genAI) {
+        if (!process.env.GEMINI_API_KEY || !String(process.env.GEMINI_API_KEY).trim()) {
+            throw new Error("Missing GEMINI_API_KEY");
+        }
         genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         // BẮT BUỘC: Đồng bộ với model đã upload (3072 dims)
         embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
     }
     if (!pc) {
+        if (!process.env.PINECONE_API_KEY || !String(process.env.PINECONE_API_KEY).trim()) {
+            throw new Error("Missing PINECONE_API_KEY");
+        }
+        let Pinecone;
+        try {
+            ({ Pinecone } = require('@pinecone-database/pinecone'));
+        } catch {
+            throw new Error("Missing @pinecone-database/pinecone dependency");
+        }
         pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
         index = pc.index(PINECONE_INDEX_NAME);
     }
