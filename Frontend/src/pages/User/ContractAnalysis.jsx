@@ -26,8 +26,8 @@ export default function ContractAnalysis() {
         "Đang khởi tạo LegAI Engine...",
         "Đang đọc hiểu ngữ cảnh văn bản...",
         "Trích xuất các điều khoản trọng yếu...",
-        "Đang quét đối chiếu Luật Dân sự & Thương mại...",
-        "Phân tích rủi ro và ranh giới pháp lý...",
+        "Đang đối chiếu quy định pháp luật lao động...",
+        "Phân tích rủi ro và khuyến nghị...",
         "Đang tổng hợp báo cáo cuối cùng..."
     ];
 
