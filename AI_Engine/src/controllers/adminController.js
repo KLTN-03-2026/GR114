@@ -75,7 +75,7 @@ const getSystemStats = async (req, res) => {
 
 const getSystemSettings = async () => {
     try {
-        // LẤY CẢ pool VÀ poolConnect ra (giống hệt crawlService.js)
+        // LẤY CẢ pool VÀ poolConnect ra 
         const { pool, poolConnect } = require('../config/db');
 
         // Chờ kết nối mở xong
@@ -172,166 +172,50 @@ const updateCrawlerSettings = async (req, res) => {
     }
 };
 
-// ============================================================
-// HÀM CRAWL & SYNC LAW - API Pipeline 3 Bước
-// ============================================================
-
+//  Hàm crawl và đồng bộ dữ liệu thủ công (Dành cho Admin)
+// gọi crawlService để crawl, sau đó tự động đồng bộ vào SQL + Pinecone
 const crawlAndSyncLaw = async (req, res) => {
-    const crawlStartTime = Date.now();
-
     try {
-        // ========== KIỂM TRA HỢP LỆ ==========
         const { url } = req.body;
+
+        // Kiểm tra hợp lệ cơ bản
         if (!url || !url.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: 'Lỗi: Vui lòng cung cấp URL hợp lệ'
+            return res.status(400).json({ success: false, message: 'Vui lòng cung cấp URL hợp lệ' });
+        }
+
+        console.log(`\n [ADMIN MANUAL CRAWL] Bắt đầu xử lý URL: ${url}`);
+
+
+        const result = await crawlService.processLegalCrawl([url], global.io);
+
+        // Phân tích kết quả trả về từ Service
+        if (result.successCount > 0) {
+            return res.json({
+                success: true,
+                message: 'Thu thập & Đồng bộ thành công!',
+                data: result
             });
         }
 
-        console.log(`\n📡 [CRAWL START] URL: ${url}`);
-        console.log(`👤 User: ${req.user.id} (${req.user.email})`);
-
-        // Đảm bảo kết nối database đã sẵn sàng
-        await poolConnect;
-
-        // ========== GIAI ĐOẠN 1: BÓC TÁCH DỮ LIỆU (CRAWL) ==========
-        console.log(`\n🔍 [GD1] Đang bóc tách text từ URL...`);
-
-        // Kiểm tra CRAWLKIT_API_KEY
-        const apiKey = process.env.CRAWLKIT_API_KEY ? process.env.CRAWLKIT_API_KEY.trim() : null;
-        if (!apiKey) {
-            throw new Error('Thiếu CRAWLKIT_API_KEY trong .env');
+        if (result.duplicateCount > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Văn bản này đã tồn tại trong hệ thống.',
+                data: result
+            });
         }
 
-        // Gọi API CrawlKit thực tế (giống hệt như module Video)
-        const crawlResponse = await axios.post('https://api.crawlkit.org/v1/scrape',
-            { url: url },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            }
-        );
-
-        const rawData = crawlResponse.data.data;
-        const content = rawData.transcript || rawData.content || rawData.text;
-        const title = rawData.title || `[LegAI Crawled] ${url.substring(0, 50)}...`;
-
-        if (!content) {
-            throw new Error('Không lấy được nội dung từ URL. CrawlKit có thể không hỗ trợ URL này.');
-        }
-
-        // Map dữ liệu vào object metadata
-        const metadata = {
-            title: title,
-            url: url,
-            content: content,
-            source: 'CrawlKit',
-            crawledAt: new Date().toISOString(),
-            hash: `hash_${Math.random().toString(36).substr(2, 9)}`
-        };
-
-        console.log(`✅ [GD1] Bóc tách thành công. Title: "${metadata.title}"`);
-        console.log(`📄 Độ dài nội dung: ${metadata.content.length} ký tự`);
-        // ========== GIAI ĐOẠN 2: LƯU VÀO SQL SERVER (SSMS) ==========
-        console.log(`\n💾 [GD2] Đang lưu metadata vào SQL Server...`);
-        // TẠO ID CHUỖI NGẪU NHIÊN VÌ CỘT ID  LÀ NVARCHAR
-        const documentId = `DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        //  cấu trúc bảng LegalDocuments 
-        const insertQuery = `
-            INSERT INTO dbo.LegalDocuments 
-                (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt)
-            VALUES 
-                (@id, @title, @documentNumber, @issueYear, @status, @category, @content, @createdAt);
-        `;
-
-        const request = pool.request();
-
-        // Truyền thẳng cái ID vừa tạo vào câu query
-        request.input('id', sql.NVarChar(100), documentId);
-
-        request.input('title', sql.NVarChar(500), metadata.title);
-        request.input('documentNumber', sql.VarChar(50), `CRAWL-${Date.now().toString().slice(-6)}`);
-        request.input('issueYear', sql.Int, new Date().getFullYear());
-        request.input('status', sql.NVarChar(50), 'Đang có hiệu lực');
-        request.input('category', sql.NVarChar(100), 'Dữ liệu Thu thập tự động (Crawl)');
-        request.input('content', sql.NVarChar(sql.MAX), `${metadata.content}\n\n[Nguồn bóc tách: ${metadata.url}]`);
-        request.input('createdAt', sql.DateTime2, new Date());
-
-        // Thực thi lệnh Insert 
-        await request.query(insertQuery);
-
-        console.log(`✅ [GD2] Lưu thành công. Document ID: ${documentId}`);
-        const gd2Time = Date.now() - crawlStartTime - gd1Time;
-        console.log(`⏱️  Giai đoạn 2 mất: ${gd2Time}ms`);
-
-
-        // ========== GIAI ĐOẠN 3: NHÚNG VECTOR VÀO PINECONE ==========
-        console.log(`\n🧠 [GD3] Đang nhúng vector vào Pinecone...`);
-
-        // Tạo embedding thực tế từ Gemini API (3072 chiều)
-        const embedResult = await embedModel.embedContent(metadata.content);
-        const embedding = Array.from(embedResult.embedding.values);
-
-        const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index';
-        const index = pc.index(indexName);
-
-        // Upsert vector vào Pinecone
-        const vectorId = `doc_${documentId}_${Date.now()}`;
-        const vectors = [
-            {
-                id: vectorId,
-                values: embedding,
-                metadata: {
-                    title: metadata.title,
-                    url: metadata.url,
-                    documentId: documentId,
-                    source: metadata.source,
-                    crawledAt: metadata.crawledAt
-                }
-            }
-        ];
-
-        await index.upsert(vectors);
-        console.log(`✅ [GD3] Upsert thành công. Vector ID: ${vectorId}`);
-        const gd3Time = Date.now() - crawlStartTime - gd1Time - gd2Time;
-        console.log(`⏱️  Giai đoạn 3 mất: ${gd3Time}ms`);
-
-        // ========== PHẢN HỒI THÀNH CÔNG ==========
-        const totalTime = Date.now() - crawlStartTime;
-        console.log(`\n🎉 [CRAWL SUCCESS] Tổng thời gian: ${totalTime}ms`);
-
-        res.json({
-            success: true,
-            message: 'Thu thập & Đồng bộ thành công!',
-            data: {
-                documentId: documentId,
-                vectorId: vectorId,
-                url: metadata.url,
-                title: metadata.title,
-                processingTime: {
-                    crawl: gd1Time,
-                    sqlStorage: gd2Time,
-                    pineconeSync: gd3Time,
-                    total: totalTime
-                }
-            }
-        });
+        // Nếu rơi vào đây là failCount > 0
+        throw new Error('Thu thập thất bại. Vui lòng kiểm tra Terminal Backend để xem chi tiết lỗi.');
 
     } catch (error) {
-        console.error(' [CRAWL ERROR]', error);
+        console.error(' [ADMIN CONTROLLER ERROR]:', error.message);
         res.status(500).json({
             success: false,
-            message: 'Lỗi server khi thu thập & đồng bộ',
-            error: error.message
+            message: error.message || 'Lỗi server khi thu thập dữ liệu',
         });
     }
 };
-
-
 
 const getRecentHistory = async (req, res) => {
     try {
@@ -461,7 +345,7 @@ const toggleUserBan = async (req, res) => {
 
         res.json({ success: true, user: updatedUser });
     } catch (error) {
-        console.error('❌ Lỗi khóa/mở khóa User:', error);
+        console.error(' Lỗi khóa/mở khóa User:', error);
         res.status(500).json({ success: false, message: 'Lỗi server khi cập nhật trạng thái người dùng' });
     }
 };
@@ -536,7 +420,7 @@ const getAiHistory = async (req, res) => {
         historyRequest.input('Offset', sql.Int, offset);
         historyRequest.input('Limit', sql.Int, limit);
 
-        // Đã sử dụng v.Status và c.Status. Chỉnh lại FeatureName cho đẹp trên UI
+        // sử dụng v.Status và c.Status.
         const query = `
             SELECT Id, FullName, Email, FeatureName, Outcome, EventTime FROM (
                 SELECT v.Id, u.FullName, u.Email, N'VIDEO_ANALYSIS' as FeatureName, v.Status as Outcome, v.CreatedAt as EventTime 
@@ -566,7 +450,7 @@ const getAiHistory = async (req, res) => {
 const getFeatureUsage = async (req, res) => {
     try {
         const timeframe = String(req.query.timeframe || req.query.filter || 'week').toLowerCase();
-        
+
         let whereClause = `WHERE CreatedAt >= DATEADD(WEEK, -1, GETDATE()) AND FeatureName != 'CRAWL_DATA'`;
 
         if (timeframe === 'month') {
@@ -588,7 +472,7 @@ const getFeatureUsage = async (req, res) => {
             GROUP BY FeatureName
             ORDER BY UsageCount DESC
         `;
-        
+
         const result = await request.query(query);
 
         res.json({ success: true, data: result.recordset || [], timeframe });
@@ -605,7 +489,7 @@ const getCrawlerStatus = async (req, res) => {
             data: status
         });
     } catch (error) {
-        console.error('❌ [GET CRAWLER STATUS ERROR]', error);
+        console.error(' [GET CRAWLER STATUS ERROR]', error);
         res.status(500).json({
             success: false,
             message: 'Lỗi server khi lấy trạng thái crawler',

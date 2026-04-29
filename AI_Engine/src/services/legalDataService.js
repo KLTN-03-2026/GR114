@@ -137,23 +137,34 @@ const deleteLegalData = async (documentId) => {
     let ssmsStatus = 'syncing';
 
     try {
-        await pineconeIndex.delete({ filter: { documentId: documentId.toString() } });
-        pineconeStatus = 'success';
+        // 1. XÓA TRÊN PINECONE ĐẦU TIÊN (Đổi .delete thành .deleteMany)
+        try {
+            await pineconeIndex.deleteMany({ filter: { documentId: documentId.toString() } });
+            pineconeStatus = 'success';
+        } catch (pcError) {
+            console.error(' Lỗi xóa Pinecone (Có thể vector chưa tồn tại):', pcError.message);
+            pineconeStatus = 'error'; // Vẫn ghi nhận lỗi nhưng không làm sập tiến trình xóa SQL
+        }
 
+        // 2. XÓA TRONG SQL SERVER (SSMS)
         await pool.request()
             .input('id', documentId)
             .query('DELETE FROM LegalDocuments WHERE Id = @id');
         ssmsStatus = 'success';
 
+        // Nếu SQL xóa thành công thì xem như thành công, Pinecone lỗi thì báo trạng thái vàng
         return { success: true, syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
+
     } catch (error) {
-        console.error('[legalDataService] deleteLegalData error:', error.message || error);
-        if (pineconeStatus !== 'success') pineconeStatus = 'error';
-        if (ssmsStatus !== 'success') ssmsStatus = 'error';
-        return { success: false, error: error.message || 'Failed to delete legal data', syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
+        console.error(' [legalDataService] deleteLegalData error:', error.message || error);
+        ssmsStatus = 'error';
+        return {
+            success: false,
+            error: error.message || 'Failed to delete legal data from SQL',
+            syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus }
+        };
     }
 };
-
 const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category = '', status = '' }) => {
     await poolConnect;
 

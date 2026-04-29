@@ -2,34 +2,12 @@ const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 const sql = require('mssql');
 const { pool } = require('../config/db');
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
-/**
- * Hàm hỗ trợ làm sạch URL Video để tối ưu hóa Cache (Tiết kiệm 100 request CrawlKit)
- */
-const cleanVideoUrl = (url) => {
-    try {
-        const urlObj = new URL(url);
-        // YouTube Shorts/Watch
-        if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
-            let videoId = urlObj.pathname.includes('/shorts/')
-                ? urlObj.pathname.split('/shorts/')[1].split('/')[0]
-                : urlObj.searchParams.get('v') || urlObj.pathname.split('/').pop();
-            return `https://www.youtube.com/watch?v=${videoId.split('?')[0]}`;
-        }
-        // TikTok
-        if (urlObj.hostname.includes('tiktok.com')) {
-            return `https://www.tiktok.com${urlObj.pathname.split('?')[0]}`;
-        }
-        return url;
-    } catch (e) { return url; }
-};
-
 exports.ask = async (req, res) => {
     try {
         const { question, message } = req.body;
@@ -45,7 +23,7 @@ exports.ask = async (req, res) => {
         try {
             relatedDocs = await ragService.query(userQuery);
         } catch (err) {
-            console.error('⚠️ Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
+            console.error(' Lỗi RAG (sẽ trả lời bằng kiến thức chung):', err.message);
         }
 
         const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
@@ -68,24 +46,190 @@ exports.ask = async (req, res) => {
     }
 };
 
+
 // ==============================================================================
-// 1. API THẨM ĐỊNH HỢP ĐỒNG (FILE SCANNER)
+// CAC HAM PHU TRO XU LY DU LIEU (DAT NGOAI EXPORTS)
+// ==============================================================================
+
+const cleanContractText = (text) => {
+    if (!text) return "";
+    return text
+        .replace(/[\r\n\t\u0007\u0002]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+const maskingEngine = (text, context = {}) => {
+    if (!text) return { maskedText: text, entityMap: {} };
+
+    let pCount = context.pCount || 1;
+    let cCount = context.cCount || 1;
+    const entityMap = context.entityMap || new Map();
+
+    // Đưa các họ kép lên đầu danh sách để ưu tiên bắt trước
+    // Tạo danh sách họ bao gồm cả dạng Capitalize và dạng IN HOA TOÀN BỘ
+    const vnSurnamesRaw = "Âu Dương|Tôn Thất|Trịnh Lê|Nguyễn|Trần|Lê|Phạm|Hoàng|Huỳnh|Phan|Vũ|Võ|Đặng|Bùi|Đỗ|Hồ|Ngô|Dương|Lý|Lâm|Đoàn|Tôn|Trịnh|Đinh";
+    const vnSurnames = vnSurnamesRaw.split('|').flatMap(s => [s, s.toUpperCase()]).join('|');
+    const normalizeKey = (s) => {
+        return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^\p{L}\d\s]/gu, " ").replace(/\s+/g, " ").trim();
+    };
+
+    const getEntity = (name, type) => {
+        let cleanName = name.trim()
+            .replace(/^([Cc]ông ty|[Cc][Tt][Yy]|[Nn]gân hàng|[Bb]ank|[Tt]ập đoàn|[Tt]ổng công ty|[Uu][Bb][Nn][Dd]|[Bb]ộ|[Ss]ở|[Ôô]ng|[Bb]à|[Aa]nh|[Cc]hị|[Đđ]ại diện|[Bb]ên [AB]|Họ tên)[:\s]*/gi, "")
+            .replace(/\s+([Tt][Nn][Hh][Hh]|[Cc][Pp]|[Cc]ổ\s+phần|[Tt]rách\s+nhiệm\s+hữu\s+hạn|[Mm]ột\s+thành\s+viên|đại diện|đại|là|tại)$/gi, "")
+            .trim();
+
+        // Fix Test 10: Xử lý tên viết HOA toàn bộ
+        if (cleanName === cleanName.toUpperCase() && cleanName.length > 3) {
+            cleanName = cleanName.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase());
+        }
+
+        const key = type + "::" + normalizeKey(cleanName || name);
+        if (entityMap.has(key)) return entityMap.get(key);
+        const label = type === "person" ? `PERSON_${pCount++}` : `COMPANY_${cCount++}`;
+        entityMap.set(key, label);
+        return label;
+    };
+
+    class SpanManager {
+        constructor() { this.candidates = []; }
+        add(start, end, replacement, priority) { this.candidates.push({ start, end, replacement, priority }); }
+        resolve(text) {
+            this.candidates.sort((a, b) => a.priority - b.priority || (b.end - b.start) - (a.end - a.start));
+            const resolved = [];
+            for (const c of this.candidates) {
+                if (!resolved.some(r => c.start < r.end && c.end > r.start)) resolved.push(c);
+            }
+            resolved.sort((a, b) => b.start - a.start);
+            let result = text;
+            for (const r of resolved) { result = result.slice(0, r.start) + r.replacement + result.slice(r.end); }
+            return result;
+        }
+    }
+
+    const span = new SpanManager();
+    let match;
+
+    // 1. PREFIX ID/STK (P1) 
+    const idRegex = /(cccd|cmnd|mst|mã số thuế|stk|tài khoản|số tk)[\s:]*([\p{L}\d.-]{5,20})/giu;
+    while ((match = idRegex.exec(text)) !== null) {
+        const idStr = match[2].trim();
+        if (idStr.replace(/\D/g, '').length < 5) continue;
+        const masked = idStr.slice(0, 3) + "*".repeat(idStr.length - 3);
+        span.add(match.index + match[0].indexOf(idStr), match.index + match[0].indexOf(idStr) + idStr.length, masked, 1);
+    }
+
+    // 2. EMAIL (P2)
+    const emailRegex = /[\p{L}\d._%+-]+@[\p{L}\d.-]+\.[\p{L}]{2,}/gu;
+    while ((match = emailRegex.exec(text)) !== null) {
+        const [u, d] = match[0].split("@");
+        span.add(match.index, match.index + match[0].length, u[0] + "***@" + d, 2);
+    }
+
+    // 3. PHONE (P3)
+    const phoneRegex = /(?:\+?84|0)[\s.-]*\d([\s.-]*\d){8,11}/g;
+    while ((match = phoneRegex.exec(text)) !== null) {
+        const raw = match[0];
+        const digits = raw.replace(/\D/g, '');
+        if (digits.length < 9 || digits.length > 13) continue;
+        const keep = digits.length > 10 ? 5 : 4;
+        let idx = 0;
+        span.add(match.index, match.index + raw.length, raw.replace(/\d/g, (d) => (++idx > keep ? '*' : d)), 3);
+    }
+
+    // 4. COMPANY - Fix Test 3: Cho phép từ khóa (Cổ phần, TNHH) viết hoa hoặc thường
+    const legalLower = "(?:[Tt]rách\\s+nhiệm\\s+hữu\\s+hạn|[Cc]ổ\\s+phần|[Tt]hương\\s+mại|[Dd]ịch\\s+vụ|[Đđ]ầu\\s+tư|[Tt]ập\\s+đoàn|[Mm]ột\\s+thành\\s+viên|[Tt][Nn][Hh][Hh]|[Cc][Pp])";
+    const companyRegex = new RegExp(`([Cc]ông ty|[Cc][Tt][Yy]|[Nn]gân hàng|[Bb]ank|[Tt]ập đoàn|[Tt]ổng công ty|[Uu][Bb][Nn][Dd]|[Bb]ộ|[Ss]ở)\\s+((?:${legalLower}\\s*)*)((\\p{Lu}[\\p{L}\\d&.\\-]*)(?:\\s+\\p{Lu}[\\p{L}\\d&.\\-]*){0,6})`, "gu");
+
+    while ((match = companyRegex.exec(text)) !== null) {
+        const full = match[0].trim();
+        if (/(và|các|cùng|tại|theo)/.test(full)) continue;
+        span.add(match.index, match.index + full.length, `[${getEntity(full, "company")}]`, 5);
+    }
+
+    // 5. PERSON PREFIX - Fix Test 20: Chấp nhận "Ông/Bà" viết hoa đầu câu
+    const personPrefixRegex = /([Ôô]ng|[Bb]à|[Aa]nh|[Cc]hị|[Đđ]ại diện|[Cc]á nhân|[Bb]ên [ab]|[Hh]ọ tên|ÔNG|BÀ|ANH|CHỊ|ĐẠI DIỆN|BÊN [AB])[:\s]+((\p{Lu}[\p{L}\-]*\s*){2,6})/gu;
+    while ((match = personPrefixRegex.exec(text)) !== null) {
+        const name = match[2].trim();
+        if (/^(TNHH|CP|NH|Bank|VND|VNĐ|USD)$/i.test(name)) continue;
+        // Dùng indexOf thay vì lastIndexOf để bắt chính xác vị trí đầu tiên của tên sau prefix
+        const nameStart = match.index + match[0].indexOf(match[2]);
+        span.add(nameStart, nameStart + name.length, `[${getEntity(name, "person")}]`, 4);
+    }
+    // 6. STANDALONE NAME - Tăng giới hạn {0,5} để bắt trọn Test 9
+    const standaloneRegex = new RegExp(`\\b((${vnSurnames})\\s+(\\p{Lu}[\\p{L}\\-]*)(?:\\s+\\p{Lu}[\\p{L}\\-]*){1,5})\\b`, "gu");
+
+    while ((match = standaloneRegex.exec(text)) !== null) {
+        const name = match[1];
+        const normalized = normalizeKey(name);
+
+        // Chặn bắt nhầm nếu tên nằm trong Company
+        let isInsideCompany = false;
+        for (const [key, label] of entityMap.entries()) {
+            if (key.startsWith("company::") && key.includes(normalized)) {
+                isInsideCompany = true; break;
+            }
+        }
+        if (isInsideCompany) continue;
+
+        span.add(match.index, match.index + name.length, `[${getEntity(name, "person")}]`, 6);
+    }
+    // 7. RAW ID (P7)
+    const lines = text.split("\n");
+    let offset = 0;
+    for (const line of lines) {
+        const rawRegex = /\b\d{6,15}\b/g;
+        let m;
+        while ((m = rawRegex.exec(line)) !== null) {
+            const num = m[0];
+            const isCurrency = new RegExp(`${num}[\\s]*(đ|vnđ|vnd|usd|%)`, "i").test(line);
+            if (isCurrency || /(đồng|giá|tiền|thanh toán|ngày|tháng|năm|mã|số|no\.|id|hđ)/i.test(line)) continue;
+            span.add(offset + m.index, offset + m.index + num.length, num.slice(0, 2) + "*".repeat(num.length - 2), 7);
+        }
+        offset += line.length + 1;
+    }
+
+    const maskedText = span.resolve(text);
+    const entityObj = {};
+    for (const [k, v] of entityMap.entries()) { entityObj[v] = k.split("::")[1]; }
+    return { maskedText, entityMap: entityObj };
+};
+//  test  hàm maskingEngine mà không cần chạy cả server, 
+// có thể chạy file masking-sandbox.js trong thư mục tests với node. 
+// mai xóa hàm này sau khi đã test xong và ổn định.lúc cần thì bỏ lại
+//  vào exports để dùng trong analyzeContract.
+//module.exports = { maskingEngine };
+
+// ----------------------------------------------------------------------------
+// Detect user pre-masked data
+// ----------------------------------------------------------------------------
+const detectPreMaskedData = (text) => {
+    if (!text) return false;
+
+    const maskPatterns = /(\*\*\*|\[MASKED\]|\[\_\_\_\_\]|\[HỌ\_TÊN\]|\[BÊN A\]|\[BÊN B\]|xxx)/gi;
+
+    const matches = text.match(maskPatterns);
+
+    return matches && matches.length >= 2;
+};
+// ==============================================================================
+// 2. API THAM DINH HOP DONG 
 // ==============================================================================
 exports.analyzeContract = async (req, res) => {
     let filePath = null;
 
     try {
-        // 1. Kiểm tra xem có file gửi lên không
+        // 1. Kiem tra file upload
         if (!req.file) {
-            return res.status(400).json({ error: "Vui lòng upload file hợp đồng!" });
+            return res.status(400).json({ error: "Vui long upload file hop dong!" });
         }
 
         filePath = req.file.path;
         const mimeType = req.file.mimetype;
         let contractText = "";
 
-        // 2. Phân loại và Đọc file
-        console.log(`🕵️‍♂️ Đang đọc file: ${req.file.originalname} (${mimeType})`);
+        // 2. Doc noi dung tu file (Giu nguyen logic goc cua ban)
+        console.log("Dang doc file: " + req.file.originalname);
 
         if (mimeType === 'application/pdf') {
             const dataBuffer = fs.readFileSync(filePath);
@@ -101,32 +245,55 @@ exports.analyzeContract = async (req, res) => {
         }
 
         if (!contractText || contractText.trim().length < 10) {
-            return res.status(400).json({ error: "Không đọc được nội dung file hoặc file quá ngắn." });
+            return res.status(400).json({ error: "Khong doc duoc noi dung file." });
         }
 
-        // 3. Gửi cho Gemini phân tích
-        console.log("🤖 Đang gửi nội dung cho Gemini phân tích...");
+        const cleanedText = cleanContractText(contractText);
+        const isUserPreMasked = detectPreMaskedData(cleanedText);
 
-        const analysisResult = await geminiService.analyzeContract(contractText);
+        // 1. Gọi hàm masking
+        const maskingResult = maskingEngine(cleanedText);
 
-        console.log("✅ Phân tích xong!");
+        // 2. Ép kiểu an toàn (Bắt mọi trường hợp)
+        // Kiểm tra xem nó là Object (chứa key text/maskedText) hay là String trơn
+        const finalMaskedText = typeof maskingResult === 'string'
+            ? maskingResult
+            : (maskingResult.maskedText || maskingResult.text || maskingResult.value || String(maskingResult));
+
+        // 🔍 SOI DỮ LIỆU Ở ĐÂY:
+        console.log("--- [DEBUG] DỮ LIỆU SAU MASKING (GỬI ĐI) ---");
+        console.log(finalMaskedText.substring(0, 500) + "...");
+        console.log("------------------------------------------");
+
+        console.log("Dang gui noi dung da bao mat cho Gemini phan tich...");
+
+        // 3. NHỚ ĐỔI BIẾN Ở ĐÂY NỮA NHÉ: Truyền finalMaskedText thay vì maskedText
+        const analysisResult = await geminiService.analyzeContract(finalMaskedText, isUserPreMasked);
+
+        // 🔍 SOI KẾT QUẢ AI TRẢ VỀ:
+        console.log("--- [DEBUG] AI PHẢN HỒI (CHỨA MASKED DATA) ---");
+        if (analysisResult.analysis_report && analysisResult.analysis_report.length > 0) {
+            console.log("Trích dẫn mẫu:", analysisResult.analysis_report[0].clause);
+        }
+
+        console.log("Phan tich hoan tat.");
         res.json(analysisResult);
-
     } catch (error) {
-        console.error("❌ Lỗi phân tích:", error);
-        res.status(500).json({ error: "Lỗi hệ thống khi phân tích hợp đồng. Chi tiết: " + error.message });
+        console.error("Loi he thong:", error.message);
+        res.status(500).json({ error: "Loi he thong khi phan tich: " + error.message });
     } finally {
-        // Luôn dọn rác ổ cứng dù thành công hay thất bại
+        // Don dep file tam tren server
         if (filePath && fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
-            console.log("🧹 Đã dọn dẹp file tạm.");
+            console.log("Da xoa file tam.");
         }
     }
 };
 
 // ==============================================================================
-// 2. API TẠO BIỂU MẪU (FORM GENERATOR)
+// 3. API TẠO BIỂU MẪU (FORM GENERATOR)
 // ==============================================================================
+// TRONG: src/controllers/aiController.js
 exports.generateForm = async (req, res) => {
     try {
         const { text, history } = req.body;
@@ -137,90 +304,31 @@ exports.generateForm = async (req, res) => {
 
         console.log("📥 Đang nhận yêu cầu tạo Form từ Frontend:", text);
 
-        // Nối lịch sử chat để AI có "trí nhớ"
-        const historyText = history && history.length > 0
-            ? history.map(msg => `${msg.role === 'user' ? 'NGƯỜI DÙNG' : 'LEGAI'}: ${msg.content}`).join("\n\n")
-            : "Chưa có lịch sử.";
-
-        const prompt = `
-        # VAI TRÒ:
-        Bạn là LegAI - Trợ lý thông minh chuyên bóc tách dữ liệu để tự động điền Form Hợp Đồng pháp lý tại Việt Nam.
-
-        # NGỮ CẢNH TRƯỚC ĐÓ:
-        ${historyText}
-
-        # ĐẦU VÀO MỚI CỦA NGƯỜI DÙNG: 
-        "${text}"
-
-        # NHIỆM VỤ BẮT BUỘC:
-        1. Đọc yêu cầu và TỰ ĐỘNG SUY LUẬN loại hợp đồng phù hợp nhất dựa trên mục đích giao dịch của người dùng.
-        2. Tự động gán vai trò Bên A và Bên B sao cho đúng chuẩn thuật ngữ pháp lý với loại hợp đồng đó.
-            - BÊN A (Bên xuất tiền / Nhận quyền lợi): BÊN MUA, BÊN THUÊ, BÊN SỬ DỤNG DỊCH VỤ, BÊN NHẬN CHUYỂN NHƯỢNG, BÊN VAY...
-           - BÊN B (Bên nhận tiền / Cung cấp): BÊN BÁN, BÊN CHO THUÊ, BÊN CUNG CẤP DỊCH VỤ, BÊN CHUYỂN NHƯỢNG, BÊN CHO VAY...
-           Hãy phân tích kỹ ai là ai để gán tên, sđt, địa chỉ vào đúng benA_ hay benB_ theo quy tắc này.
-        3. QUAN TRỌNG NHẤT: Nếu người dùng cung cấp tên cá nhân/tổ chức nhưng KHÔNG nói rõ họ đóng vai trò gì 
-        (Ví dụ: "Tôi là Khánh" nhưng chưa rõ là đi thuê hay cho thuê, mua hay bán),
-         TUYỆT ĐỐI KHÔNG ĐOÁN MÒ. Hãy để trống phần tên và BẮT BUỘC hỏi lại trong "chat_reply"
-          (VD: "Chào Khánh, bạn là Bên Mua hay Bên Bán?"). 
-          Chỉ điền khi chắc chắn 100% ngữ cảnh.
-        4. Bóc tách các thông tin còn lại. Thông tin nào thiếu để chuỗi rỗng "".
-        5. TRƯỜNG HỢP YÊU CẦU BIỂU MẪU TRẮNG (BLANK FORM): Nếu người dùng nói rõ chỉ cần "hợp đồng trắng", "mẫu trống", "phôi để in", "tự điền"... thì TUYỆT ĐỐI KHÔNG HỎI THÊM THÔNG TIN CÁ NHÂN.
-         Hãy lập tức xuất ra các trường cấu trúc (ten_hop_dong, benA_role, benB_role, can_cu_luat), để trống ("") toàn bộ các trường thông tin còn lại, và trả lời:
-         "Tôi đã tạo xong biểu mẫu trắng cho Hợp đồng [...]. Bạn có thể in ra hoặc lưu PDF để tự điền tay nhé!"
-        # YÊU CẦU ĐẦU RA JSON (TUYỆT ĐỐI TUÂN THỦ CẤU TRÚC NÀY):
-        6. TỰ ĐỘNG XÓA NGỮ CẢNH CŨ (CONTEXT RESET): Nếu người dùng yêu cầu một loại hợp đồng MỚI KHÁC HOÀN TOÀN với chủ đề đang chat ở trên (Ví dụ: đang làm Hợp đồng Mua bán, đột ngột chuyển sang Hợp đồng Lao động), 
-        HOẶC yêu cầu "mẫu trắng", thì BẮT BUỘC PHẢI QUÊN SẠCH toàn bộ thông tin cá nhân cũ 
-        (tên, sđt, địa chỉ...). Tuyệt đối không được lấy thông tin của hợp đồng cũ đắp vào hợp đồng mới.
-         Hãy reset các trường thông tin cá nhân về chuỗi rỗng "".
-        {
-          "chat_reply": "Câu trả lời thân thiện báo cho người dùng biết bạn đã lập hợp đồng gì và yêu cầu cung cấp thêm thông tin (nhớ hỏi rõ vai trò nếu chưa chắc chắn).",
-          "template_type": "hop_dong_tieu_chuan (CHÚ Ý: Nếu người dùng chỉ chào hỏi, hãy trả về chữ 'none')",
-          "extracted_data": {
-            "ten_hop_dong": "Tên hợp đồng IN HOA bao quát mọi lĩnh vực (VD: HỢP ĐỒNG LAO ĐỘNG, HỢP ĐỒNG MUA BÁN HÀNG HÓA, HỢP ĐỒNG ỦY QUYỀN, HỢP ĐỒNG DỊCH VỤ...).",
-            "benA_role": "Vai trò Bên A IN HOA tương ứng với loại hợp đồng (VD: BÊN MUA, BÊN SỬ DỤNG LAO ĐỘNG, BÊN ỦY QUYỀN, BÊN CHO THUÊ...).",
-            "benB_role": "Vai trò Bên B IN HOA tương ứng với loại hợp đồng (VD: BÊN BÁN, NGƯỜI LAO ĐỘNG, BÊN ĐƯỢC ỦY QUYỀN, BÊN THUÊ...).",
-            "can_cu_luat": ["Tự động tìm và liệt kê các Bộ luật, Luật Việt Nam MỚI NHẤT đang có hiệu lực và CHUYÊN SÂU NHẤT điều chỉnh loại hợp đồng này (VD: ['Bộ luật Lao động 2019'], hoặc ['Luật Thương mại 2005', 'Bộ luật Dân sự 2015']...)"],
-            "benA_name": "",
-            "benA_id": "",
-            "benA_address": "",
-            "benA_phone": "",
-            "benA_rep": "",
-            "benB_name": "",
-            "benB_id": "",
-            "benB_address": "",
-            "benB_phone": "",
-            "benB_rep": "",
-            "noi_dung_chinh": "",
-            "gia_tri_hop_dong": "",
-            "thoi_han": ""
-          }
-        }`;
-
-        // Gọi Gemini (dùng luôn model đã config JSON MimeType ở trên)
+        // Gọi thẳng Service, nhường toàn bộ não bộ (Prompt) cho Service lo
         const aiData = await geminiService.generateForm(text, history);
 
-        console.log("📤 AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
+        console.log(" AI đã bóc tách xong, chuẩn bị gửi về Frontend!");
         res.json(aiData);
 
     } catch (error) {
-        console.error("❌ Lỗi API Generate Form:", error);
+        console.error(" Lỗi API Generate Form:", error);
         res.status(500).json({ error: "Lỗi hệ thống LegAI khi tạo Form" });
     }
 };
 
 // ==========================================
-// 3. TÍNH NĂNG LẬP KẾ HOẠCH (AI PLANNING)
+// 4. TÍNH NĂNG LẬP KẾ HOẠCH (AI PLANNING)
 // ==========================================
 exports.generatePlanning = async (req, res) => {
     let filePaths = [];
 
     try {
-        const { rawText } = req.body;
-        let combinedText = rawText || "";
+        const { prompt: userPrompt } = req.body;
+        let combinedText = userPrompt || "";
 
         // 1. Phân loại và Đọc các file đính kèm (nếu có)
         if (req.files && req.files.length > 0) {
-            console.log(`📂 Đang xử lý ${req.files.length} file đính kèm...`);
+            console.log(` Đang xử lý ${req.files.length} file đính kèm...`);
 
             for (const file of req.files) {
                 const filePath = file.path;
@@ -249,37 +357,48 @@ exports.generatePlanning = async (req, res) => {
             return res.status(400).json({ error: "Vui lòng nhập nội dung hoặc upload file để lập kế hoạch!" });
         }
 
-        // 2. Gửi cho Gemini lập kế hoạch (Prompt chuyên dụng cho Pháp lý)
-        console.log("🤖 Đang gửi dữ liệu cho Gemini lập kế hoạch Agentic...");
+        // 2. Xây dựng chỉ thị cho AI
+        // TRONG aiController.js
+        const finalInstructions = `
+        Bạn là một Luật sư AI chuyên nghiệp (LegAI) kiêm Chuyên gia Quản trị Dự án. 
+        Hãy phân tích hồ sơ và lập kế hoạch thực thi pháp lý chi tiết.
+        Nội dung: """${combinedText}"""
 
-        const prompt = `
-        Bạn là một Luật sư AI chuyên nghiệp (LegAI). Hãy phân tích yêu cầu dưới đây và lập một kế hoạch thực thi pháp lý chi tiết (AI Legal Planning).
-        
-        Nội dung yêu cầu/hồ sơ:
-        """${combinedText}"""
+        YÊU CẦU NGHIÊM NGẶT:
+        1. Phải chia thành ít nhất 3-4 giai đoạn (Phases) theo trình tự thời gian.
+        2. Tên giai đoạn phải NHỎ GỌN (VD: "Chuẩn bị", "Triển khai", "Nghiệm thu"). KHÔNG ghi lặp lại chữ "Giai đoạn 1, 2, 3...".
+        3. Phải tạo ra TỐI THIỂU 7 đến 10 nhiệm vụ (tasks) chi tiết, rải đều cho các giai đoạn tùy độ phức tạp của hồ sơ.
 
-        Yêu cầu output JSON format (Danh sách các tasks):
+        Yêu cầu output JSON (BẮT BUỘC):
         [
             {
                 "id": 1,
-                "phase": "Giai đoạn 1",
-                "title": "Tên nhiệm vụ cụ thể",
-                "assignee": "Người phụ trách (Luật sư A, Trợ lý, hoặc Chờ phân công)",
-                "deadline": "Thời gian dự kiến (VD: 3 ngày, 1 tuần)",
-                "status": "pending" | "locked"
+                "phase": "Chuẩn bị", 
+                "title": "Tên nhiệm vụ hành động cụ thể",
+                "legal_notes": "Phân tích rủi ro pháp lý và căn cứ luật (Ví dụ: Nghị định 13/2023, BLDS...)",
+                "assignee": "Người phụ trách",
+                "deadline": "Thời gian (VD: 05/04/2026)",
+                "status": "pending"
             }
         ]
-        Lưu ý: Chỉ trả về JSON, không kèm giải thích hay markdown.
-        `;
+        Lưu ý: Trả về JSON thuần túy, không markdown.`;
+        // Truyền finalInstructions vào Service
+        const planningResult = await geminiService.generatePlan(finalInstructions);
 
-        const planningResult = await geminiService.generatePlan(rawText, combinedText);
-
-        // 4. LƯU VÀO SQL SERVER (KÉT SẮT CỦA DUY)
+        // . LƯU VÀO SQL SERVER 
         try {
             // Lấy userId từ token (đã qua authMiddleware)
             const userId = req.user ? req.user.id : 1; // Fallback về 1 nếu chưa login (để test)
 
             const request = pool.request();
+
+            //  Đảm bảo Title không bị lỗi nếu AI trả về mảng rỗng
+            const safeTitle = (planningResult && planningResult[0])
+                ? `Kế hoạch: ${planningResult[0].title}`
+                : 'Kế hoạch tư vấn pháp lý';
+
+
+            // insert query 
             request.input('UserId', sql.Int, userId);
             request.input('RecordType', sql.NVarChar(50), 'PLANNING');
             request.input('Title', sql.NVarChar(500), `Kế hoạch: ${planningResult[0]?.title || 'Tư vấn pháp lý'}`);
@@ -294,19 +413,19 @@ exports.generatePlanning = async (req, res) => {
             `;
 
             await request.query(query);
-            console.log("📂 Đã lưu kế hoạch vào Hồ sơ pháp lý thành công!");
+            console.log(" Đã lưu kế hoạch vào Hồ sơ pháp lý thành công!");
         } catch (dbErr) {
-            console.error("⚠️ Lỗi lưu DB (nhưng vẫn trả kết quả cho User):", dbErr);
+            console.error(" Lỗi lưu DB :", dbErr);
         }
 
-        console.log(`✅ Lập kế hoạch xong! Đã tạo ${planningResult.length} bước.`);
+        console.log(` Lập kế hoạch xong! Đã tạo ${planningResult.length} bước.`);
         res.json({
             success: true,
             data: planningResult,
             message: "Kế hoạch đã được tạo và lưu vào hồ sơ!"
         });
     } catch (error) {
-        console.error("❌ Lỗi lập kế hoạch:", error);
+        console.error(" Lỗi lập kế hoạch:", error);
         res.status(500).json({ error: "Lỗi hệ thống khi lập kế hoạch AI. Chi tiết: " + error.message });
     } finally {
         // Dọn dẹp tất cả file tạm
@@ -319,96 +438,66 @@ exports.generatePlanning = async (req, res) => {
     }
 };
 // ==============================================================================
-// 4. MỚI: API THẨM ĐỊNH VIDEO (CRAWLKIT + AI SCANNER) - BẢN KHỚP DATA 100%
-// ==============================================================================
+
+/// 5.   THẨM ĐỊNH VIDEO (YOUTUBE TRANSCRIPT + LEGAL AUDIT)
+// ============================================================================
 exports.analyzeVideo = async (req, res) => {
-    const { url } = req.body;
+    const { videoUrl } = req.body;
     const userId = req.user ? req.user.id : 1;
-    const apiKey = process.env.CRAWLKIT_API_KEY ? process.env.CRAWLKIT_API_KEY.trim() : null;
 
-    if (!apiKey) return res.status(500).json({ error: "Thiếu CRAWLKIT_API_KEY trong .env" });
-    if (!url) return res.status(400).json({ error: "Vui lòng dán link video!" });
-
-    const cleanedUrl = cleanVideoUrl(url);
+    if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.trim()) {
+        return res.status(400).json({ success: false, error: "Vui lòng nhập URL YouTube của video." });
+    }
 
     try {
-        // --- 1. KIỂM TRA CACHE ---
-        const checkRequest = pool.request();
-        checkRequest.input('Url', sql.NVarChar(500), cleanedUrl);
-        const cache = await checkRequest.query("SELECT * FROM VideoHistory WHERE VideoUrl = @Url");
+        console.log(`📡 Phân tích video YouTube: ${videoUrl}`);
+        
+        const aiData = await geminiService.analyzeVideo(videoUrl);
+        const videoTitle = aiData.title || videoUrl;
 
-        if (cache.recordset.length > 0) {
-            console.log("🚀 Lấy dữ liệu từ Cache SQL Server.");
-            return res.json({ success: true, data: cache.recordset[0], source: 'database' });
-        }
-
-        // --- 2. GỌI API CRAWLKIT ---
-        console.log("📡 Đang bóc tách video qua api.crawlkit.org...");
-        const crawlResponse = await axios.post('https://api.crawlkit.org/v1/scrape',
-            { url: cleanedUrl },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 30000
-            }
-        );
-
-        const rawData = crawlResponse.data.data;
-        const transcript = rawData.transcript || rawData.content;
-        const videoTitle = rawData.title || "Video Pháp luật";
-
-        if (!transcript) throw new Error("Không lấy được nội dung video.");
-
-        // --- 3. GEMINI: CHIẾN THUẬT 'LEGAL AUDITOR' ---
-        console.log("🕵️‍♂️ Đang thực hiện kiểm toán pháp lý chuyên sâu...");
-        const prompt = `
-            Bạn là Trợ lý Pháp lý Cao cấp (LegAI Analyst). 
-            Nhiệm vụ: Thực hiện 'Legal Audit' nội dung video.
-            Nội dung Transcript: """${transcript}"""
-            Yêu cầu JSON format (CHỈ TRẢ VỀ JSON):
-            {
-              "analysis_report": "Nội dung báo cáo dạng Markdown...",
-              "legal_map": [{ "law_name": "...", "article": "...", "status": "..." }],
-              "action_plan": ["..."],
-              "audit_metrics": { "trust_score": 95, "complexity_level": "...", "fact_check_result": "..." }
-            }
-        `;
-
-        const aiData = await geminiService.analyzeVideo(transcript);
-
-        // --- 4. LƯU DATABASE (SỬA ĐỂ KHỚP VỚI AI DATA MỚI) ---
         const saveRequest = pool.request();
         saveRequest.input('UserId', sql.Int, userId);
-        saveRequest.input('Url', sql.NVarChar(500), cleanedUrl);
+        saveRequest.input('Url', sql.NVarChar(500), videoUrl);
         saveRequest.input('Title', sql.NVarChar(500), videoTitle);
-        saveRequest.input('Transcript', sql.NVarChar(sql.MAX), transcript);
-
-        // 🟢 SỬA TẠI ĐÂY: Đọc đúng Key từ JSON của Gemini
-        saveRequest.input('Summary', sql.NVarChar(sql.MAX), aiData.analysis_report);
-        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), JSON.stringify(aiData.legal_map));
-        saveRequest.input('TrustScore', sql.Int, aiData.audit_metrics?.trust_score || 0);
+        // Ưu tiên raw_transcript nếu có để lưu đúng nguyên văn lời thoại
+        saveRequest.input('Transcript', sql.NVarChar(sql.MAX), aiData.raw_transcript || aiData.transcript || null);
+        saveRequest.input('Summary', sql.NVarChar(sql.MAX), aiData.summary || aiData.analysis_report || null);
+        saveRequest.input('LegalBases', sql.NVarChar(sql.MAX), JSON.stringify(aiData.legalBases || aiData.legal_map || []));
+        saveRequest.input('TrustScore', sql.Int, aiData.trustScore || aiData.audit_metrics?.trust_score || 0);
         saveRequest.input('AnalysisJson', sql.NVarChar(sql.MAX), JSON.stringify(aiData));
+        
+        // THÊM BIẾN AI MODEL DYNAMIC
+        saveRequest.input('AIModel', sql.NVarChar(50), 'Gemini-Dynamic-Fallback');
 
-        // Lưu vào cả 2 bảng 
         await saveRequest.query(`
             INSERT INTO VideoHistory (UserId, VideoUrl, Title, Transcript, Summary, LegalBases, TrustScore, AIModel, CreatedAt)
-            VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, 'gemini-flash-lite-latest', GETDATE())
+            VALUES (@UserId, @Url, @Title, @Transcript, @Summary, @LegalBases, @TrustScore, @AIModel, GETDATE())
         `);
 
         await saveRequest.query(`
             INSERT INTO ContractHistory (UserId, RecordType, Title, Folder, AnalysisText, AnalysisJson, RiskScore, AIModel, CreatedAt, IsFinal)
-            VALUES (@UserId, 'VIDEO_ANALYSIS', @Title, N'Phân tích Video', @Summary, @AnalysisJson, @TrustScore, 'gemini-flash-lite-latest', GETDATE(), 1)
+            VALUES (@UserId, 'VIDEO_ANALYSIS', @Title, N'Phân tích Video', @Summary, @AnalysisJson, @TrustScore, @AIModel, GETDATE(), 1)
         `);
 
-        console.log("✅ HOÀN TẤT: Dữ liệu đã nằm trong SQL Server!");
-        res.json({ success: true, data: { transcript, ...aiData, Title: videoTitle } });
+        console.log(" Phân tích video hoàn tất và lưu vào SQL Server.");
+        res.json({ success: true, data: { transcript: aiData.transcript, ...aiData, Title: videoTitle } });
 
     } catch (error) {
-        console.error("❌ Lỗi Video Analysis:", error.response?.data || error.message);
+        const errorMsg = error.response?.data?.message || error.message;
+        console.error("Lỗi Video Analysis:", errorMsg);
+
+        //  Phân loại lỗi để Frontend không bị Crash (500)
+        if (errorMsg.includes("Impossible to retrieve") || errorMsg.includes("YoutubeTranscript") || errorMsg.includes("No captions")) {
+            return res.status(400).json({
+                success: false,
+                error: "Video này không có phụ đề tự động (CC) hoặc Link không hợp lệ. Hệ thống cần phụ đề để phân tích."
+            });
+        }
+
+        // Nếu lỗi thực sự nghiêm trọng thì mới báo 500
         res.status(500).json({
-            error: "Lỗi hệ thống: " + (error.response?.data?.message || error.message)
+            success: false,
+            error: "Hệ thống AI đang bận hoặc quá tải. Vui lòng thử lại sau ít phút."
         });
     }
 };

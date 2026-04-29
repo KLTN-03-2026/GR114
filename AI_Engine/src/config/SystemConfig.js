@@ -4,7 +4,7 @@ class SystemConfig {
     static appName = 'LEGAI HUB';
     static adminEmail = 'admin@legai.vn';
     static geminiApiKey = '';
-    static geminiModel = 'gemini-1.5-flash';
+    static geminiModel = 'gemini-2.5-flash';
     static temperature = 0.3;
     static pineconeApiKey = '';
     static pineconeIndex = 'legal-vectors';

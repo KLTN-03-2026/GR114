@@ -33,7 +33,7 @@ async function cleanData() {
     const lawsToProcess = allLaws.filter(l => !statusMap[l.id]);
     console.log(`📊 Tổng: ${allLaws.length} bài. Cần xử lý mới: ${lawsToProcess.length} bài.`);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Bước 3: Vòng lặp xử lý theo Batch
     for (let i = 0; i < lawsToProcess.length; i += BATCH_SIZE) {

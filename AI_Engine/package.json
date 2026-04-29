@@ -24,8 +24,8 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",
+    "youtube-transcript": "^1.0.2",
     "nodemailer": "^8.0.4",
-    "paparusi-crawlkit": "^0.1.1",
     "pdf-parse": "^1.1.4",
     "socket.io": "^4.8.3"
   },
