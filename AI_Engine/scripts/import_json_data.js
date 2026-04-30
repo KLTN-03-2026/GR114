@@ -65,88 +65,111 @@ const importData = async () => {
         const index = pc.index(indexName);
 
         let count = 0;
-
+        // đếm tổng số văn bản được nạp
+        const totalLaws = laws.length;
+        let processedCount = 0;
         for (const law of laws) {
+
+            processedCount++;
+            console.log(`\n📊 TIẾN ĐỘ: [${processedCount}/${totalLaws}]`);
             if (law.status !== "Còn hiệu lực") continue;
 
             const docId = law.id;
             console.log(`\n📌 Đang xử lý: ${docId} - ${law.title.substring(0, 50)}...`);
 
-            // Kiểm tra trùng lặp
-            const check = await pool.request().input('id', sql.NVarChar(100), docId).query('SELECT Id FROM LegalDocuments WHERE Id = @id');
+            // 1. Kiểm tra trạng thái hiện tại trong DB
+            const check = await pool.request()
+                .input('id', sql.NVarChar(100), docId)
+                .query('SELECT Id, SyncStatusPinecone FROM LegalDocuments WHERE Id = @id');
+
+            let shouldInsertSQL = true;
+            let shouldVectorize = true;
+
             if (check.recordset.length > 0) {
-                console.log(`⏩ Đã tồn tại trong DB. Bỏ qua.`);
-                continue;
+                const existingDoc = check.recordset[0];
+
+                if (existingDoc.SyncStatusPinecone === 'success') {
+                    console.log(`⏩ Đã tồn tại hoàn chỉnh (DB & Pinecone). Bỏ qua.`);
+                    continue; // Đã xong hết rồi thì mới bỏ qua
+                } else {
+                    console.log(`⚠️ Phát hiện data "treo": Đã có DB nhưng chưa có Vector. Đang chuẩn bị bù đắp...`);
+                    shouldInsertSQL = false; // Không cần Insert nữa vì đã có dòng trong DB
+                    shouldVectorize = true;  // Nhưng bắt buộc phải làm tiếp phần Vector
+                }
             }
 
             const cleanContent = cleanMarkdown(law.content);
 
-            // BƯỚC A: LƯU VÀO SQL SERVER
-            await pool.request()
-                .input('id', sql.NVarChar(100), docId)
-                .input('title', sql.NVarChar(500), law.title)
-                .input('docNum', sql.NVarChar(100), law.documentNumber || 'Chưa cập nhật')
-                .input('year', sql.Int, typeof law.issueYear === 'number' ? law.issueYear : 2026)
-                .input('status', sql.NVarChar(50), law.status)
-                .input('category', sql.NVarChar(100), law.category || 'Lĩnh vực khác')
-                .input('content', sql.NVarChar(sql.MAX), cleanContent)
-                .input('url', sql.NVarChar(1000), law.sourceUrl || '')
-                .input('createdAt', sql.DateTime2, new Date(law.createdAt || Date.now()))
-                .query(`
-                    INSERT INTO dbo.LegalDocuments 
-                    (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, SourceUrl, CreatedAt, SyncStatusSsms, SyncStatusPinecone)
-                    VALUES (@id, @title, @docNum, @year, @status, @category, @content, @url, @createdAt, 'success', 'pending')
-                `);
-
+            // BƯỚC A: LƯU VÀO SQL SERVER (Chỉ chạy nếu chưa có dòng nào trong DB)
+            if (shouldInsertSQL) {
+                console.log(`💾 Đang lưu mới vào SQL Server...`);
+                await pool.request()
+                    .input('id', sql.NVarChar(100), docId)
+                    .input('title', sql.NVarChar(500), law.title)
+                    .input('docNum', sql.NVarChar(100), law.documentNumber || 'Chưa cập nhật')
+                    .input('year', sql.Int, typeof law.issueYear === 'number' ? law.issueYear : 2026)
+                    .input('status', sql.NVarChar(50), law.status)
+                    .input('category', sql.NVarChar(100), law.category || 'Lĩnh vực khác')
+                    .input('content', sql.NVarChar(sql.MAX), cleanContent)
+                    .input('url', sql.NVarChar(1000), law.sourceUrl || '')
+                    .input('createdAt', sql.DateTime2, new Date(law.createdAt || Date.now()))
+                    .query(`
+            INSERT INTO dbo.LegalDocuments 
+            (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, SourceUrl, CreatedAt, SyncStatusSsms, SyncStatusPinecone)
+            VALUES (@id, @title, @docNum, @year, @status, @category, @content, @url, @createdAt, 'success', 'pending')
+        `);
+            }
             // BƯỚC B: TẠO VECTOR VÀ ĐẨY LÊN PINECONE
-            const chunkData = smartChunk(cleanContent);
-            const vectors = [];
-            const safeVectorId = toAsciiId(docId); // <--- TẠO ID KHÔNG DẤU CHO PINECONE
+            if (shouldVectorize) {
+                console.log(` Đang tiến hành Vector hóa và đẩy lên Pinecone...`);
+                const chunkData = smartChunk(cleanContent);
+                const vectors = [];
+                const safeVectorId = toAsciiId(docId);
 
-            for (let chunkIdx = 0; chunkIdx < chunkData.length; chunkIdx++) {
-                try {
-                    const embedResult = await embedModel.embedContent(chunkData[chunkIdx].text);
-                    vectors.push({
-                        id: `${safeVectorId}_chunk_${chunkIdx}`, // <--- DÙNG ID SẠCH Ở ĐÂY
-                        values: Array.from(embedResult.embedding.values).map(Number),
-                        metadata: {
-                            doc_id: docId, // Vẫn giữ lại docId có dấu trong metadata để sau này truy vấn SQL
-                            title: law.title,
-                            doc_type: 'law',
-                            text: chunkData[chunkIdx].text,
-                            chunk_length: chunkData[chunkIdx].text.length,
-                            text_preview: chunkData[chunkIdx].text.substring(0, 300),
-                            source: law.sourceUrl || ''
+                for (let chunkIdx = 0; chunkIdx < chunkData.length; chunkIdx++) {
+                    try {
+                        const embedResult = await embedModel.embedContent(chunkData[chunkIdx].text);
+                        vectors.push({
+                            id: `${safeVectorId}_chunk_${chunkIdx}`, // <--- DÙNG ID SẠCH Ở ĐÂY
+                            values: Array.from(embedResult.embedding.values).map(Number),
+                            metadata: {
+                                doc_id: docId, // Vẫn giữ lại docId có dấu trong metadata để sau này truy vấn SQL
+                                title: law.title,
+                                doc_type: 'law',
+                                text: chunkData[chunkIdx].text,
+                                chunk_length: chunkData[chunkIdx].text.length,
+                                text_preview: chunkData[chunkIdx].text.substring(0, 300),
+                                source: law.sourceUrl || ''
+                            }
+                        });
+                        await new Promise(r => setTimeout(r, 2000));
+                    } catch (e) {
+                        if (e.message && e.message.includes('429')) {
+                            console.log(`⏳ Quá tải Gemini, nghỉ 60s...`);
+                            await new Promise(r => setTimeout(r, 60000));
+                            chunkIdx--; continue;
+                        } else {
+                            console.error(`❌ Lỗi vector chunk ${chunkIdx}:`, e.message);
                         }
-                    });
-                    await new Promise(r => setTimeout(r, 2000));
-                } catch (e) {
-                    if (e.message && e.message.includes('429')) {
-                        console.log(`⏳ Quá tải Gemini, nghỉ 60s...`);
-                        await new Promise(r => setTimeout(r, 60000));
-                        chunkIdx--; continue;
-                    } else {
-                        console.error(`❌ Lỗi vector chunk ${chunkIdx}:`, e.message);
                     }
                 }
-            }
 
-            // BƯỚC C: CHỐT HẠ
-            if (vectors.length > 0) {
-                for (let j = 0; j < vectors.length; j += 50) {
-                    await index.upsert(vectors.slice(j, j + 50));
+                // BƯỚC C: CHỐT HẠ
+                if (vectors.length > 0) {
+                    for (let j = 0; j < vectors.length; j += 50) {
+                        await index.upsert(vectors.slice(j, j + 50));
+                    }
+
+                    await pool.request().input('id', sql.NVarChar(100), docId)
+                        .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @id");
+
+                    console.log(`✅ Hoàn tất lưu DB & Pinecone!`);
+                    count++;
+                } else {
+                    console.log(`⚠️ Đã lưu DB nhưng Pinecone THẤT BẠI do không tạo được vector!`);
                 }
-
-                await pool.request().input('id', sql.NVarChar(100), docId)
-                    .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @id");
-
-                console.log(`✅ Hoàn tất lưu DB & Pinecone!`);
-                count++;
-            } else {
-                console.log(`⚠️ Đã lưu DB nhưng Pinecone THẤT BẠI do không tạo được vector!`);
             }
         }
-
         console.log(`\n🎉 XUẤT SẮC! Đã nạp thành công ${count} văn bản hoàn chỉnh vào hệ thống LegAI.`);
         process.exit(0);
 

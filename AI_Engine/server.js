@@ -76,14 +76,14 @@ cron.schedule('* * * * *', async () => {
             return;
         }
 
-        console.log('🚀 [AUTO CRAWL START] Bắt đầu thu thập tự động');
+        console.log(' [AUTO CRAWL START] Bắt đầu thu thập tự động');
 
         // Parse targetUrls (JSON array)
         let urls = [];
         try {
             urls = JSON.parse(targetUrls);
         } catch (parseError) {
-            console.error('❌ Lỗi parse targetUrls:', parseError);
+            console.error(' Lỗi parse targetUrls:', parseError);
             return;
         }
 

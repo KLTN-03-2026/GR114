@@ -137,9 +137,10 @@ const deleteLegalData = async (documentId) => {
     let ssmsStatus = 'syncing';
 
     try {
-        // 1. XÓA TRÊN PINECONE ĐẦU TIÊN (Đổi .delete thành .deleteMany)
+        // 1. XÓA TRÊN PINECONE ĐẦU TIÊN
         try {
-            await pineconeIndex.deleteMany({ filter: { documentId: documentId.toString() } });
+            // 🛠️ ĐÃ SỬA: Đổi 'documentId' thành 'doc_id' để khớp 100% với metadata lúc nạp
+            await pineconeIndex.deleteMany({ filter: { doc_id: documentId.toString() } });
             pineconeStatus = 'success';
         } catch (pcError) {
             console.error(' Lỗi xóa Pinecone (Có thể vector chưa tồn tại):', pcError.message);
