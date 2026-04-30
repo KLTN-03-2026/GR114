@@ -119,10 +119,32 @@ export default function ContractAnalysis() {
 
     // Helper: Badge 
     const getSeverityBadge = (severity) => {
-        const level = severity ? severity.toLowerCase() : 'medium';
-        if (level === 'high') return <span className="px-2 py-1 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">NGHIÊM TRỌNG</span>;
-        if (level === 'medium') return <span className="px-2 py-1 rounded text-[10px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">CẢNH BÁO</span>;
-        return <span className="px-2 py-1 rounded text-[10px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">LƯU Ý</span>;
+        // Chuyển về chữ thường để tránh lỗi type mismatch (ví dụ AI trả về 'Dangerous' hay 'dangerous' đều dính)
+        const level = severity ? severity.toLowerCase() : 'advisory';
+
+        if (level === 'dangerous') {
+            return (
+                <span className="px-2 py-1 rounded text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">
+                    NGUY HIỂM
+                </span>
+            );
+        }
+
+        // Gộp luôn case 'high' cũ phòng hờ AI ngáo quên chữ 'risk'
+        if (level === 'high risk' || level === 'high') {
+            return (
+                <span className="px-2 py-1 rounded text-[10px] font-bold bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                    RỦI RO CAO
+                </span>
+            );
+        }
+
+        // Mặc định cho 'advisory' hoặc các trường hợp khác
+        return (
+            <span className="px-2 py-1 rounded text-[10px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+                LƯU Ý
+            </span>
+        );
     };
 
     const chartData = result ? [
@@ -152,13 +174,13 @@ export default function ContractAnalysis() {
         console.log("Đã xóa file và reset trạng thái.");
     };
 
-    return (
+   return (
         <div className="w-full relative">
-            {/* Progress Bar  */}
+            {/* Progress Bar - Đổi sang màu Vàng Đồng */}
             {isAnalyzing && (
                 <div className="absolute top-0 left-0 w-full h-1 bg-transparent z-[9999]">
                     <div
-                        className="h-full bg-cyan-400 transition-all duration-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]"
+                        className="h-full bg-[#B8985D] transition-all duration-300 shadow-[0_0_12px_rgba(184,152,93,0.6)]"
                         style={{ width: `${progress}%` }}
                     />
                 </div>
@@ -168,23 +190,23 @@ export default function ContractAnalysis() {
                 {/* 🟢 CỘT TRÁI */}
                 <div className="w-full md:w-5/12 relative z-10 flex flex-col gap-6">
                     <div className="text-left mb-6">
-                        <h1 className="text-4xl lg:text-6xl font-black uppercase text-white drop-shadow-[0_4px_20px_rgba(0,0,0,1)] leading-none">
+                        {/* Tiêu đề Đen Than + Vàng Đồng */}
+                        <h1 className="text-4xl lg:text-6xl font-black uppercase text-[#1A2530] leading-none">
                             Thẩm định <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Hợp đồng AI</span>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#C5A880] to-[#8E6D45]">Hợp đồng AI</span>
                         </h1>
                     </div>
 
-                    <div className="w-full flex flex-col gap-4"> 
-                        <label className="block w-full cursor-pointer group relative shadow-2xl">
+                    <div className="w-full flex flex-col gap-4">
+                        <label className="block w-full cursor-pointer group relative shadow-sm">
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
 
-                            {/* Upload hiệu ứng kính mờ - Phiên bản viền Bold & Glow */}
-                            <div className={`group bg-white/5 backdrop-blur-2xl rounded-[2rem] p-10 text-center transition-all duration-500 relative flex flex-col items-center justify-center min-h-[200px]
-    /* Cấu hình viền: to (border-4) và nét đứt (border-dashed) */
-    border-4 border-dashed 
+                            {/* Upload Box: Nền trắng, viền kẽm, hiệu ứng vàng đồng */}
+                            <div className={`group bg-white/80 backdrop-blur-xl rounded-[2rem] p-10 text-center transition-all duration-500 relative flex flex-col items-center justify-center min-h-[200px]
+    border-2 border-dashed 
     ${file
-                                    ? 'border-cyan-400 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.15)] scale-[1.02]'
-                                    : 'border-white/30 hover:border-cyan-400 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]'
+                                    ? 'border-[#B8985D] bg-[#B8985D]/5 shadow-[0_10px_30px_rgba(184,152,93,0.15)] scale-[1.02]'
+                                    : 'border-zinc-300 hover:border-[#B8985D] hover:bg-zinc-50 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)]'
                                 }`}
                             >
 
@@ -192,123 +214,103 @@ export default function ContractAnalysis() {
                                     <>
                                         {/* Nút xóa file */}
                                         <button
-                                            onClick={ handleRemoveFile}
-                                            className="absolute top-5 right-5 p-2 rounded-full bg-white/70 hover:bg-red-500/20 hover:text-red-500 text-gray-400 transition-all z-20 border border-white/5 hover:border-red-500/40"
+                                            onClick={handleRemoveFile}
+                                            className="absolute top-5 right-5 p-2 rounded-full bg-white hover:bg-red-50 hover:text-red-500 text-zinc-400 transition-all z-20 border border-zinc-200 hover:border-red-200 shadow-sm"
                                             title="Xóa file"
                                         >
-                                            <XMarkIcon className="w-6 h-6" />
+                                            <XMarkIcon className="w-5 h-5 stroke-2" />
                                         </button>
 
                                         {/* Hiển thị file đã chọn */}
-                                        <div className="text-cyan-400 flex flex-col items-center gap-3">
+                                        <div className="text-[#B8985D] flex flex-col items-center gap-3">
                                             <div className="relative">
                                                 <DocumentTextIcon className="w-16 h-16 animate-pulse" />
-                                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-400 rounded-full blur-sm animate-ping"></div>
+                                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#B8985D] rounded-full blur-sm animate-ping"></div>
                                             </div>
-                                            <span className="text-white font-bold break-all px-4 tracking-wide">{file.name}</span>
-                                            <span className="text-cyan-400/60 text-xs uppercase font-black tracking-widest">Sẵn sàng phân tích</span>
+                                            <span className="text-[#1A2530] font-bold break-all px-4 tracking-wide">{file.name}</span>
+                                            <span className="text-[#B8985D]/80 text-[10px] uppercase font-black tracking-widest">Sẵn sàng phân tích</span>
                                         </div>
                                     </>
                                 ) : (
                                     /* Trạng thái chờ upload */
                                     <div className="flex flex-col items-center cursor-pointer">
-                                        <CloudArrowUpIcon className="w-14 h-14 mb-4 text-white/40 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-300" />
-                                        <span className="text-[16px] text-white/70 group-hover:text-white uppercase tracking-[0.3em] font-black transition-colors">
+                                        <CloudArrowUpIcon className="w-14 h-14 mb-4 text-zinc-300 group-hover:text-[#B8985D] group-hover:scale-110 transition-all duration-300 stroke-1" />
+                                        <span className="text-[14px] text-zinc-500 group-hover:text-[#1A2530] uppercase tracking-[0.2em] font-black transition-colors">
                                             Tải lên tài liệu pháp lý
                                         </span>
-                                        <span className="text-[14px] text-white/30 mt-2 font-medium">Hỗ trợ PDF, DOCX </span>
+                                        <span className="text-[12px] text-zinc-400 mt-2 font-medium">Hỗ trợ PDF, DOCX </span>
                                     </div>
                                 )}
                             </div>
                         </label>
 
-                        {/* LOGIC NÚT BẤM */}
+                        {/* LOGIC NÚT BẤM CỘT TRÁI */}
                         {isAnalyzing ? (
                             <button
                                 onClick={handleCancelAnalysis}
-                                className="
-                            /* 1. KÍCH THƯỚC: Thu gọn ngang và dọc, căn giữa */
-                            w-fit px-8 py-2 mx-auto rounded-xl 
-        
-                            /* 2. CHỮ: Giảm độ dày và kích thước cho thanh thoát */
-                            font-bold text-[12px] text-red-400 flex items-center justify-center gap-2 tracking-wider 
-        
-                             /* 3. HIỆU ỨNG: Glassmorphism nhẹ nhàng, bớt nhấp nháy mạnh */
-                                bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 hover:border-red-500/40 
-                            transition-all backdrop-blur-md group  "
-
+                                className="w-fit px-8 py-2 mx-auto rounded-xl font-bold text-[12px] text-red-600 flex items-center justify-center gap-2 tracking-wider bg-red-50 border border-red-200 hover:bg-red-100 transition-all backdrop-blur-md group"
                             >
-                                {/* Icon nhỏ lại và chỉ nháy nhẹ khi hover hoặc đang chạy */}
-                                <StopIcon className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+                                <StopIcon className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform stroke-2" />
                                 <span>DỪNG PHÂN TÍCH</span>
                             </button>
                         ) : result ? (
-                            <button onClick={() => { setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-fit px-8 py-2 mx-auto  rounded-xl border border-white/20 hover:border-cyan-400 hover:bg-cyan-400/10 text-cyan-400 font-bold flex items-center justify-center gap-2 transition-all backdrop-blur-md">
-                                <ArrowPathIcon className="w-5 h-5" /> PHÂN TÍCH VĂN BẢN KHÁC
+                            <button onClick={() => { setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-fit px-8 py-2 mx-auto rounded-xl border border-zinc-300 hover:border-[#B8985D] hover:bg-[#B8985D]/5 text-[#1A2530] hover:text-[#B8985D] font-bold text-[12px] flex items-center justify-center gap-2 transition-all shadow-sm">
+                                <ArrowPathIcon className="w-4 h-4 stroke-2" /> PHÂN TÍCH VĂN BẢN KHÁC
                             </button>
                         ) : file && (
                             <button
                                 onClick={handleAnalyze}
                                 disabled={!file}
-                                className={`
-                                /* 1. ĐIỀU CHỈNH KÍCH THƯỚC: Thu ngắn chiều ngang (mx-auto để căn giữa) và giảm chiều cao */
-                                w-fit px-10 py-2.5 mx-auto rounded-xl 
-        
-                                /* 2. CHỈNH CHỮ: Giảm độ dày (bold thay vì black) và khoảng cách vừa phải */
-                                font-bold text-[13px] text-white flex items-center justify-center gap-2 tracking-wider 
-        
-                                /* 3. HIỆU ỨNG: Giữ sự mượt mà */
-                                transition-all shadow-lg backdrop-blur-md 
-        
+                                className={`w-fit px-10 py-2.5 mx-auto rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 tracking-wider transition-all shadow-md
         ${!file
-                                        ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/10'
-                                        : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-105 active:scale-95 border border-cyan-400/30 shadow-cyan-500/20 hover:shadow-cyan-500/40'
+                                        ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                                        : 'bg-[#1A2530] text-white hover:bg-[#B8985D] hover:scale-105 active:scale-95 border border-transparent shadow-[0_10px_20px_rgba(26,37,48,0.2)]'
                                     }
     `}
                             >
-                                <ShieldCheckIcon className="w-4 h-4" />
+                                <ShieldCheckIcon className="w-4 h-4 stroke-2" />
                                 <span>THẨM ĐỊNH NGAY</span>
                             </button>
                         )}
                     </div>
                 </div>
-                {/* 🔵 CỘT PHẢI - SẠCH SẼ, CHỈ HIỆN KẾT QUẢ */}
+
+                {/* 🔵 CỘT PHẢI - KẾT QUẢ PHÂN TÍCH */}
                 <div className="w-full md:w-7/12 relative min-h-[400px]">
                     {result && !isAnalyzing && (
-                        <div className="animate-slideUp bg-[#0a0a0a]/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-                            {/* THÊM ĐOẠN NÀY: Header của kết quả kèm nút LƯU */}
+                        <div className="animate-slideUp bg-white backdrop-blur-xl border border-zinc-200 rounded-[2.5rem] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
+                            {/* Header kết quả */}
                             <div className="flex items-center justify-between mb-6">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-8 bg-cyan-500 rounded-full"></div>
-                                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Kết quả phân tích</h3>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-2 h-8 bg-[#B8985D] rounded-full"></div>
+                                    <h3 className="text-lg font-black text-[#1A2530] uppercase tracking-wider">Kết quả phân tích</h3>
                                 </div>
 
                                 <button
                                     onClick={handleSaveToHistory}
-                                    //  Nút sẽ bị vô hiệu hóa nếu ĐANG LƯU hoặc ĐÃ LƯU XONG
                                     disabled={isSaving || isSaved}
-                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${isSaving || isSaved
-                                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5' // Style khi bị khóa
-                                        : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all ${isSaving || isSaved
+                                            ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white shadow-sm'
                                         }`}
                                 >
                                     {isSaving ? (
-                                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                        <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" />
                                     ) : isSaved ? (
-                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-400" /> // Icon khi đã lưu
+                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-500 stroke-2" />
                                     ) : (
-                                        <CheckBadgeIcon className="w-4 h-4" />
+                                        <CheckBadgeIcon className="w-4 h-4 stroke-2" />
                                     )}
-
-                                    {/* Thay đổi chữ hiển thị tương ứng */}
                                     {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU VÀO HỒ SƠ" : "LƯU VÀO HỒ SƠ"}
                                 </button>
                             </div>
-                            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-white/10 pb-8">
-                                <div className="relative w-48 h-48 flex-shrink-0">
+
+                            {/* Biểu đồ & Đánh giá */}
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8 border-b border-zinc-100 pb-8">
+                                <div className="relative w-40 h-40 flex-shrink-0">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
-                                            <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
+                                            <Pie data={chartData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
                                                 {chartData.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                                 ))}
@@ -316,53 +318,80 @@ export default function ContractAnalysis() {
                                         </PieChart>
                                     </ResponsiveContainer>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className={`text-4xl font-black ${(result.risk_score ?? 0) >= 80 ? 'text-cyan-400' : 'text-red-500'}`}>{result.risk_score ?? 0}</span>
-                                        <span className="text-[10px] text-gray-500 uppercase font-bold">Điểm an toàn</span>
+                                        {/* Điểm an toàn: Xanh lá nếu >= 80, Đỏ nếu thấp hơn */}
+                                        <span className={`text-4xl font-black ${(result.risk_score ?? 0) >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{result.risk_score ?? 0}</span>
+                                        <span className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Điểm an toàn</span>
                                     </div>
                                 </div>
                                 <div className="flex-grow">
-                                    <h3 className="text-xl font-bold text-white mb-2">Đánh giá tổng quan</h3>
-                                    <p className="text-gray-400 text-sm leading-relaxed">{result.summary ?? "Đang cập nhật..."}</p>
+                                    <h3 className="text-lg font-bold text-[#1A2530] mb-2">Đánh giá tổng quan</h3>
+                                    <p className="text-zinc-600 text-sm leading-relaxed font-medium">{result.summary ?? "Đang cập nhật..."}</p>
                                 </div>
                             </div>
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                                {result.risks?.map((risk, index) => (
-                                    // Đổi background nhẹ tùy theo severity để phân cấp tốt hơn
-                                    <div key={index} className={`border rounded-2xl p-5 ${risk.severity === 'High' ? 'bg-red-500/5 border-red-500/20' :
-                                        risk.severity === 'Medium' ? 'bg-orange-500/5 border-orange-500/20' :
-                                            'bg-white/5 border-white/10'
-                                        }`}>
-                                        <div className="flex justify-between items-start mb-4">
-                                            {/* Phần trích dẫn được làm nổi bật hơn */}
-                                            <div className="bg-[#0a0a0a] border border-white/10 text-gray-400 px-3 py-2 rounded-xl text-xs font-mono w-[80%] italic">
-                                                "{risk.clause}"
-                                            </div>
-                                            {getSeverityBadge(risk.severity)}
-                                        </div>
 
-                                        <div className="space-y-3">
-                                            {/* VẤN ĐỀ (Màu đỏ/cam tùy severity) */}
-                                            <p className="text-gray-300 text-sm leading-relaxed">
-                                                <span className={`${risk.severity === 'High' ? 'text-red-400' : 'text-orange-400'} font-bold flex items-center gap-1 mb-1`}>
-                                                    <ShieldExclamationIcon className="w-4 h-4" /> Phân tích rủi ro:
+                            {/* Danh sách phân tích rủi ro */}
+                            <div className="space-y-5 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                {result.analysis_report?.map((risk, index) => {
+                                    const level = risk.severity ? risk.severity.toLowerCase() : 'advisory';
+
+                                    return (
+                                        <div
+                                            key={index}
+                                            // Chuyển màu nền thẻ sang các tông Pastel chuẩn Light Mode
+                                            className={`border rounded-2xl p-5 transition-all duration-300 bg-white shadow-sm hover:shadow-md ${level === 'dangerous'
+                                                    ? 'border-red-200 hover:border-red-300'
+                                                    : level === 'high risk' || level === 'high'
+                                                        ? 'border-orange-200 hover:border-orange-300'
+                                                        : 'border-amber-200 hover:border-amber-300'
+                                                }`}
+                                        >
+                                            {/* Header thẻ */}
+                                            <div className="flex justify-between items-center mb-4">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-[#1A2530] bg-zinc-100 px-3 py-1.5 rounded-lg border border-zinc-200">
+                                                    {risk.pillar}
                                                 </span>
-                                                {risk.issue}
-                                            </p>
+                                                {getSeverityBadge(risk.severity)}
+                                            </div>
 
-                                            {/* ĐỀ XUẤT SỬA ĐỔI (Trường mới thêm vào) */}
-                                            {risk.solution && (
-                                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mt-2">
-                                                    <p className="text-emerald-100 text-sm leading-relaxed">
-                                                        <span className="text-emerald-400 font-bold flex items-center gap-1 mb-1">
-                                                            <CheckBadgeIcon className="w-4 h-4" /> Đề xuất sửa đổi:
-                                                        </span>
-                                                        {risk.solution}
-                                                    </p>
+                                            <div className="flex flex-col gap-4">
+                                                {/* Trích dẫn điều khoản */}
+                                                <div className="bg-zinc-50 border-l-4 border-zinc-300 text-zinc-600 px-4 py-3 rounded-r-xl text-xs font-mono italic">
+                                                    "{risk.clause}"
                                                 </div>
-                                            )}
+
+                                                {/* Vấn đề */}
+                                                <div className="space-y-2">
+                                                    <p className="text-zinc-700 text-sm leading-relaxed font-medium">
+                                                        <span className={`${level === 'dangerous' ? 'text-red-600' : level.includes('high') ? 'text-orange-600' : 'text-amber-600'} font-bold flex items-center gap-1.5 mb-1`}>
+                                                            <ShieldExclamationIcon className="w-4 h-4 stroke-2" /> Phân tích rủi ro:
+                                                        </span>
+                                                        {risk.issue}
+                                                    </p>
+
+                                                    {/* Căn cứ pháp lý */}
+                                                    {risk.legal_basis && risk.legal_basis.law && (
+                                                        <p className="text-xs text-zinc-500 border border-zinc-200 rounded-lg p-3 bg-zinc-50/50 mt-2">
+                                                            ⚖️ <span className="font-bold text-zinc-700">Căn cứ:</span> {risk.legal_basis.law}
+                                                            {risk.legal_basis.article ? ` (Điều ${risk.legal_basis.article})` : ''}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* Đề xuất sửa đổi */}
+                                                {risk.solution && (
+                                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mt-1">
+                                                        <p className="text-emerald-800 text-sm leading-relaxed font-medium">
+                                                            <span className="text-emerald-600 font-bold flex items-center gap-1.5 mb-1.5">
+                                                                <CheckBadgeIcon className="w-4 h-4 stroke-2" /> Đề xuất sửa đổi:
+                                                            </span>
+                                                            {risk.solution}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

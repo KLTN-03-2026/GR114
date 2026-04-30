@@ -3,7 +3,6 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
     VideoCameraIcon,
-    LinkIcon,
     SparklesIcon,
     DocumentTextIcon,
     ClipboardDocumentIcon,
@@ -12,31 +11,27 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function VideoLegalAnalysis() {
-    const [url, setUrl] = useState('');
+    const [videoUrl, setVideoUrl] = useState('');
+    const [embedUrl, setEmbedUrl] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [videoData, setVideoData] = useState(null);
-    const [embedUrl, setEmbedUrl] = useState('');
+    const [analysisError, setAnalysisError] = useState(null);
 
-    // 1. Logic xử lý URL để nhúng Video vào iframe
-    const parseVideoUrl = (link) => {
-        if (link.includes('youtube.com/shorts/') || link.includes('youtu.be/') || link.includes('youtube.com/watch')) {
-            let id = "";
-            if (link.includes('/shorts/')) id = link.split('/shorts/')[1].split('?')[0];
-            else if (link.includes('v=')) id = new URL(link).searchParams.get('v');
-            else id = link.split('/').pop().split('?')[0];
-
-            setEmbedUrl(`https://www.youtube.com/embed/${id}`);
-            return 'youtube';
-        } else if (link.includes('tiktok.com')) {
-            const parts = link.split('/');
-            const id = parts[parts.length - 1].split('?')[0];
-            setEmbedUrl(`https://www.tiktok.com/embed/v2/${id}`);
-            return 'tiktok';
-        }
-        return null;
+    const parseYoutubeEmbedUrl = (url) => {
+        if (!url) return '';
+        const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]+)/);
+        return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=0` : '';
     };
 
-    // 2. Hàm xử lý Markdown thông minh (Không cần cài thư viện)
+    const handleUrlChange = (event) => {
+        const value = event.target.value;
+        setVideoUrl(value);
+        setVideoData(null);
+        setAnalysisError(null);
+        setEmbedUrl(parseYoutubeEmbedUrl(value));
+    };
+
+    // 2. Hàm xử lý Markdown 
     const formatSummary = (text) => {
         if (!text) return null;
         // Tách các dòng ra để xử lý
@@ -49,9 +44,10 @@ export default function VideoLegalAnalysis() {
             const parts = cleanLine.split(/\*\*(.*?)\*\*/g);
             return (
                 <span key={index} className="block mb-2">
-                    {parts.map((part, i) => 
+                    {parts.map((part, i) =>
                         i % 2 === 1 ? (
-                            <strong key={i} className="text-cyan-400 font-black">{part}</strong>
+                            // ĐỔI SANG MÀU VÀNG ĐỒNG AGENCY (#B8985D)
+                            <strong key={i} className="text-[#B8985D] font-black">{part}</strong>
                         ) : (
                             part
                         )
@@ -63,42 +59,42 @@ export default function VideoLegalAnalysis() {
 
     // 3. GỌI API THẬT
     const handleAnalyze = async () => {
-        if (!url.trim()) return;
+        if (!videoUrl.trim()) {
+            alert('Vui lòng nhập URL YouTube của video.');
+            return;
+        }
 
         setIsAnalyzing(true);
         setVideoData(null);
-        parseVideoUrl(url);
+        setAnalysisError(null);
 
         try {
             const token = localStorage.getItem('accessToken');
-
-            const response = await axios.post('http://localhost:8000/api/ai/analyze-video',
-                { url: url },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await axios.post('http://localhost:8000/api/ai/analyze-video', { videoUrl }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                timeout: 120000
+            });
 
             if (response.data.success) {
                 const result = response.data.data;
 
-                // 🟢 Cú pháp "Vạn Năng" - Chấp cả dữ liệu từ AI lẫn SQL Server
                 setVideoData({
                     transcript: result.Transcript || result.transcript,
                     summary: result.analysis_report || result.Summary || result.summary,
-                    legalMap: (typeof result.LegalBases === 'string' 
-                        ? JSON.parse(result.LegalBases) 
+                    legalMap: (typeof result.LegalBases === 'string'
+                        ? JSON.parse(result.LegalBases)
                         : (result.legal_map || result.legalBases)) || [],
                     trustScore: result.TrustScore || result.audit_metrics?.trust_score || result.trustScore || 0,
                     actionPlan: result.action_plan || (result.AnalysisJson ? JSON.parse(result.AnalysisJson).action_plan : [])
                 });
+            } else {
+                setAnalysisError(response.data.error || 'Không thể phân tích video này.');
             }
         } catch (error) {
             console.error("❌ Lỗi gọi API phân tích video:", error);
-            alert(error.response?.data?.error || "Hệ thống không thể phân tích video này. Bạn kiểm tra lại Server hoặc link nhé!");
+            setAnalysisError(error.response?.data?.error || "Hệ thống không thể phân tích video này. Bạn kiểm tra lại server hoặc thử URL khác.");
         } finally {
             setIsAnalyzing(false);
         }
@@ -109,152 +105,180 @@ export default function VideoLegalAnalysis() {
         alert("Đã copy Transcript!");
     };
 
-    const glassClass = "bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-[0_8px_32px_0_rgba(0,0,0,0.8)]";
+    // ĐÃ XÓA BIẾN glassClass Ở ĐÂY ĐỂ CODE SẠCH SẼ 
 
     return (
-        <div className="w-full h-[calc(100vh-80px)] p-6 text-white overflow-hidden flex flex-col md:flex-row gap-6">
+        // Đổi text-white thành text-[#1A2530]
+        <div className="w-full h-[calc(100vh-80px)] p-6 text-[#1A2530] overflow-hidden flex flex-col md:flex-row gap-6">
 
             {/* 🔴 CỘT TRÁI: ĐIỀU KHIỂN & VIDEO (40%) */}
             <div className="w-full md:w-5/12 flex flex-col gap-6 h-full">
-                <div className={`${glassClass} p-6 border-cyan-500/20`}>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                            <LinkIcon className="h-5 w-5 text-cyan-400" />
+                {/* Ô nhập URL YouTube - Đổi sang nền trắng kính mờ */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-zinc-200 p-6">
+                    <div className="flex flex-col gap-3">
+                        <label className="text-[10px] font-black uppercase tracking-[0.35em] text-zinc-500 ml-1">
+                            YouTube Video URL
+                        </label>
+                        
+                        {/* VÙNG RELATIVE ĐƯỢC CÔ LẬP CHO INPUT VÀ BUTTON */}
+                        <div className="relative w-full">
+                            <input
+                                type="text"
+                                value={videoUrl}
+                                onChange={handleUrlChange}
+                                placeholder="https://www.youtube.com/watch?v=..."
+                                // Thêm pr-[130px] để chữ không bị khuất sau nút
+                                className="w-full text-sm rounded-2xl border border-zinc-200 pl-5 pr-[130px] py-4 focus:outline-none focus:ring-2 focus:ring-[#B8985D] bg-zinc-50/50 transition-all"
+                            />
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={isAnalyzing || !videoUrl.trim()}
+                                // Nút giờ chỉ bám theo cái input, thu nhỏ lại một chút cho thanh lịch
+                                className="absolute right-1.5 top-1.5 bottom-1.5 px-6 bg-[#1A2530] text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[#B8985D] active:scale-95 transition-all shadow-md disabled:opacity-50 disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 flex items-center justify-center"
+                            >
+                                {isAnalyzing ? (
+                                    <span className="inline-flex items-center gap-2">
+                                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                    </span>
+                                ) : "Phân tích"}
+                            </button>
                         </div>
-                        <input
-                            type="text"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
-                            placeholder="Dán link TikTok hoặc YouTube Shorts..."
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-32 text-sm outline-none focus:border-cyan-500/50 transition-all"
-                        />
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={isAnalyzing || !url}
-                            className="absolute right-2 top-2 bottom-2 px-6 bg-gradient-to-r from-cyan-600 to-indigo-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-30"
-                        >
-                            {isAnalyzing ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : "Phân tích"}
-                        </button>
+
+                        {/* Vùng hiển thị lỗi đẩy xuống dưới cùng */}
+                        {analysisError && (
+                            <p className="text-[11px] text-red-500 font-medium ml-2 flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-red-500 inline-block animate-pulse"></span>
+                                {analysisError}
+                            </p>
+                        )}
                     </div>
                 </div>
 
-                <div className={`${glassClass} flex-grow overflow-hidden relative group`}>
+                {/* Khung chạy Video */}
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-sm border border-zinc-200 flex-grow overflow-hidden relative group p-2">
                     {embedUrl ? (
-                        <iframe
-                            src={embedUrl}
-                            className="w-full h-full border-none"
-                            title="Legal Video Player"
-                            allowFullScreen
-                        />
+                        <div className="w-full h-full rounded-2xl overflow-hidden">
+                            <iframe
+                                src={embedUrl}
+                                title="YouTube preview"
+                                className="w-full h-full border-none rounded-2xl"
+                                allowFullScreen
+                            />
+                        </div>
                     ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center opacity-30">
-                            <div className="p-8 rounded-full bg-white/5 mb-4 group-hover:scale-110 transition-transform">
-                                <VideoCameraIcon className="w-16 h-16 text-indigo-400" />
+                        <div className="w-full h-full flex flex-col items-center justify-center opacity-50">
+                            <div className="p-8 rounded-full bg-zinc-100 mb-4 group-hover:scale-110 transition-transform">
+                                <VideoCameraIcon className="w-16 h-16 text-zinc-400 stroke-1" />
                             </div>
-                            <p className="text-sm font-bold tracking-widest uppercase">Đang chờ video...</p>
+                            <p className="text-sm font-bold tracking-widest uppercase text-zinc-400">Nhập URL YouTube để xem trước và phân tích</p>
                         </div>
                     )}
                 </div>
             </div>
 
             {/* 🔵 CỘT PHẢI: KẾT QUẢ AI (60%) */}
-            <div className={`${glassClass} w-full md:w-7/12 flex flex-col h-full overflow-hidden`}>
-                <div className="p-6 border-b border-white/10 bg-white/5 flex items-center justify-between">
+            <div className="w-full md:w-7/12 flex flex-col h-full overflow-hidden bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl">
+                {/* Header Kết Quả */}
+                <div className="p-6 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <SparklesIcon className="w-6 h-6 text-cyan-400" />
-                        <h2 className="font-black uppercase tracking-tighter text-xl">LegAI Insights</h2>
+                        <SparklesIcon className="w-6 h-6 text-[#B8985D] stroke-2" />
+                        <h2 className="font-black uppercase tracking-tighter text-xl text-[#1A2530]">LegAI Insights</h2>
                     </div>
                     {videoData && (
-                        <span className="bg-indigo-500/20 text-indigo-400 px-4 py-1 rounded-full text-[10px] font-bold border border-indigo-500/30">
+                        <span className="bg-[#B8985D]/10 text-[#8E6D45] px-4 py-1.5 rounded-full text-[10px] font-black border border-[#B8985D]/20 tracking-wider">
                             AI PROCESSED
                         </span>
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar bg-white/50">
                     {!videoData && !isAnalyzing ? (
-                        <div className="h-full flex flex-col items-center justify-center opacity-20">
-                            <DocumentTextIcon className="w-20 h-20 mb-4" />
-                            <p className="font-bold uppercase tracking-[0.3em]">Kết quả sẽ hiển thị tại đây</p>
+                        <div className="h-full flex flex-col items-center justify-center opacity-40">
+                            <DocumentTextIcon className="w-20 h-20 mb-4 text-zinc-400 stroke-1" />
+                            <p className="font-bold uppercase tracking-[0.3em] text-zinc-500">Kết quả sẽ hiển thị tại đây</p>
                         </div>
                     ) : isAnalyzing ? (
+                        // Skeleton Loaders màu sáng
                         <div className="space-y-6 animate-pulse">
-                            <div className="h-32 bg-white/5 rounded-3xl" />
-                            <div className="h-64 bg-white/5 rounded-3xl" />
-                            <div className="h-20 bg-white/5 rounded-3xl" />
+                            <div className="h-32 bg-zinc-200 rounded-3xl" />
+                            <div className="h-64 bg-zinc-200 rounded-3xl" />
+                            <div className="h-20 bg-zinc-200 rounded-3xl" />
                         </div>
                     ) : (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
-                            
+
                             {/* SECTION: TRANSCRIPT */}
                             <section>
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="flex items-center gap-2 text-indigo-400 font-bold uppercase text-xs tracking-widest">
-                                        <DocumentTextIcon className="w-4 h-4" /> Transcript bóc tách
+                                    <h3 className="flex items-center gap-2 text-[#B8985D] font-black uppercase text-xs tracking-widest">
+                                        <DocumentTextIcon className="w-4 h-4 stroke-2" /> Transcript bóc tách
                                     </h3>
                                     <button
                                         onClick={() => copyToClipboard(videoData.transcript)}
-                                        className="p-2 hover:bg-white/5 rounded-lg text-gray-400 transition-colors"
+                                        className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-400 hover:text-[#B8985D] transition-colors border border-transparent hover:border-zinc-200"
+                                        title="Copy Transcript"
                                     >
                                         <ClipboardDocumentIcon className="w-5 h-5" />
                                     </button>
                                 </div>
-                                <div className="bg-white/5 p-6 rounded-3xl border border-white/5 text-gray-300 text-sm leading-relaxed italic max-h-48 overflow-y-auto custom-scrollbar">
+                                <div className="bg-zinc-50 p-6 rounded-3xl border border-zinc-200 text-zinc-600 text-sm leading-relaxed italic max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
                                     "{videoData.transcript}"
                                 </div>
                             </section>
 
-                            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                
-                                {/* SECTION: BÁO CÁO KIỂM TOÁN (ĐÃ FIX UI MARKDOWN) */}
-                                <div className="bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 p-6 rounded-3xl border border-white/10 lg:col-span-2">
-                                    <h4 className="font-bold mb-4 flex items-center gap-2 text-lg">
-                                        <ScaleIcon className="w-6 h-6 text-cyan-400" /> Báo cáo Legal Audit
+                            <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                                {/* SECTION: BÁO CÁO KIỂM TOÁN */}
+                                <div className="bg-white shadow-sm p-6 rounded-3xl border border-zinc-200 lg:col-span-2">
+                                    <h4 className="font-black mb-4 flex items-center gap-2 text-lg text-[#1A2530]">
+                                        <ScaleIcon className="w-6 h-6 text-[#B8985D] stroke-2" /> Báo cáo Legal Audit
                                     </h4>
-                                    <div className="text-gray-300 text-sm leading-relaxed">
-                                        {/* Sử dụng hàm formatSummary thay vì in thẳng text */}
+                                    <div className="text-zinc-600 text-sm leading-relaxed font-medium">
                                         {formatSummary(videoData.summary)}
                                     </div>
                                 </div>
 
-                                {/* SECTION: CHECKLIST CƠ SỞ PHÁP LÝ (ĐÃ FIX BIẾN) */}
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Kiểm toán pháp lý</h4>
+                                {/* SECTION: CHECKLIST CƠ SỞ PHÁP LÝ */}
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Kiểm toán pháp lý</h4>
                                     <div className="flex flex-col gap-3">
                                         {videoData.legalMap && videoData.legalMap.length > 0 ? (
                                             videoData.legalMap.map((item, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl">
+                                                <div key={i} className="flex items-center justify-between p-4 bg-white border border-zinc-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
                                                     <div>
-                                                        <p className="text-xs font-bold text-cyan-400">{item.law_name}</p>
-                                                        <p className="text-[10px] text-gray-500 mt-1">Điều/Khoản: {item.article}</p>
+                                                        <p className="text-xs font-bold text-[#1A2530]">{item.law_name}</p>
+                                                        <p className="text-[10px] text-zinc-500 font-medium mt-1">Điều/Khoản: {item.article}</p>
                                                     </div>
-                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black ${
-                                                        item.status?.toLowerCase() === 'đúng' 
-                                                        ? 'bg-green-500/20 text-green-400' 
-                                                        : 'bg-red-500/20 text-red-400'
-                                                    }`}>
+                                                    <span className={`px-2.5 py-1 rounded-md text-[9px] font-black border ${item.status?.toLowerCase() === 'đúng'
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                                        : 'bg-red-50 text-red-600 border-red-200'
+                                                        }`}>
                                                         {item.status ? item.status.toUpperCase() : 'N/A'}
                                                     </span>
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-xs text-gray-500 italic">Không tìm thấy cơ sở pháp lý cụ thể.</p>
+                                            <p className="text-xs text-zinc-400 italic font-medium">Không tìm thấy cơ sở pháp lý cụ thể.</p>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* SECTION: TRUST SCORE */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-end">
-                                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Độ tin cậy (Trust Score)</h4>
-                                        <span className="text-3xl font-black text-cyan-400">{videoData.trustScore}%</span>
+                                <div className="space-y-5 flex flex-col justify-center">
+                                    <div className="flex justify-between items-end bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
+                                        <div>
+                                            <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Độ tin cậy</h4>
+                                            <p className="text-xs text-zinc-500 font-medium">Trust Score</p>
+                                        </div>
+                                        <span className="text-4xl font-black text-[#1A2530] tabular-nums">{videoData.trustScore}%</span>
                                     </div>
-                                    <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-3 w-full bg-zinc-200 rounded-full overflow-hidden shadow-inner">
                                         <motion.div
                                             initial={{ width: 0 }}
                                             animate={{ width: `${videoData.trustScore}%` }}
                                             transition={{ duration: 1.5, ease: "easeOut" }}
-                                            className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                                            // Đổi dải màu sang Vàng Đồng
+                                            className="h-full bg-gradient-to-r from-[#C5A880] to-[#8E6D45]"
                                         />
                                     </div>
                                 </div>

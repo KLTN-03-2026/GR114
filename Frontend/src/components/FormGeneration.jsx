@@ -159,90 +159,116 @@ export default function FormGeneration() {
     );
 
     return (
-        <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col md:flex-row gap-6 text-white">
+        // Bỏ text-white, dùng text-[#1A2530] làm mặc định
+        <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col md:flex-row gap-6 text-[#1A2530]">
 
+            {/* ========================================================= */}
             {/* CỘT TRÁI: CHAT AI */}
-            <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full ${glassPanel} overflow-hidden flex-shrink-0`}>
-                <div className="p-5 border-b border-white/10 bg-white/5 flex items-center gap-3">
-                    <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
-                        <SparklesIcon className="w-6 h-6 text-cyan-400" />
+            {/* ========================================================= */}
+            {/* Sửa glassPanel thành giao diện sáng (Kính mờ trắng) */}
+            <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl overflow-hidden flex-shrink-0`}>
+                
+                {/* Header Chat */}
+                <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-3">
+                    <div className="p-2 bg-[#B8985D]/10 rounded-xl border border-[#B8985D]/20">
+                        <SparklesIcon className="w-6 h-6 text-[#8E6D45] stroke-2" />
                     </div>
                     <div>
-                        <h2 className="font-bold text-lg">Trợ lý Biểu mẫu</h2>
-                        <p className="text-xs text-gray-400">Tự động điền Hợp đồng chuẩn</p>
+                        <h2 className="font-black text-lg text-[#1A2530]">Trợ lý Biểu mẫu</h2>
+                        <p className="text-xs text-zinc-500 font-medium">Tự động điền Hợp đồng chuẩn</p>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                {/* Khung tin nhắn */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar bg-zinc-50/50">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${msg.sender === 'user' ? 'bg-gradient-to-br from-cyan-600 to-blue-600 rounded-tr-none' : 'bg-white/10 text-gray-200 border border-white/10 rounded-tl-none'}`}>
+                            <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-sm font-medium leading-relaxed ${
+                                msg.sender === 'user' 
+                                ? 'bg-[#1A2530] text-white rounded-tr-none' // User: Đen than
+                                : 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none' // AI: Trắng tinh
+                            }`}>
                                 {msg.text}
                             </div>
                         </div>
                     ))}
+                    
+                    {/* Hiệu ứng gõ chữ (Typing) */}
                     {isTyping && (
                         <div className="flex justify-start">
-                            <div className="bg-white/10 border border-white/10 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-lg">
-                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                            <div className="bg-white border border-zinc-200 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
+                                <div className="w-2 h-2 bg-[#B8985D] rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-2 h-2 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="p-4 border-t border-white/10 bg-black/40">
+                {/* Input Chat */}
+                <div className="p-4 border-t border-zinc-200 bg-white">
                     <form onSubmit={handleSendMessage} className="relative flex items-end">
                         <textarea
-                            ref={textAreaRef} // Gán ref vào đây
+                            ref={textAreaRef}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="Nhập yêu cầu soạn hợp đồng (Ví dụ: Soạn hợp đồng thuê nhà...)"
+                            placeholder="Yêu cầu soạn hợp đồng..."
                             rows={1}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-cyan-500/50 resize-none transition-all duration-200 custom-scrollbar"
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-4 pl-5 pr-14 text-sm font-medium focus:outline-none focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 resize-none transition-all duration-200 custom-scrollbar placeholder:text-zinc-400 text-[#1A2530]"
                             style={{
                                 minHeight: '56px',
-                                maxHeight: '200px' // Giới hạn chiều cao tối đa để không choán hết màn hình
+                                maxHeight: '200px'
                             }}
                         />
-                        <button type="submit" disabled={isTyping || !inputValue.trim()} className="absolute right-2 bottom-2 h-[36px] w-[36px] flex items-center justify-center rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black disabled:opacity-50 transition-colors">
-                            <PaperAirplaneIcon className="w-5 h-5" />
+                        {/* Nút gửi: Đen than, hover Vàng đồng */}
+                        <button type="submit" disabled={isTyping || !inputValue.trim()} className="absolute right-2 bottom-2 h-[40px] w-[40px] flex items-center justify-center rounded-xl bg-[#1A2530] hover:bg-[#B8985D] text-white disabled:bg-zinc-200 disabled:text-zinc-400 transition-colors shadow-sm">
+                            <PaperAirplaneIcon className="w-5 h-5 stroke-2" />
                         </button>
                     </form>
                 </div>
             </div>
 
-            {/* CỘT PHẢI: TỜ A4 */}
-            <div className={`flex-1 flex flex-col h-full ${glassPanel} overflow-hidden relative print:bg-white print:text-black`}>
-                <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center px-6 print:hidden">
-                    <div className="flex items-center gap-2 text-gray-300">
-                        <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-pink-400" />
-                        <span className="text-sm font-semibold uppercase tracking-widest">
+            {/* ========================================================= */}
+            {/* CỘT PHẢI: TỜ A4 SOẠN THẢO */}
+            {/* ========================================================= */}
+            <div className={`flex-1 flex flex-col h-full bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl overflow-hidden relative print:bg-white print:text-black print:border-none print:shadow-none`}>
+                
+                {/* Header thanh công cụ */}
+                <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center px-6 print:hidden">
+                    <div className="flex items-center gap-2 text-[#1A2530]">
+                        <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
+                        <span className="text-sm font-black uppercase tracking-widest">
                             {currentTemplate === 'none' ? 'Khu vực soạn thảo' : 'Bản thảo: Hợp Đồng'}
                         </span>
                     </div>
                     <div className="flex gap-3">
                         {currentTemplate !== 'none' && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${isSaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-600 hover:bg-cyan-500 text-black shadow-lg'}`}>
-                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <CheckBadgeIcon className="w-4 h-4" />}
+                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                                isSaved 
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
+                            }`}>
+                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckBadgeIcon className="w-4 h-4 stroke-2" />}
                                 {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU HỒ SƠ"}
                             </button>
                         )}
-                        <button onClick={handlePrint} disabled={currentTemplate === 'none'} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-semibold disabled:opacity-50">
-                            <PrinterIcon className="w-4 h-4" /> In / PDF
+                        {/* Nút In/PDF */}
+                        <button onClick={handlePrint} disabled={currentTemplate === 'none'} className="flex items-center gap-2 px-5 py-2 bg-white border border-zinc-300 hover:border-[#B8985D] hover:text-[#B8985D] rounded-xl text-xs font-bold disabled:opacity-50 transition-colors shadow-sm">
+                            <PrinterIcon className="w-4 h-4 stroke-2" /> In / PDF
                         </button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-black/40 print:bg-white custom-scrollbar">
+                {/* Nền đặt tờ A4 */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-10 bg-zinc-100/80 print:bg-white custom-scrollbar">
                     {currentTemplate === 'none' ? (
-                        <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                            <DocumentMagnifyingGlassIcon className="w-24 h-24 mb-4" />
-                            <p className="text-lg font-medium">Trò chuyện với AI để sinh hợp đồng</p>
+                        <div className="h-full flex flex-col items-center justify-center text-zinc-400">
+                            <DocumentMagnifyingGlassIcon className="w-24 h-24 mb-4 stroke-1 opacity-50" />
+                            <p className="text-lg font-semibold text-zinc-500">Trò chuyện với AI để sinh hợp đồng</p>
                         </div>
                     ) : (
-                        <div className="max-w-[210mm] mx-auto min-h-[297mm] bg-white text-gray-900 p-12 md:p-16 shadow-2xl relative leading-relaxed" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                        // Tờ giấy A4
+                        <div className="max-w-[210mm] mx-auto min-h-[297mm] bg-white text-gray-900 p-12 md:p-16 shadow-[0_10px_40px_rgba(0,0,0,0.08)] relative leading-relaxed" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                             <div className="text-center mb-8">
                                 <h3 className="font-bold text-[15px] uppercase">Cộng hòa Xã hội Chủ nghĩa Việt Nam</h3>
                                 <h4 className="font-bold text-[15px] underline mb-2">Độc lập - Tự do - Hạnh phúc</h4>
@@ -250,7 +276,7 @@ export default function FormGeneration() {
                             </div>
                             <div className="text-center mb-6">
                                 <h1 className="text-xl font-black uppercase mb-1">
-                                    <input type="text" value={formData.ten_hop_dong || ''} onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)} className="w-full text-center bg-transparent focus:outline-none" />
+                                    <input type="text" value={formData.ten_hop_dong || ''} onChange={(e) => handleFormChange('ten_hop_dong', e.target.value)} className="w-full text-center bg-transparent focus:outline-none focus:bg-zinc-50 transition-colors" />
                                 </h1>
                                 <p className="text-sm text-gray-600 italic">Hôm nay, tại ........................................</p>
                             </div>
@@ -288,7 +314,7 @@ export default function FormGeneration() {
                                     </div>
                                 </div>
 
-                                {/*  RENDER MẢNG SECTIONS ĐỘNG */}
+                                {/* RENDER MẢNG SECTIONS ĐỘNG */}
                                 <div className="space-y-6 pt-4">
                                     {formData.sections && formData.sections.length > 0 ? (
                                         formData.sections.map((section, index) => (
@@ -297,14 +323,13 @@ export default function FormGeneration() {
                                                 <textarea
                                                     value={section.content}
                                                     onChange={(e) => {
-                                                        // Cập nhật giá trị content của riêng section này
                                                         const newSections = [...formData.sections];
                                                         newSections[index].content = e.target.value;
                                                         handleFormChange('sections', newSections);
                                                     }}
-                                                    className="w-full bg-transparent border-none focus:ring-1 focus:ring-cyan-500/50 rounded resize-none overflow-hidden leading-relaxed whitespace-pre-wrap"
+                                                    // Đổi focus ring sang màu Vàng Đồng
+                                                    className="w-full bg-transparent border-none hover:bg-zinc-50 focus:bg-white focus:ring-1 focus:ring-[#B8985D]/50 rounded resize-none overflow-hidden leading-relaxed whitespace-pre-wrap transition-colors"
                                                     style={{ minHeight: '60px' }}
-                                                    // Thủ thuật ép textarea tự co giãn theo nội dung
                                                     ref={(el) => {
                                                         if (el) {
                                                             el.style.height = 'auto';
@@ -319,7 +344,7 @@ export default function FormGeneration() {
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="text-gray-400 italic text-center py-10">
+                                        <div className="text-zinc-400 italic text-center py-10 font-medium">
                                             AI đang xử lý và phân tích các điều khoản hợp đồng...
                                         </div>
                                     )}
@@ -344,8 +369,10 @@ export default function FormGeneration() {
             </div>
             <style>
                 {`
+                    /* Thay đổi màu thanh cuộn sang tone Vàng Đồng / Xám */
                     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(34, 211, 238, 0.2); border-radius: 20px; }
+                    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(184, 152, 93, 0.3); border-radius: 20px; }
+                    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(184, 152, 93, 0.6); }
                     @media print { body { background: white; } .print\\:hidden { display: none !important; } }
                 `}
             </style>

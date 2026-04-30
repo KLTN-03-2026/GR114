@@ -13,6 +13,7 @@ import {
     PaperClipIcon,
     DocumentIcon,
     XMarkIcon,
+    ScaleIcon,
     PrinterIcon
 } from '@heroicons/react/24/outline';
 
@@ -138,52 +139,57 @@ export default function AIPlanning() {
     }, {});
     const handlePrint = () => window.print();
 
-    const glassPanel = "bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl";
+   // Đổi biến giao diện sang chuẩn Light Mode
+    const lightPanel = "bg-white/80 backdrop-blur-xl border border-zinc-200 shadow-sm rounded-3xl";
 
     return (
-        <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col lg:flex-row gap-6 text-white selection:bg-cyan-500/30">
-            {/* CỘT TRÁI: NHẬP LIỆU (ĐÃ TỐI ƯU KHÔNG GIAN) */}
-            <div className={`w-full lg:w-[450px] flex flex-col h-full ${glassPanel} overflow-hidden flex-shrink-0 print:hidden`}>
+        // Đổi màu text mặc định sang Đen Than và Selection màu Vàng Đồng
+        <div className="w-full h-[calc(100vh-80px)] p-4 md:p-6 flex flex-col lg:flex-row gap-6 text-[#1A2530] selection:bg-[#B8985D]/30 selection:text-[#1A2530]">
+            
+            {/* ========================================================= */}
+            {/* CỘT TRÁI: NHẬP LIỆU */}
+            {/* ========================================================= */}
+            <div className={`w-full lg:w-[450px] flex flex-col h-full ${lightPanel} overflow-hidden flex-shrink-0 print:hidden`}>
 
                 {/* HEADER */}
-                <div className="p-5 border-b border-white/10 bg-white/5 flex items-center gap-3 flex-shrink-0">
-                    <div className="p-2 bg-purple-500/20 rounded-xl border border-purple-500/30">
-                        <DocumentChartBarIcon className="w-6 h-6 text-purple-400" />
+                <div className="p-5 border-b border-zinc-200 bg-zinc-50 flex items-center gap-3 flex-shrink-0">
+                    <div className="p-2 bg-[#B8985D]/10 rounded-xl border border-[#B8985D]/20">
+                        <DocumentChartBarIcon className="w-6 h-6 text-[#8E6D45] stroke-2" />
                     </div>
                     <div>
-                        <h2 className="font-bold text-lg">Dữ liệu đầu vào</h2>
-                        <p className="text-xs text-gray-400">Agent sẽ lập kế hoạch từ đây</p>
+                        <h2 className="font-black text-lg text-[#1A2530]">Dữ liệu đầu vào</h2>
+                        <p className="text-xs text-zinc-500 font-medium">Agent sẽ lập kế hoạch từ đây</p>
                     </div>
                 </div>
 
-                {/* KHU VỰC NHẬP LIỆU: Tự động chiếm toàn bộ không gian còn lại */}
-                <div className="flex-1 p-5 flex flex-col min-h-0">
+                {/* KHU VỰC NHẬP LIỆU */}
+                <div className="flex-1 p-5 flex flex-col min-h-0 bg-white">
                     <div
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`flex-1 flex flex-col rounded-2xl border-2 transition-all bg-black/40 overflow-hidden ${isDragging
-                            ? 'border-dashed border-cyan-500 bg-cyan-500/10 scale-[1.01]'
-                            : 'border-solid border-white/10 focus-within:border-purple-500/50'
+                        className={`flex-1 flex flex-col rounded-2xl border-2 transition-all bg-zinc-50 overflow-hidden ${isDragging
+                            ? 'border-dashed border-[#B8985D] bg-[#B8985D]/5 scale-[1.01]'
+                            : 'border-solid border-zinc-200 focus-within:border-[#B8985D]/50 focus-within:bg-white focus-within:shadow-[0_0_15px_rgba(184,152,93,0.1)]'
                             }`}
                     >
-                        {/* TEXTAREA chiếm toàn bộ chiều cao */}
+                        {/* TEXTAREA */}
                         <textarea
                             value={rawText}
                             onChange={(e) => setRawText(e.target.value)}
                             placeholder="Nhập yêu cầu chi tiết hoặc kéo thả tài liệu pháp lý vào đây..."
-                            className="flex-1 w-full p-4 text-sm text-gray-300 bg-transparent focus:outline-none resize-none custom-scrollbar"
+                            className="flex-1 w-full p-5 text-sm font-medium text-[#1A2530] bg-transparent focus:outline-none resize-none custom-scrollbar placeholder:text-zinc-400"
                         ></textarea>
 
-                        {/* DANH SÁCH FILE ĐÍNH KÈM (Hiện ngay trên thanh công cụ) */}
+                        {/* DANH SÁCH FILE ĐÍNH KÈM */}
                         {attachedFiles.length > 0 && (
-                            <div className="px-4 pb-2 flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar border-t border-white/5 pt-2">
+                            <div className="px-4 pb-2 flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar border-t border-zinc-200 pt-3">
                                 {attachedFiles.map((file, index) => (
-                                    <div key={index} className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-[11px]">
-                                        <DocumentIcon className="w-3.5 h-3.5 text-cyan-400" />
-                                        <span className="max-w-[150px] truncate">{file.name}</span>
+                                    <div key={index} className="flex items-center gap-2 bg-white border border-zinc-200 shadow-sm px-3 py-1.5 rounded-lg text-[11px] font-bold">
+                                        <DocumentIcon className="w-4 h-4 text-[#B8985D]" />
+                                        <span className="max-w-[150px] truncate text-zinc-700">{file.name}</span>
                                         <button onClick={() => removeFile(index)}>
-                                            <XMarkIcon className="w-3.5 h-3.5 text-gray-500 hover:text-red-400" />
+                                            <XMarkIcon className="w-4 h-4 text-zinc-400 hover:text-red-500 transition-colors" />
                                         </button>
                                     </div>
                                 ))}
@@ -191,12 +197,12 @@ export default function AIPlanning() {
                         )}
 
                         {/* THANH CÔNG CỤ BOTTOM */}
-                        <div className="flex justify-between items-center px-4 py-3 bg-white/5 border-t border-white/5">
+                        <div className="flex justify-between items-center px-4 py-3 bg-zinc-50 border-t border-zinc-200">
                             <button
                                 onClick={() => fileInputRef.current.click()}
-                                className="flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-cyan-400 transition-colors"
+                                className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-[#B8985D] transition-colors"
                             >
-                                <PaperClipIcon className="w-4 h-4 transform -rotate-45" />
+                                <PaperClipIcon className="w-4 h-4 transform -rotate-45 stroke-2" />
                                 Đính kèm tài liệu
                             </button>
                             <input
@@ -207,29 +213,29 @@ export default function AIPlanning() {
                                 className="hidden"
                                 accept=".pdf,.doc,.docx,.txt"
                             />
-                            <span className="text-[10px] text-gray-600 uppercase font-black tracking-widest">
+                            <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest">
                                 PDF / DOCX
                             </span>
                         </div>
                     </div>
 
-                    {/* NÚT KHỞI CHẠY: To, rõ ràng và có loading state */}
+                    {/* NÚT KHỞI CHẠY */}
                     <button
                         onClick={handleAnalyze}
                         disabled={isProcessing}
                         className={`mt-4 w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex justify-center items-center gap-3 ${isProcessing
-                            ? 'bg-white/5 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-xl shadow-purple-500/20 active:scale-95'
+                            ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                            : 'bg-[#1A2530] text-white hover:bg-[#B8985D] shadow-md hover:shadow-lg active:scale-95'
                             }`}
                     >
                         {isProcessing ? (
                             <>
-                                <ArrowPathIcon className="w-5 h-5 animate-spin text-purple-400" />
-                                <span>Hệ thống đang trích xuất luật...</span>
+                                <ArrowPathIcon className="w-5 h-5 animate-spin text-[#B8985D]" />
+                                <span className="text-[#B8985D]">Đang trích xuất luật...</span>
                             </>
                         ) : (
                             <>
-                                <PlayIcon className="w-5 h-5" />
+                                <PlayIcon className="w-5 h-5 stroke-2" />
                                 <span>Khởi chạy Workflow</span>
                             </>
                         )}
@@ -237,77 +243,86 @@ export default function AIPlanning() {
                 </div>
             </div>
 
+            {/* ========================================================= */}
             {/* CỘT PHẢI: KẾT QUẢ KANBAN */}
-            <div className={`flex-1 flex flex-col h-full ${glassPanel} overflow-hidden relative print:bg-white print:text-black print:shadow-none print:border-none`}>
-                <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center px-6 print:hidden">
-                    <div className="flex items-center gap-2 text-gray-300">
-                        <PresentationChartBarIcon className="w-5 h-5 text-indigo-400" />
-                        <span className="text-sm font-semibold uppercase tracking-widest">Lộ trình thực thi (Preview)</span>
+            {/* ========================================================= */}
+            <div className={`flex-1 flex flex-col h-full ${lightPanel} overflow-hidden relative print:bg-white print:text-black print:shadow-none print:border-none`}>
+                
+                {/* HEADER BẢN XEM TRƯỚC */}
+                <div className="p-4 border-b border-zinc-200 bg-zinc-50 flex justify-between items-center px-6 print:hidden">
+                    <div className="flex items-center gap-3 text-[#1A2530]">
+                        <PresentationChartBarIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
+                        <span className="text-sm font-black uppercase tracking-widest">Lộ trình thực thi (Preview)</span>
                     </div>
 
                     <div className="flex gap-3">
                         {/* NÚT LƯU HỒ SƠ */}
                         {planData && (
-                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${isSaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}>
-                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <CheckCircleIcon className="w-4 h-4" />}
+                            <button onClick={handleSaveToHistory} disabled={isSaving || isSaved} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                                isSaved 
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                : 'bg-[#1A2530] hover:bg-[#B8985D] text-white border border-transparent'
+                            }`}>
+                                {isSaving ? <ArrowPathIcon className="w-4 h-4 animate-spin stroke-2" /> : <CheckCircleIcon className="w-4 h-4 stroke-2" />}
                                 {isSaving ? "ĐANG LƯU..." : isSaved ? "ĐÃ LƯU" : "LƯU KẾ HOẠCH"}
                             </button>
                         )}
                         {/* NÚT IN/PDF */}
-                        <button onClick={handlePrint} disabled={!planData} className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold disabled:opacity-50 transition-all">
-                            <PrinterIcon className="w-5 h-5" /> In / PDF
+                        <button onClick={handlePrint} disabled={!planData} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-zinc-300 hover:border-[#B8985D] hover:text-[#B8985D] rounded-xl text-xs font-bold disabled:opacity-50 transition-colors shadow-sm">
+                            <PrinterIcon className="w-4 h-4 stroke-2" /> In / PDF
                         </button>
                     </div>
                 </div>
 
-                <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-black/40 custom-scrollbar print:bg-white print:overflow-visible">
-                    {/* Kiểm tra: Nếu KHÔNG PHẢI là mảng hoặc mảng rỗng thì hiện thông báo trống */}
+                <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-zinc-100/80 custom-scrollbar print:bg-white print:overflow-visible">
                     {(!planData || !Array.isArray(planData)) ? (
-                        // Nếu chưa có data HOẶC data trả về không phải là mảng
-                        <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-                            <DocumentChartBarIcon className="w-20 h-20 mb-4" />
-                            <p className="text-lg font-medium">
+                        <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+                            <DocumentChartBarIcon className="w-20 h-20 mb-4 text-zinc-400 stroke-1" />
+                            <p className="text-lg font-bold text-zinc-500">
                                 {!planData ? "Chưa có kế hoạch nào được khởi tạo" : "Lỗi: Dữ liệu AI trả về sai cấu trúc mảng"}
                             </p>
                         </div>
                     ) : (
-                        // CHỈ KHI NÀO LÀ MẢNG THÌ MỚI MAP
-                        <div className="max-w-3xl mx-auto space-y-8 print:space-y-8">
+                        <div className="max-w-3xl mx-auto space-y-10 print:space-y-8">
                             <h2 className="hidden print:block text-2xl font-bold text-center mb-8 uppercase">Lộ trình giải quyết pháp lý</h2>
 
                             {groupedPlan && Object.keys(groupedPlan).map((phaseName, phaseIndex) => (
                                 <div key={phaseIndex} className="phase-group">
 
                                     {/* TIÊU ĐỀ GIAI ĐOẠN */}
-                                    <div className="py-3 mb-4 border-b border-indigo-500/30 print:border-black">
-                                        <h3 className="text-lg font-black uppercase tracking-wider text-indigo-400 flex items-center gap-2">
-                                            <span className="bg-indigo-500/20 px-2 py-1 rounded text-sm">Bước {phaseIndex + 1}</span>
+                                    <div className="py-3 mb-5 border-b-2 border-zinc-200 print:border-black">
+                                        <h3 className="text-lg font-black uppercase tracking-wider text-[#1A2530] flex items-center gap-3">
+                                            <span className="bg-[#B8985D]/10 text-[#8E6D45] border border-[#B8985D]/30 px-3 py-1 rounded-lg text-xs">Bước {phaseIndex + 1}</span>
                                             {phaseName}
                                         </h3>
                                     </div>
 
-                                    {/* DANH SÁCH TASK TRONG GIAI ĐOẠN ĐÓ */}
-                                    <div className="space-y-4 pl-2 md:pl-4 border-l-2 border-white/5 print:border-black/10">
+                                    {/* DANH SÁCH TASK TRONG GIAI ĐOẠN */}
+                                    <div className="space-y-4 pl-2 md:pl-4 border-l-2 border-zinc-200 print:border-black/10">
                                         {groupedPlan[phaseName].map((task, index) => (
-                                            <div key={task.id || index} className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors print:border-black/20 print:bg-white">
-                                                <h4 className="text-lg font-bold text-indigo-100">{task.title}</h4>
+                                            <div key={task.id || index} className="p-6 rounded-2xl bg-white border border-zinc-200 hover:border-[#B8985D]/50 hover:shadow-md transition-all shadow-sm print:border-black/20 print:bg-white print:shadow-none">
+                                                <h4 className="text-lg font-bold text-[#1A2530]">{task.title}</h4>
 
+                                                {/* Ghi chú pháp lý */}
                                                 {(task.legal_notes || task.description) && (
-                                                    <div className="mt-3 text-sm text-gray-300 leading-relaxed border-l-2 border-indigo-500 pl-4 py-2 bg-indigo-500/5 rounded-r-lg print:text-black">
-                                                        <span className="font-semibold text-indigo-300 block mb-1">⚖️ Góc nhìn pháp lý:</span>
+                                                    <div className="mt-4 text-sm text-zinc-600 font-medium leading-relaxed border-l-4 border-[#B8985D] pl-4 py-3 bg-amber-50/50 rounded-r-xl print:text-black">
+                                                        <span className="font-bold text-[#8E6D45] flex items-center gap-1.5 mb-1.5">
+                                                            <ScaleIcon className="w-4 h-4 stroke-2" /> Góc nhìn pháp lý:
+                                                        </span>
                                                         {task.legal_notes || task.description}
                                                     </div>
                                                 )}
 
-                                                <div className="flex gap-6 mt-4 opacity-70 text-xs">
+                                                {/* Meta Info (Assignee, Deadline, Status) */}
+                                                <div className="flex flex-wrap gap-5 mt-5 text-xs font-bold text-zinc-500">
                                                     <div className="flex items-center gap-2">
-                                                        <UserCircleIcon className="w-4 h-4" /> {task.assignee || "Chưa phân công"}
+                                                        <UserCircleIcon className="w-4 h-4 stroke-2 text-zinc-400" /> {task.assignee || "Chưa phân công"}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <ClockIcon className="w-4 h-4" /> {task.deadline || "N/A"}
+                                                        <ClockIcon className="w-4 h-4 stroke-2 text-zinc-400" /> {task.deadline || "N/A"}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="bg-white/10 px-2 py-0.5 rounded-full text-[10px] uppercase">
+                                                        <span className="bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider text-zinc-600">
                                                             {task.status || "Pending"}
                                                         </span>
                                                     </div>
@@ -323,8 +338,10 @@ export default function AIPlanning() {
             </div>
 
             <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; } 
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; } 
+                /* Tối ưu Thanh cuộn Light Mode */
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; } 
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(26, 37, 48, 0.15); border-radius: 10px; } 
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(184, 152, 93, 0.5); }
                 @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
                 .animate-fadeInUp { animation: fadeInUp 0.4s ease-out forwards; }
                 @media print {

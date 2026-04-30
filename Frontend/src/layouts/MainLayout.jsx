@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from "../components/PageHeader";
-import FloatingLines from "../components/FloatingLines";
+//import FloatingLines from "../components/FloatingLines";
 import FloatingButtons from "../components/FloatingButtons"; 
 import ChatbotAI from "../components/ChatbotAI";           
 import Preloader from '../components/Preloader';
@@ -18,7 +18,7 @@ const MainLayout = ({ children }) => {
 
     const isHomePage = location.pathname === '/';
     
-    // THÊM DÒNG NÀY: Kiểm tra xem có phải trang Admin không
+    // Kiểm tra xem có phải trang Admin không
     const isAdminPage = location.pathname.startsWith('/admin');
 
     useEffect(() => {
@@ -35,7 +35,7 @@ const MainLayout = ({ children }) => {
     const isReady = isMinTimePassed && isSplineLoaded;
     const showPreloader = isHomePage && !isReady;
 
-    useEffect(() => {
+   useEffect(() => {
         if (isReady) {
             const fixCanvas = setTimeout(() => {
                 window.dispatchEvent(new Event('resize'));
@@ -52,8 +52,9 @@ const MainLayout = ({ children }) => {
         }
     }, [isReady]);
 
+    // LỚP VỎ CHÍNH: Nền #f8f9fa, Chữ mặc định #1A2530, Bôi đen ra màu Vàng Đồng
     return (
-        <div className="min-h-screen bg-black flex flex-col relative w-full overflow-x-hidden text-white selection:bg-cyan-500/30">
+        <div className="min-h-screen bg-[#f8f9fa] flex flex-col relative w-full overflow-x-hidden text-[#1A2530] selection:bg-[#B8985D]/30 selection:text-[#1A2530] antialiased">
 
             {renderPreloader && (
                 <Preloader
@@ -62,13 +63,12 @@ const MainLayout = ({ children }) => {
                 />
             )}
 
-            <div className="fixed inset-0 z-[1] w-full h-full pointer-events-none">
-                <FloatingLines
-                    enabledWaves={WAVES_CONFIG}
-                    animationSpeed={0.3}
-                    mixBlendMode="screen"
-                />
-                <div className="absolute inset-0 bg-black/50 -z-10 w-full h-full"></div>
+            {/* HỆ THỐNG LỚP PHỦ TỐI ƯU CHO NỀN SÁNG */}
+            <div className="fixed inset-0 z-[1] w-full h-full pointer-events-none overflow-hidden">
+                {/* Vệt ánh sáng Vàng Đồng nhạt ở góc trên (thay cho bg-black/50) */}
+                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#B8985D]/10 rounded-full blur-[120px] -z-10"></div>
+                {/* Vệt ánh sáng Xanh/Xám nhạt ở góc dưới tạo cân bằng */}
+                <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-blue-900/5 rounded-full blur-[100px] -z-10"></div>
             </div>
 
             {/* --- NẾU MUỐN ẨN LUÔN CẢ HEADER Ở TRANG ADMIN THÌ BỌC {!isAdminPage && (...)} Ở ĐÂY --- */}
@@ -80,7 +80,7 @@ const MainLayout = ({ children }) => {
                 {children}
             </main>
 
-            {/* SỬA TẠI ĐÂY: Chỉ hiển thị Chatbot & Nút nổi khi KHÔNG PHẢI trang Admin */}
+            {/* Chỉ hiển thị Chatbot & Nút nổi khi KHÔNG PHẢI trang Admin */}
             {!isAdminPage && (
                 <>
                     <FloatingButtons onBotClick={() => setIsChatOpen(!isChatOpen)} />

@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); 
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const { sql, poolConnect, pool } = require('../src/config/db'); 
+const { sql, poolConnect, pool } = require('../src/config/db');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
 // --- 1. KHỞI TẠO TRỰC TIẾP GEMINI EMBEDDING ---
@@ -24,13 +24,13 @@ const toAsciiId = (str) => {
 
 const cleanMarkdown = (text) => {
     if (!text) return "";
-    return text.replace(/<br>/gi, '\n')              
-               .replace(/\| --- \|/g, '')            
-               .replace(/\|/g, '')                   
-               .replace(/(\*\*|\*|#|__|_)/g, '')     
-               .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') 
-               .replace(/\n{3,}/g, '\n\n')           
-               .trim();
+    return text.replace(/<br>/gi, '\n')
+        .replace(/\| --- \|/g, '')
+        .replace(/\|/g, '')
+        .replace(/(\*\*|\*|#|__|_)/g, '')
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 };
 
 const smartChunk = (content) => {
@@ -59,7 +59,7 @@ const importData = async () => {
         const dataPath = path.join(__dirname, '../data', 'raw_data.json');
         const rawData = fs.readFileSync(dataPath, 'utf8');
         const laws = JSON.parse(rawData);
-        
+
         console.log(`📂 Đã tải ${laws.length} văn bản từ raw_data.json.`);
         const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index';
         const index = pc.index(indexName);
@@ -119,11 +119,11 @@ const importData = async () => {
                             source: law.sourceUrl || ''
                         }
                     });
-                    await new Promise(r => setTimeout(r, 400));
+                    await new Promise(r => setTimeout(r, 2000));
                 } catch (e) {
                     if (e.message && e.message.includes('429')) {
-                        console.log(`⏳ Quá tải Gemini, nghỉ 30s...`);
-                        await new Promise(r => setTimeout(r, 30000));
+                        console.log(`⏳ Quá tải Gemini, nghỉ 60s...`);
+                        await new Promise(r => setTimeout(r, 60000));
                         chunkIdx--; continue;
                     } else {
                         console.error(`❌ Lỗi vector chunk ${chunkIdx}:`, e.message);
@@ -136,7 +136,7 @@ const importData = async () => {
                 for (let j = 0; j < vectors.length; j += 50) {
                     await index.upsert(vectors.slice(j, j + 50));
                 }
-                
+
                 await pool.request().input('id', sql.NVarChar(100), docId)
                     .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @id");
 

@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
     Database, Play, CloudDownload, CheckCircle, Clock,
-    ShieldCheck,Scale, LayoutDashboard, Users, Activity, Settings, LogOut, User, FileText, BarChart2
+    ShieldCheck, Scale, LayoutDashboard, Users, Activity, Settings, LogOut, User, FileText, BarChart2
 } from 'lucide-react';
 import AdminSidebar from '../../components/AdminSidebar';
 export default function AdminCrawler() {
@@ -18,7 +18,7 @@ export default function AdminCrawler() {
     const backendBase = 'http://localhost:8000/api';
     const [isManualCrawling, setIsManualCrawling] = useState(false);
     const [history, setHistory] = useState([]);
-    
+
 
     // Fetch settings từ API
     const fetchSettings = async () => {
@@ -128,10 +128,10 @@ export default function AdminCrawler() {
         }
     };
 
-    const glassClass = 'bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden';
+    const glassClass = 'bg-white/80 backdrop-blur-xl border border-amber-200 shadow-2xl overflow-hidden';
 
     return (
-        <div className="min-h-screen bg-[#050505] text-gray-300 font-sans selection:bg-cyan-500/30 flex">
+        <div className="fixed inset-0 z-[200] w-full h-screen bg-white text-gray-900 font-sans selection:bg-amber-500/30 flex">
 
             {/*  SIDEBAR ADMIN  */}
             <AdminSidebar />
@@ -142,13 +142,13 @@ export default function AdminCrawler() {
                 {/* HEADER */}
                 <header className="flex justify-between items-center mb-10">
                     <div>
-                        <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Trình Thu Thập Dữ Liệu</h1>
+                        <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Trình Thu Thập Dữ Liệu</h1>
                         <p className="text-xs text-gray-500 mt-1 uppercase tracking-[0.2em]">Tự Động & Thủ Công Thu Thập Văn Bản Pháp Luật</p>
                     </div>
                     <div className="flex gap-4">
                         <div className="flex flex-col items-end">
-                            <span className="text-[10px] font-bold text-cyan-400 uppercase">Trạng thái Hệ thống</span>
-                            <span className="text-xs text-white flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-amber-600 uppercase">Trạng thái Hệ thống</span>
+                            <span className="text-xs text-gray-900 flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
                                 Trình Thu Thập Sẵn Sàng
                             </span>
@@ -162,12 +162,12 @@ export default function AdminCrawler() {
                     {/* KHU VỰC 1: CẤU HÌNH THU THẬP TỰ ĐỘNG */}
                     <div className={`${glassClass} rounded-3xl p-6`}>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-lg font-bold text-white uppercase tracking-wider">Cấu Hình Thu Thập Tự Động</h2>
+                            <h2 className="text-lg font-bold text-gray-900 uppercase tracking-wider">Cấu Hình Thu Thập Tự Động</h2>
                             <div className="flex items-center gap-3">
-                                <span className="text-xs text-gray-400 uppercase">Bật/Tắt</span>
+                                <span className="text-xs text-gray-600 uppercase">Bật/Tắt</span>
                                 <button
                                     onClick={() => setIsAutoCrawlEnabled(!isAutoCrawlEnabled)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAutoCrawlEnabled ? 'bg-cyan-500' : 'bg-gray-600'
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isAutoCrawlEnabled ? 'bg-amber-500' : 'bg-gray-300'
                                         }`}
                                 >
                                     <span
@@ -180,53 +180,53 @@ export default function AdminCrawler() {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Giờ Chạy Hàng Ngày</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Giờ Chạy Hàng Ngày</label>
                                 <input
                                     type="time"
                                     value={crawlTime}
                                     onChange={(e) => setCrawlTime(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 text-sm"
+                                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Danh Sách URLs Đích (Mỗi Link 1 Dòng)</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Danh Sách URLs Đích (Mỗi Link 1 Dòng)</label>
                                 <textarea
                                     value={urls}
                                     onChange={(e) => setUrls(e.target.value)}
                                     placeholder="https://vanbanphapluat.com&#10;https://thuvienphapluat.vn&#10;https://moj.gov.vn"
                                     rows={6}
-                                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 text-sm resize-none"
+                                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm resize-none"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Giới Hạn Số Bài / Ngày</label>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Giới Hạn Số Bài / Ngày</label>
                                     <input
                                         type="number"
                                         value={dailyLimit}
                                         onChange={(e) => setDailyLimit(e.target.value)}
                                         min="1"
                                         max="1000"
-                                        className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 text-sm"
+                                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Từ Khóa / Đuôi Link Ưu Tiên</label>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Từ Khóa / Đuôi Link Ưu Tiên</label>
                                     <input
                                         type="text"
                                         value={keywordFilter}
                                         onChange={(e) => setKeywordFilter(e.target.value)}
                                         placeholder="/ban-an/"
-                                        className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 text-sm"
+                                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 px-4 py-3 rounded-xl outline-none focus:border-amber-500 text-sm"
                                     />
                                 </div>
                             </div>
 
                             <button
                                 onClick={handleSaveConfig}
-                                className="w-full bg-gradient-to-r from-cyan-500 to-indigo-600 text-white font-bold py-3 px-6 rounded-xl hover:from-cyan-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-cyan-500/25 uppercase text-sm tracking-wider"
+                                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold py-3 px-6 rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all shadow-lg hover:shadow-amber-500/25 uppercase text-sm tracking-wider"
                             >
                                 Lưu Cấu Hình
                             </button>
@@ -235,23 +235,23 @@ export default function AdminCrawler() {
 
                     {/* KHU VỰC 2: ĐIỀU KHIỂN THỦ CÔNG */}
                     <div className={`${glassClass} rounded-3xl p-6 flex flex-col justify-center items-center text-center`}>
-                        <h2 className="text-lg font-bold text-white uppercase tracking-wider mb-6">Điều Khiển Thủ Công</h2>
+                        <h2 className="text-lg font-bold text-gray-900 uppercase tracking-wider mb-6">Điều Khiển Thủ Công</h2>
 
                         <button
                             onClick={handleManualCrawl}
                             disabled={isManualCrawling}
-                            className={`flex items-center justify-center gap-3 w-full max-w-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 px-6 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-green-500/25 uppercase text-sm tracking-wider mb-4 ${isManualCrawling ? 'opacity-50 cursor-not-allowed' : ''
+                            className={`flex items-center justify-center gap-3 w-full max-w-sm bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold py-4 px-6 rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all shadow-lg hover:shadow-amber-500/25 uppercase text-sm tracking-wider mb-4 ${isManualCrawling ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                         >
                             {isManualCrawling ? (
-                                <Clock className="w-6 h-6 animate-spin" />
+                                <Clock className="w-6 h-6" />
                             ) : (
                                 <Play className="w-6 h-6" />
                             )}
                             {isManualCrawling ? 'Đang Thu Thập...' : 'Chạy Thu Thập Ngay'}
                         </button>
 
-                        <p className="text-xs text-gray-400 leading-relaxed">
+                        <p className="text-xs text-gray-600 leading-relaxed">
                             Hệ thống sẽ lập tức thu thập dữ liệu từ các URLs trên.
                             Quá trình có thể mất vài phút tùy thuộc vào số lượng dữ liệu.
                         </p>
@@ -260,18 +260,18 @@ export default function AdminCrawler() {
 
                 {/* KHU VỰC 3: LỊCH SỬ THU THẬP GẦN ĐÂY */}
                 <div className={`${glassClass} rounded-3xl p-6`}>
-                    <h2 className="text-lg font-bold text-white uppercase tracking-wider mb-6">Lịch Sử Thu Thập Gần Đây</h2>
+                    <h2 className="text-lg font-bold text-gray-900 uppercase tracking-wider mb-6">Lịch Sử Thu Thập Gần Đây</h2>
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="border-b border-white/10">
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">ID</th>
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">Số Hiệu</th>
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">Tiêu Đề Văn Bản</th>
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">Nguồn</th>
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">Thời Gian</th>
-                                    <th className="text-xs font-bold text-gray-400 uppercase py-3 px-4">Trạng Thái</th>
+                                <tr className="border-b border-gray-200">
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">ID</th>
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">Số Hiệu</th>
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">Tiêu Đề Văn Bản</th>
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">Nguồn</th>
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">Thời Gian</th>
+                                    <th className="text-xs font-bold text-gray-600 uppercase py-3 px-4">Trạng Thái</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -295,7 +295,7 @@ export default function AdminCrawler() {
                                                 key={item.Id}
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                                                className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                                             >
                                                 {/* 1. ID */}
                                                 <td className="py-4 px-4 text-[10px] text-gray-500 font-mono">
@@ -303,31 +303,31 @@ export default function AdminCrawler() {
                                                 </td>
 
                                                 {/* 2. SỐ HIỆU */}
-                                                <td className="py-4 px-4 text-sm text-cyan-400 font-bold">
+                                                <td className="py-4 px-4 text-sm text-amber-600 font-bold">
                                                     {item.DocumentNumber && item.DocumentNumber !== "-"
                                                         ? item.DocumentNumber
                                                         : "Đang cập nhật"}
                                                 </td>
 
                                                 {/* 3. TIÊU ĐỀ VĂN BẢN */}
-                                                <td className="py-4 px-4 text-sm text-white max-w-xs truncate" title={item.Title}>
+                                                <td className="py-4 px-4 text-sm text-gray-900 max-w-xs truncate" title={item.Title}>
                                                     {shortTitle}
                                                 </td>
 
                                                 {/* 4. NGUỒN (Link) */}
-                                                <td className="py-4 px-4 text-sm text-gray-300">
+                                                <td className="py-4 px-4 text-sm text-gray-700">
                                                     <a
                                                         href={item.SourceUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-cyan-400/80 hover:text-cyan-400 underline decoration-cyan-400/20"
+                                                        className="text-amber-600/80 hover:text-amber-600 underline decoration-amber-600/20"
                                                     >
                                                         {item.SourceUrl && item.SourceUrl.length > 25 ? item.SourceUrl.substring(0, 25) + '...' : item.SourceUrl}
                                                     </a>
                                                 </td>
 
                                                 {/* 5. THỜI GIAN */}
-                                                <td className="py-4 px-4 text-sm text-gray-400 font-mono">
+                                                <td className="py-4 px-4 text-sm text-gray-600 font-mono">
                                                     {timeStr}
                                                 </td>
 
@@ -335,7 +335,7 @@ export default function AdminCrawler() {
                                                 <td className="py-4 px-4">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                                                        <span className="text-[10px] text-green-400 font-bold uppercase tracking-wider">
+                                                        <span className="text-[10px] text-green-600 font-bold uppercase tracking-wider">
                                                             Thành Công
                                                         </span>
                                                     </div>

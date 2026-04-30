@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import heroVideo from '../assets/videos/VideoProject2.mp4';
 
 import {
     CpuChipIcon,
@@ -24,8 +25,16 @@ export default function HeroSection() {
 
     const section4Ref = useRef(null);
     const [hideArrow, setHideArrow] = useState(false);
+    const [isFirstLoad, setIsFirstLoad] = useState(true);
+    const [isVideoReady, setIsVideoReady] = useState(false);
 
     useEffect(() => {
+        const hasSeenIntro = sessionStorage.getItem('legai_intro_seen');
+        if (hasSeenIntro) {
+            setIsFirstLoad(false);
+        } else {
+            sessionStorage.setItem('legai_intro_seen', 'true');
+        }
         const observer = new IntersectionObserver(
             ([entry]) => {
                 setHideArrow(entry.isIntersecting);
@@ -45,31 +54,16 @@ export default function HeroSection() {
         };
     }, []);
 
-    // --- GRADIENTS ---
-    const titleGradient = {
-        background: 'linear-gradient(to right, #ff758c 0%, #ffffff 50%, #ff7eb3 100%)',
-        backgroundSize: '200% auto',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        animation: 'shinyFlow 3s linear infinite',
-        willChange: 'background-position',
-    };
 
-    const silverGradient = {
-        background: 'linear-gradient(to right, #cbd5e1 0%, #f1f5f9 50%, #cbd5e1 100%)',
-        backgroundSize: '200% auto',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        animation: 'shinyFlow 5s linear infinite',
-        willChange: 'background-position',
-    };
-    
+
+
+
     // --- DATA ---
     const stats = [
-        { id: 1, label: "Hợp đồng phân tích", value: "10,000+", icon: CpuChipIcon },
+        { id: 1, label: "Hợp đồng phân tích", value: "1000+", icon: CpuChipIcon },
         { id: 2, label: "Độ chính xác AI", value: "98%", icon: CheckBadgeIcon },
-        { id: 3, label: "Thời gian xử lý TB", value: "< 5s", icon: ClockIcon },
-        { id: 4, label: "DN tin dùng", value: "500+", icon: UserGroupIcon },
+        { id: 3, label: "Thời gian xử lý ", value: "< 10s", icon: ClockIcon },
+        { id: 4, label: "Doanh nghiệp tin dùng", value: "100+", icon: UserGroupIcon },
     ];
 
     const features = [
@@ -80,31 +74,38 @@ export default function HeroSection() {
         { title: "Tra cứu Văn bản", desc: "Thư viện luật số hóa, giúp bạn truy xuất nhanh các điều khoản mà không cần tìm kiếm rời rạc trên Google.", icon: CpuChipIcon, color: "from-orange-500 to-amber-400" },
         { title: "Chatbot Tư vấn AI", desc: "Trò chuyện pháp luật với ngôn ngữ gần gũi như một cộng sự thực thụ, hỗ trợ giải đáp thắc mắc 24/7.", icon: SparklesIcon, color: "from-red-500 to-orange-400" },
         { title: "Xác thực Video", desc: "Tự động phân tích, tóm tắt và trích xuất nội dung pháp lý từ các clip short video trên YouTube.", icon: VideoCameraIcon, color: "from-violet-500 to-fuchsia-400" }
-        
+
     ];
 
-    // --- FRAMER MOTION VARIANTS TỐI ƯU ---
+    // --- FRAMER MOTION VARIANTS (TỐI ƯU THEO SESSION) ---
+    const animationState = (!isFirstLoad || isVideoReady) ? "visible" : "hidden"
+
     const staggerContainer = {
         hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } }
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: isFirstLoad ? 0.2 : 0,
+                delayChildren: isFirstLoad ? 0.3 : 0
+            }
+        }
     };
 
     const fadeUpItem = {
-        hidden: { opacity: 0, y: 40, scale: 0.95 },
-        visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 80, damping: 15, mass: 1 } }
+        hidden: { opacity: 0, y: 30, scale: 0.98 },
+        visible: {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            transition: {
+                type: "spring",
+                stiffness: 70,
+                damping: 15,
+                duration: isFirstLoad ? 0.8 : 0
+            }
+        }
     };
 
-    const darkGlassClass = "bg-black/60 backdrop-blur-2xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] transform-gpu will-change-transform";
-
-    const textContainer = {
-        hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
-    };
-
-    const textLetter = {
-        hidden: { opacity: 0, y: 50, rotateX: -90, filter: "blur(10px)" },
-        visible: { opacity: 1, y: 0, rotateX: 0, filter: "blur(0px)", transition: { type: "spring", damping: 12, stiffness: 200 } }
-    };
 
     return (
         <div className="w-full relative flex flex-col items-center selection:bg-cyan-500/30 overflow-x-hidden pb-20">
@@ -118,291 +119,464 @@ export default function HeroSection() {
 
 
             {/* ==========================================================
+    SECTION 1: HERO SPLIT-SCREEN (Lawyer Agency Edition)
+========================================================== */}
+            {/* CẬP NHẬT: Thêm min-h-screen và snap-start để đồng bộ cuộn */}
+            <section className="relative w-full min-h-screen snap-start bg-[#f8f9fa] overflow-hidden z-20">
+
+                {/* 1. VÙNG VIDEO (CHIẾM 60%) */}
+                <div
+                    className="absolute inset-y-0 left-0 w-[60%] z-0"
+                    style={{
+                        // Đường cắt sắc lẹm tạo tỷ lệ 6/4
+                        clipPath: 'polygon(0 0, 100% 0, 85% 100%, 0% 100%)'
+                    }}
+                >
+                    <video
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="auto" // Ép trình duyệt ưu tiên tải video này ngay lập tức
+                        onLoadedData={() => setIsVideoReady(true)} // Báo hiệu video đã sẵn sàng
+                        className="w-full h-full object-cover transition-opacity duration-700"
+                        // Hiệu ứng fade-in mượt mà cho chính cái video khi nó load xong
+                        style={{ opacity: isVideoReady ? 1 : 0 }}
+                    >
+                        <source src={heroVideo} type="video/mp4" />
+                    </video>
+                    <div className="absolute inset-0 bg-black/15"></div>
+                </div>
+
+                {/* 2. ĐƯỜNG VIỀN VÀNG ĐỒNG (Bronze Line) */}
+                <div
+                    className="absolute inset-y-0 left-0 w-[60.5%] z-[5] pointer-events-none hidden lg:block"
+                    style={{
+                        clipPath: 'polygon(100% 0, 100% 0, 85% 100%, 84.5% 100%)',
+                        backgroundColor: '#B8985D'
+                    }}
+                ></div>
+
+                {/* 3. VÙNG TEXT BÊN PHẢI (CHIẾM 40%) */}
+                <div className="absolute inset-y-0 right-0 w-[40%] flex items-center justify-end z-10 pr-10 md:pr-16 lg:pr-24">
+                    <motion.div
+                        // CẬP NHẬT: Sử dụng biến animationState để tối ưu load 1 lần
+                        initial={animationState}
+                        animate="visible"
+                        variants={staggerContainer}
+                        className="text-right flex flex-col items-end"
+                    >
+                        {/* Dòng 1: WELCOME TO - Đổi sang font-semibold cho thanh thoát */}
+                        <motion.span
+                            variants={fadeUpItem}
+                            className="text-2xl md:text-4xl font-semibold tracking-[0.3em] text-[#1A2530] mb-2 uppercase"
+                        >
+                            WELCOME TO
+                        </motion.span>
+
+                        {/* Dòng 2: LEGAI - Font Serif sang trọng + Màu vàng đồng Gold Agency */}
+                        <motion.h1
+                            variants={fadeUpItem}
+                            style={{ fontFamily: "'Playfair Display', serif" }} // Dùng font có chân cho chữ LEGAI
+                            className="text-6xl md:text-8xl lg:text-[9vw] font-semibold tracking-tighter leading-none"
+                        >
+                            <span
+                                className="inline-block"
+                                style={{
+                                    background: 'linear-gradient(to bottom, #C5A880 0%, #B8985D 50%, #8E6D45 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                }}
+                            >
+                                LEGAI
+                            </span>
+                        </motion.h1>
+                    </motion.div>
+                </div>
+            </section>
+            {/* ==========================================================
                 SECTION 2: GIỚI THIỆU HỆ THỐNG
             ========================================================== */}
-            <section className="relative w-full flex justify-center items-center py-32 z-10">
-                <motion.div className="max-w-6xl px-6 text-center" variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
-                    <motion.h3 variants={fadeUpItem} className="text-white text-lg md:text-xl font-bold tracking-[0.2em] uppercase opacity-90 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] mb-12">
-                        Giải pháp công nghệ pháp lý hiện đại
-                    </motion.h3>
-                    <motion.h1 variants={fadeUpItem} className="text-4xl md:text-7xl font-black leading-[1.8] uppercase tracking-tighter">
-                        <span className="text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">HỆ THỐNG HỖ TRỢ PHÁP LÝ</span> <br />
+            {/* CẬP NHẬT: Thêm min-h-screen, snap-start và overflow-hidden */}
+            <section className="relative w-full min-h-screen snap-start bg-[#f8f9fa] flex flex-col justify-center overflow-hidden z-30">
+                <div className="mx-auto max-w-7xl px-6 py-24 md:py-32">
+                    <motion.div
+                        className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-end"
+                        variants={staggerContainer}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, amount: 0.2 }}
+                    >
+                        <div className="lg:col-span-7">
+                            <motion.p
+                                variants={fadeUpItem}
+                                className="text-[18px] md:text-lg font-semibold uppercase tracking-[0.26em] text-[#B8985D]"
+                            >
+                                Giải pháp Legal Tech
+                            </motion.p>
+                            {/* Nhớ đảm bảo bạn đã có keyframes shinyFlow trong file CSS, hoặc thêm trực tiếp thẻ <style> này vào component */}
+                            <style>{`
+        @keyframes shinyFlow {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+    `}</style>
+                            <motion.h2
+                                variants={fadeUpItem}
+                                className="mt-5 text-4xl md:text-6xl font-semibold tracking-[-0.04em] leading-[1.05] text-[#1A2530]"
+                            >
+                                {/* Dòng 1: Giữ nguyên cấu trúc inline-block */}
+                                <span className="inline-block uppercase">HỆ THỐNG HỖ TRỢ PHÁP LÝ </span>
 
-                        <span className="inline-block text-glow-pink py-4" style={titleGradient}>TÍCH HỢP AI</span> <br />
+                                {/* Dòng 2: Rớt xuống tự nhiên, chữ nối tiếp nhau */}
+                                <span className="block mt-1 md:mt-2">
+                                    <span
+                                        className="font-black"
+                                        style={{
+                                            background: 'linear-gradient(to right, #B8985D 0%, #fef08a 25%, #B8985D 50%, #fef08a 75%, #B8985D 100%)',
+                                            backgroundSize: '200% auto',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            animation: 'shinyFlow 4s linear infinite',
+                                            willChange: 'background-position',
+                                        }}
+                                    >
+                                        TÍCH HỢP AI
+                                    </span>
+                                    {" "}rà soát hợp đồng
+                                </span>
+                            </motion.h2>
+                        </div>
 
-                        <span className="text-white drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">RÀ SOÁT VĂN BẢN & HỢP ĐỒNG</span>
-                    </motion.h1>
-                    <motion.p variants={fadeUpItem} className="max-w-6xl mx-auto text-base md:text-3xl font-bold leading-loose px-4 mt-14">
-                        <span className="inline-block text-shadow-deep" style={silverGradient}>
-                            Hệ thống cung cấp giải pháp tư vấn pháp lý và tra cứu tích hợp trí tuệ nhân tạo giúp bạn giải quyết vấn đề nhanh chóng.
-                        </span>
-                    </motion.p>
-                    
-                </motion.div>
+                        <div className="lg:col-span-5 lg:pb-1">
+                            <motion.p
+                                variants={fadeUpItem}
+                                className="max-w-[62ch] text-base md:text-lg leading-relaxed text-zinc-600"
+                            >
+                                LegalBot kết hợp tra cứu theo ngữ nghĩa và phân tích điều khoản để bạn đi từ câu hỏi đến căn cứ nhanh hơn, nhưng vẫn giữ được khả năng rà soát và đối chiếu độc lập.
+                            </motion.p>
+                            <motion.p
+                                variants={fadeUpItem}
+                                className="mt-5 max-w-[62ch] text-base md:text-lg leading-relaxed text-zinc-600"
+                            >
+                                Trích dẫn, thuật ngữ, và ngữ cảnh được trình bày theo mạch đọc, giúp quyết định có cơ sở và dễ bàn giao trong nhóm.
+                            </motion.p>
+                        </div>
+                    </motion.div>
+                </div>
             </section>
-{/* ==========================================================
-    SECTION 3: TÍNH NĂNG (Full 3D Ecosystem - Final)
-========================================================== */}
-<section className="relative w-full max-w-7xl mx-auto px-6 py-12 md:py-20 z-20 flex flex-col justify-center min-h-[800px]">
 
-    {/* ================= STYLES ================= */}
-    <style>{`
+            {/* ==========================================================
+                SECTION 3: TÍNH NĂNG (Full 3D Ecosystem - Light Mode)
+            ========================================================== */}
+            {/* CẬP NHẬT: Thêm min-h-screen, snap-start và overflow-hidden */}
+            <section className="relative w-full min-h-screen snap-start bg-[#f8f9fa] flex flex-col justify-center overflow-hidden z-20">
+
+                {/* ================= STYLES ================= */}
+                <style>{`
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-15px); } }
         @keyframes float-slow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
         .animate-float { animation: float 5s ease-in-out infinite; }
         .animate-float-slow { animation: float-slow 7s ease-in-out infinite; }
+        
+        /* Viền chữ mờ (Hollow Watermark) */
+        .text-hollow-agency {
+            color: transparent;
+            -webkit-text-stroke: 2px rgba(26, 37, 48, 0.05); 
+        }
     `}</style>
 
-{/* ================= LAYER 0: NỀN TYPOGRAPHY (Z-0) ================= */}
-    <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-        <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            className="absolute top-[5%] md:top-[8%] left-0 w-full flex flex-col items-center justify-center text-center"
-        >
-            {/* Chữ LEGAL: Trắng tinh khiết + Bóng glow màu Vàng Hổ Phách rực rỡ */}
-            <h1 className="text-[28vw] md:text-[15vw] font-black text-white tracking-tighter leading-none select-none uppercase drop-shadow-[0_0_40px_rgba(245,158,11,0.5)]">
-                LEGAL
-            </h1>
-        </motion.div>
-
-    </div>
-
-
-    {/* ================= LAYER 1: CÁC KHỐI LƠ LỬNG (Z-20) ================= */}
-    <div className="absolute inset-0 w-full max-w-7xl mx-auto pointer-events-none z-20 hidden lg:block">
-        
-        {/* --- WIDGET TO TRÁI (Đổi sang tone AMBER/ORANGE) --- */}
-        <div className="absolute left-6 top-[32%] animate-float pointer-events-auto">
-            <div className="bg-[#0a0a0a]/40 backdrop-blur-xl border border-amber-500/20 p-5 rounded-[2rem] shadow-[0_10px_40px_rgba(245,158,11,0.15)] w-48 hover:bg-[#0a0a0a]/60 hover:border-amber-400/40 transition-all cursor-default">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/40">
-                        <ChartBarIcon className="w-5 h-5 text-amber-400" />
-                    </div>
-                    <span className="text-[10px] text-amber-100/70 font-black uppercase tracking-widest">Database</span>
+                {/* ================= LAYER 0: NỀN TYPOGRAPHY (Z-0) ================= */}
+                <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        className="absolute top-[5%] md:top-[10%] left-0 w-full flex flex-col items-center justify-center text-center"
+                    >
+                        <h1
+                            className="text-[28vw] md:text-[16vw] font-semibold tracking-tighter leading-none select-none uppercase"
+                            style={{
+                                background: 'linear-gradient(to bottom, #C5A880 0%, #B8985D 50%, #8E6D45 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                opacity: 1
+                            }}
+                        >
+                            SYSTEM
+                        </h1>
+                    </motion.div>
                 </div>
-                <h4 className="text-2xl font-black text-white leading-none">14,203</h4>
-                <p className="text-[10px] text-amber-100/50 mt-1 font-medium">Hợp đồng đã quét</p>
-                <div className="mt-4 h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-amber-500 to-orange-400 w-[75%] shadow-[0_0_10px_#f59e0b]"></div>
-                </div>
-            </div>
-        </div>
 
-        {/* --- WIDGET TO PHẢI (Giữ tone RED nhưng làm viền sáng hơn) --- */}
-        <div className="absolute right-6 top-[28%] animate-float-slow pointer-events-auto">
-            <div className="bg-[#0a0a0a]/40 backdrop-blur-xl border border-rose-500/20 p-5 rounded-[2rem] shadow-[0_10px_40px_rgba(244,63,94,0.15)] w-56 hover:bg-[#0a0a0a]/60 hover:border-rose-400/40 transition-all cursor-default">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-rose-500 blur-md opacity-60 animate-pulse"></div>
-                        <ShieldExclamationIcon className="w-5 h-5 text-rose-400 relative z-10" />
-                    </div>
-                    <span className="text-[10px] text-rose-100/70 font-black uppercase tracking-widest">Cảnh báo rủi ro</span>
-                </div>
-                <div className="flex flex-col gap-3">
-                    <div className="border-l-2 border-rose-500 pl-3 relative group">
-                        <p className="text-[10px] text-white font-bold leading-tight">Điều khoản bảo mật</p>
-                        <p className="text-[9px] text-rose-200/50">Thiếu cam kết 2 chiều</p>
-                    </div>
-                    <div className="border-l-2 border-orange-500/50 pl-3 opacity-60">
-                        <p className="text-[10px] text-white font-bold leading-tight">Tranh chấp tài phán</p>
-                        <p className="text-[9px] text-gray-400">Chưa rõ cơ quan</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+                {/* ================= LAYER 1: CÁC KHỐI LƠ LỬNG (Z-20) ================= */}
+                {/* Đã sửa màu nền các khối nổi thành Trắng/Sáng để hợp Light Mode */}
+                <div className="absolute inset-0 w-full max-w-7xl mx-auto pointer-events-none z-20 hidden lg:block">
 
-        {/* --- WIDGET MINI TRÁI (Đổi sang tone EMERALD/NEON GREEN) --- */}
-        <motion.div animate={{ y: [0, -15, 0], rotate: [0, 2, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[12%] left-[8%] md:left-[12%] bg-[#0a0a0a]/50 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-3 shadow-[0_10px_30px_rgba(16,185,129,0.2)] flex items-center gap-3 pointer-events-auto">
-            <div className="p-1.5 bg-emerald-500/20 rounded-lg border border-emerald-500/50">
-                <CheckBadgeIcon className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div>
-                <p className="text-[9px] text-emerald-100/60 uppercase tracking-widest">AI Confidence</p>
-                <p className="text-sm font-bold text-white drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]">99.8%</p>
-            </div>
-        </motion.div>
-
-        {/* --- WIDGET MINI PHẢI (Đổi sang tone FUCHSIA/HỒNG TÍM) --- */}
-        <motion.div animate={{ y: [0, 15, 0], rotate: [0, -2, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }} className="absolute top-[10%] right-[8%] md:right-[12%] bg-[#0a0a0a]/50 backdrop-blur-md border border-fuchsia-500/30 rounded-2xl p-3 shadow-[0_10px_30px_rgba(217,70,239,0.2)] flex items-center gap-3 pointer-events-auto">
-            <div className="p-1.5 bg-fuchsia-500/20 rounded-lg border border-fuchsia-500/50">
-                <ClockIcon className="w-4 h-4 text-fuchsia-400" />
-            </div>
-            <div>
-                <p className="text-[9px] text-fuchsia-100/60 uppercase tracking-widest">Tốc độ quét</p>
-                <p className="text-sm font-bold text-white drop-shadow-[0_0_5px_rgba(217,70,239,0.5)]">1.2s / Trang</p>
-            </div>
-        </motion.div>
-
-        
-    </div>
-
-
-    {/* ================= LAYER 2: INTERACTIVE DOCK & HEADER (Z-50) ================= */}
-    <div className="relative z-50 flex flex-col w-full h-full justify-between mt-10">
-        
-        {/* DOCK WRAPPER */}
-        <div className="w-full flex justify-center pt-40 pb-10">
-            <motion.div variants={fadeUpItem} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="relative inline-flex flex-wrap justify-center items-end gap-3 md:gap-6 bg-white/5 border border-white/10 rounded-[2.5rem] px-6 md:px-10 py-4 shadow-2xl backdrop-blur-lg">
-                {features.map((item, idx) => (
-                    <div key={idx} className="relative group flex flex-col items-center justify-end cursor-pointer">
-                        {/* TOOLTIP */}
-                        <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-[260px] opacity-0 translate-y-8 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-out z-[60]">
-                            <div className="bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/20 p-5 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.6)] flex flex-col items-start text-left relative">
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#0a0a0a]/90 border-b border-r border-white/20 rotate-45"></div>
-                                <h3 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 uppercase tracking-tight">{item.title}</h3>
-                                <p className="text-xs text-gray-300 leading-relaxed font-medium">{item.desc}</p>
+                    {/* --- WIDGET TO TRÁI (Database) --- */}
+                    <div className="absolute left-6 top-[32%] animate-float pointer-events-auto">
+                        <div className="bg-white/80 backdrop-blur-xl border border-amber-500/30 p-5 rounded-[2rem] shadow-[0_15px_40px_rgba(245,158,11,0.1)] w-48 hover:bg-white hover:border-amber-400 transition-all cursor-default">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 bg-amber-50 rounded-lg border border-amber-200">
+                                    <ChartBarIcon className="w-5 h-5 text-amber-500" />
+                                </div>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Database</span>
+                            </div>
+                            <h4 className="text-2xl font-semibold text-[#1A2530] leading-none">14,203</h4>
+                            <p className="text-[10px] text-zinc-400 mt-1 font-medium">Hợp đồng đã quét</p>
+                            <div className="mt-4 h-1 w-full bg-zinc-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-amber-400 to-amber-600 w-[75%] shadow-[0_0_10px_#f59e0b]"></div>
                             </div>
                         </div>
-
-                        {/* ICON */}
-                        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-[1.2rem] flex items-center justify-center bg-gradient-to-br ${item.color} shadow-lg transition-transform duration-300 ease-out origin-bottom group-hover:scale-[1.4] group-hover:-translate-y-4 group-hover:shadow-[0_10px_30px_rgba(34,211,238,0.4)] border border-white/10`}>
-                            <item.icon className="w-7 h-7 md:w-8 md:h-8 text-white drop-shadow-md" />
-                        </div>
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute -bottom-2 left-1/2 -translate-x-1/2 shadow-[0_0_8px_#22d3ee]"></div>
                     </div>
-                ))}
-            </motion.div>
-        </div>
-    </div>
-</section>
-            {/* ==========================================================
-    SECTION 4: GIỚI THIỆU & THỐNG KÊ (Đã tối ưu Performance)
-========================================================== */}
-            <section className="relative w-full max-w-7xl mx-auto px-6 py-32 z-20">
-                <div className="flex flex-col lg:flex-row gap-16 lg:gap-24 items-start">
 
-                    {/* CỘT TRÁI: Dính (Sticky) */}
-                    <motion.div
-                        className="lg:w-5/12 lg:sticky lg:top-40 space-y-8 p-8 md:p-10 rounded-[2.5rem] bg-black/40 border border-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] transform-gpu will-change-transform"
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, amount: 0.1, margin: "-100px" }} // Trình diễn sớm hơn
-                        variants={staggerContainer}
-                    >
-                        {/* Nội dung cột trái giữ nguyên */}
-                        <motion.div variants={fadeUpItem} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 bg-white/5 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
-                            Về LegalBot
-                        </motion.div>
-                        <motion.h2 variants={fadeUpItem} className="text-4xl md:text-6xl font-black text-white leading-[1] tracking-tighter">
-                            Giải pháp pháp lý <br />
-                            <span className="text-cyan-400 font-serif italic font-light tracking-normal">Thời đại số</span>
-                        </motion.h2>
-                        <motion.p variants={fadeUpItem} className="text-gray-300 text-lg leading-relaxed font-medium">
-                            <strong className="text-white">LegalBot</strong> không chỉ là công cụ tra cứu, mà là trợ lý ảo đắc lực.
-                        </motion.p>
+                    {/* --- WIDGET TO PHẢI (Cảnh báo rủi ro) --- */}
+                    <div className="absolute right-6 top-[28%] animate-float-slow pointer-events-auto">
+                        <div className="bg-white/80 backdrop-blur-xl border border-rose-500/30 p-5 rounded-[2rem] shadow-[0_15px_40px_rgba(244,63,94,0.1)] w-56 hover:bg-white hover:border-rose-400 transition-all cursor-default">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-rose-500 blur-md opacity-30 animate-pulse"></div>
+                                    <ShieldExclamationIcon className="w-5 h-5 text-rose-500 relative z-10" />
+                                </div>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Cảnh báo rủi ro</span>
+                            </div>
+                            <div className="flex flex-col gap-3">
+                                <div className="border-l-2 border-rose-500 pl-3 relative group">
+                                    <p className="text-[10px] text-[#1A2530] font-bold leading-tight">Điều khoản bảo mật</p>
+                                    <p className="text-[9px] text-rose-500/80">Thiếu cam kết 2 chiều</p>
+                                </div>
+                                <div className="border-l-2 border-orange-400 pl-3 opacity-80">
+                                    <p className="text-[10px] text-[#1A2530] font-bold leading-tight">Tranh chấp tài phán</p>
+                                    <p className="text-[9px] text-zinc-400">Chưa rõ cơ quan</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* --- WIDGET MINI TRÁI (AI Confidence) --- */}
+                    <motion.div animate={{ y: [0, -15, 0], rotate: [0, 2, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-[12%] left-[8%] md:left-[12%] bg-white/90 backdrop-blur-md border border-emerald-500/40 rounded-2xl p-3 shadow-[0_10px_30px_rgba(16,185,129,0.15)] flex items-center gap-3 pointer-events-auto">
+                        <div className="p-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                            <CheckBadgeIcon className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-bold">AI Confidence</p>
+                            <p className="text-sm font-semibold text-emerald-600">99.8%</p>
+                        </div>
                     </motion.div>
 
-                    {/* CỘT PHẢI: Lưới So Le */}
-                    <motion.div
-                        className="lg:w-7/12 grid grid-cols-1 md:grid-cols-2 gap-6"
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, amount: 0.1 }}
-                        variants={staggerContainer}
-                    >
-                        {stats.map((stat, idx) => (
-                            <motion.div
-                                key={stat.id}
-                                variants={fadeUpItem}
-                                // Tối ưu class: Dùng backdrop-blur-xl và transform-gpu
-                                className={`p-8 md:p-10 rounded-[2rem] bg-black/40 border border-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.5)] flex flex-col justify-between aspect-square group hover:border-cyan-500/50 hover:bg-white/5 transition-all duration-500 transform-gpu will-change-transform ${idx % 2 !== 0 ? 'md:mt-16' : ''}`}
-                            >
-                                {/* Nội dung Card giữ nguyên */}
-                                <div className="flex justify-between items-start">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-600/20 flex items-center justify-center border border-white/10 group-hover:scale-110 group-hover:-rotate-12 transition-transform duration-500">
-                                        <stat.icon className="w-5 h-5 text-cyan-400" />
+                    {/* --- WIDGET MINI PHẢI (Tốc độ quét) --- */}
+                    <motion.div animate={{ y: [0, 15, 0], rotate: [0, -2, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }} className="absolute top-[10%] right-[8%] md:right-[12%] bg-white/90 backdrop-blur-md border border-fuchsia-500/40 rounded-2xl p-3 shadow-[0_10px_30px_rgba(217,70,239,0.15)] flex items-center gap-3 pointer-events-auto">
+                        <div className="p-1.5 bg-fuchsia-50 rounded-lg border border-fuchsia-200">
+                            <ClockIcon className="w-4 h-4 text-fuchsia-600" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] text-zinc-400 uppercase tracking-widest font-bold">Tốc độ quét</p>
+                            <p className="text-sm font-semibold text-fuchsia-600">1.2s / Trang</p>
+                        </div>
+                    </motion.div>
+
+                </div>
+
+                {/* ================= LAYER 2: INTERACTIVE DOCK & HEADER (Z-50) ================= */}
+                <div className="relative z-50 flex flex-col w-full h-full justify-between mt-10">
+                    {/* DOCK WRAPPER */}
+                    <div className="w-full flex justify-center pt-40 pb-10">
+                        {/* Đổi màu Dock thành nền trắng kính mờ */}
+                        <motion.div variants={fadeUpItem} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="relative inline-flex flex-wrap justify-center items-end gap-3 md:gap-6 bg-white/60 border border-zinc-200 rounded-[2.5rem] px-6 md:px-10 py-4 shadow-[0_20px_50px_rgba(0,0,0,0.05)] backdrop-blur-xl">
+                            {features.map((item, idx) => (
+                                <div key={idx} className="relative group flex flex-col items-center justify-end cursor-pointer">
+
+                                    {/* TOOLTIP ĐỔI SANG LIGHT MODE */}
+                                    <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-[260px] opacity-0 translate-y-8 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 ease-out z-[60]">
+                                        <div className="bg-white/95 backdrop-blur-xl border border-zinc-200 p-5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] flex flex-col items-start text-left relative">
+                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-zinc-200 rotate-45"></div>
+                                            <h3 className="text-base font-semibold text-[#1A2530] mb-2 uppercase tracking-tight group-hover:text-[#B8985D] transition-colors">{item.title}</h3>
+                                            <p className="text-xs text-zinc-500 leading-relaxed font-medium">{item.desc}</p>
+                                        </div>
                                     </div>
-                                    <span className="text-xs font-bold text-gray-500">0{idx + 1}</span>
+
+                                    {/* ICON - Giữ nguyên mảng màu gradient nhưng bỏ border trắng */}
+                                    <div className={`w-14 h-14 md:w-16 md:h-16 rounded-[1.2rem] flex items-center justify-center bg-gradient-to-br ${item.color} shadow-lg transition-transform duration-300 ease-out origin-bottom group-hover:scale-[1.4] group-hover:-translate-y-4 group-hover:shadow-xl`}>
+                                        <item.icon className="w-7 h-7 md:w-8 md:h-8 text-white drop-shadow-sm" />
+                                    </div>
+                                    {/* Chấm vàng thay vì chấm xanh */}
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#B8985D] opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute -bottom-2 left-1/2 -translate-x-1/2 shadow-[0_0_8px_#B8985D]"></div>
                                 </div>
-                                <div>
-                                    <p className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter mb-2 group-hover:text-cyan-400 origin-left transition-all duration-500">{stat.value}</p>
-                                    <p className="text-xs font-bold tracking-widest text-gray-400 uppercase">{stat.label}</p>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </motion.div>
+                            ))}
+                        </motion.div>
+                    </div>
                 </div>
             </section>
             {/* ==========================================================
-                SECTION 5: IMMERSIVE CTA (Split-Screen Layout)
+                SECTION 4: GIỚI THIỆU & THỐNG KÊ (Snap & Responsive)
             ========================================================== */}
-            <section ref={section4Ref} className="relative w-full max-w-7xl mx-auto px-6 py-20 z-20">
+            {/* CẬP NHẬT: Thêm min-h-screen, snap-start, flex căn giữa và bg */}
+            <section className="relative w-full min-h-screen snap-start bg-[#f8f9fa] flex flex-col justify-center py-20 z-20 overflow-hidden">
+                <div className="max-w-7xl mx-auto px-6 w-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-14 lg:gap-20 items-start">
+                        {/* CỘT TRÁI: Dính (Sticky) */}
+                        <motion.div
+                            className="lg:col-span-5 lg:sticky lg:top-40"
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, amount: 0.1, margin: "-100px" }}
+                            variants={staggerContainer}
+                        >
+                            <div className="relative pl-6">
+                                <div className="absolute left-0 top-1 bottom-1 w-px bg-[linear-gradient(180deg,rgba(184,152,93,0.95),rgba(26,37,48,0.25),transparent)] opacity-70"></div>
+
+                                <motion.p
+                                    variants={fadeUpItem}
+                                    className="text-[18px] uppercase tracking-[0.26em] text-[#B8985D] font-bold"
+                                >
+                                    Về LegalBot
+                                </motion.p>
+
+                                <motion.h2
+                                    variants={fadeUpItem}
+                                    className="mt-5 text-3xl md:text-5xl font-semibold  tracking-[-0.04em] leading-[1.08] text-[#1A2530]"
+                                >
+                                    Trợ lý pháp lý cho quyết định nhanh, có căn cứ.
+                                </motion.h2>
+
+                                <motion.p
+                                    variants={fadeUpItem}
+                                    className="mt-6 max-w-[62ch] text-base md:text-lg leading-relaxed text-zinc-600 font-medium"
+                                >
+                                    LegalBot ưu tiên sự minh bạch: kết quả đi kèm ngữ cảnh và trích dẫn, để bạn kiểm tra lại nhanh, thảo luận trong nhóm, và lưu vết ra quyết định một cách nhất quán.
+                                </motion.p>
+
+                                <motion.ul
+                                    variants={fadeUpItem}
+                                    className="mt-8 max-w-[62ch] list-disc pl-5 space-y-3 text-sm md:text-base leading-relaxed text-zinc-600 font-medium marker:text-[#B8985D]"
+                                >
+                                    <li>Tìm điều khoản theo ngữ nghĩa, không phụ thuộc từ khóa chính xác.</li>
+                                    <li>Đối chiếu theo ngữ cảnh, giảm bỏ sót khi rà soát nhanh.</li>
+                                    <li>Lưu lịch sử phân tích theo hồ sơ, thuận tiện bàn giao và kiểm toán nội bộ.</li>
+                                </motion.ul>
+                            </div>
+                        </motion.div>
+
+                        {/* CỘT PHẢI: Thống kê (Typography-first) */}
+                        <motion.div
+                            className="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12 mt-10 lg:mt-0"
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, amount: 0.1 }}
+                            variants={staggerContainer}
+                        >
+                            {stats.map((stat, idx) => (
+                                <motion.div
+                                    key={stat.id}
+                                    variants={fadeUpItem}
+                                    className={`relative pl-7 pr-2 ${idx % 2 !== 0 ? 'md:pt-10' : ''}`}
+                                >
+                                    <div className="absolute left-0 top-2.5 h-2 w-2 rounded-full bg-[#B8985D] opacity-90"></div>
+                                    <div className="flex items-start justify-between gap-6">
+                                        <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.24em] text-zinc-500">
+                                            {stat.label}
+                                        </p>
+                                        <stat.icon className="w-5 h-5 text-[#B8985D] opacity-80 stroke-[2px]" />
+                                    </div>
+                                    <p className="mt-3 text-5xl md:text-6xl font-semibold tracking-[-0.04em] leading-none text-[#1A2530] tabular-nums">
+                                        {stat.value}
+                                    </p>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+                    </div>
+                </div>
+            </section>
+
+           {/* ==========================================================
+                SECTION 5: IMMERSIVE CTA (Snap & Background Fixed)
+            ========================================================== */}
+            <section ref={section4Ref} className="relative w-full min-h-screen snap-start bg-[#f8f9fa] flex flex-col justify-center items-center overflow-hidden z-20 py-10">
                 <motion.div
                     initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeUpItem}
-                    className="relative w-full rounded-[2.5rem] overflow-hidden p-10 md:p-16 lg:p-20 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-left"
+                    
+                    className="relative w-full max-w-7xl mx-auto px-6 md:px-12 py-20 text-left bg-white border border-[#B8985D] rounded-[2.5rem] shadow-[0_20px_60px_rgba(184,152,93,0.15)] overflow-hidden"
                 >
-                    {/* Lớp màng lọc sương mù tạo chiều sâu */}
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-2xl -z-10"></div>
-                    {/* Hiệu ứng gradient mờ ảo bên trong khối */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent -z-10"></div>
+                    
+                    <div className="absolute inset-0 -z-10 pointer-events-none">
+                      
+                        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_20%_20%,rgba(184,152,93,0.25),transparent_60%)]"></div>
+                        <div className="absolute inset-0 bg-[radial-gradient(900px_500px_at_80%_40%,rgba(26,37,48,0.03),transparent_55%)]"></div>
+                        
+                     
+                        <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[#B8985D] to-transparent opacity-80"></div>
+                    </div>
+                    
+                  
 
                     {/* Sử dụng CSS Grid để chia 2 cột */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20 items-center">
 
                         {/* CỘT TRÁI: Tiêu đề & Form Đăng ký */}
                         <div className="flex flex-col items-start">
-                            <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter mb-6 leading-[1.1]">
-                                Tiên phong trong <br className="hidden md:block" />
-                                <span className="font-serif italic font-light text-cyan-400">Pháp lý số</span>
+                            <p className="text-[11px] md:text-xs font-bold uppercase tracking-[0.26em] text-[#B8985D]">
+                                Dùng thử sớm
+                            </p>
+                            <h2 className="mt-5 text-4xl md:text-5xl lg:text-6xl font-semibold text-[#1A2530] tracking-[-0.04em] mb-6 leading-[1.08]">
+                                Nhận lịch mời trải nghiệm
+                                <br className="hidden md:block" />
+                                <span className="text-[#B8985D]"> LegalBot</span>
                             </h2>
 
-                            <p className="text-gray-300 text-base font-medium leading-relaxed mb-10">
-                                Đăng ký để nhận quyền truy cập sớm về dự án của chúng tôi.
+                            <p className="text-zinc-600 text-base md:text-lg font-medium leading-relaxed mb-10 max-w-[62ch]">
+                                Để lại email để nhận cập nhật lộ trình và ưu tiên mời dùng thử theo đợt. Chúng tôi gửi thông tin ngắn gọn, tập trung vào thay đổi quan trọng.
                             </p>
 
-                            {/* Form Đăng ký (Pill Input) */}
-                            <form className="w-full max-w-md flex items-center bg-black/50 border border-white/20 rounded-full p-1.5 focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/50 transition-all duration-300">
+                            {/* Form Đăng ký (Pill Input)  */}
+                            <form className="w-full max-w-md flex items-center rounded-full bg-[#B8985D]/20 p-1.5 border border-[#B8985D]/40 shadow-sm transition-all duration-300 focus-within:bg-white focus-within:border-[#B8985D] focus-within:ring-1 focus-within:ring-[#B8985D] focus-within:shadow-[0_0_20px_rgba(184,152,93,0.3)]">
                                 <input
                                     type="email"
-                                    placeholder="Nhập địa chỉ email..."
+                                    placeholder="Email công việc"
                                     required
-                                    className="flex-1 bg-transparent px-5 text-white text-sm font-medium focus:outline-none placeholder-gray-500 w-full"
+                                    className="flex-1 bg-transparent px-5 py-3 text-[#1A2530] text-sm md:text-base font-medium focus:outline-none placeholder:text-zinc-500 w-full"
                                 />
                                 <button
                                     type="submit"
-                                    className="bg-white text-black px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-cyan-400 hover:text-black transition-colors duration-300 shrink-0"
+                                    className="bg-[#1A2530] text-white px-6 py-3 rounded-full font-bold text-sm md:text-base flex items-center gap-2 hover:bg-[#B8985D] transition-colors duration-300 shrink-0 shadow-md"
                                 >
-                                    Đăng ký <span>✦</span>
+                                    Nhận truy cập sớm <span aria-hidden="true">✦</span>
                                 </button>
                             </form>
                         </div>
 
-                        {/* CỘT PHẢI: 3 Đoạn Text kèm vòng tròn đánh số */}
-                        <div className="flex flex-col space-y-8">
+                        {/* CỘT PHẢI: 3 điểm chính (đánh số) */}
+                        <ol className="flex flex-col space-y-10">
 
                             {/* Dòng 1 */}
-                            <div className="flex items-start gap-5 group">
-                                <div className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 shrink-0 group-hover:border-cyan-500/50 group-hover:text-cyan-400 transition-colors">
+                            <li className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 items-start group">
+                                <div className="text-lg md:text-xl font-black tracking-[0.1em] text-zinc-400 group-hover:text-[#B8985D] transition-colors duration-300 tabular-nums pt-0.5">
                                     01
                                 </div>
-                                <p className="text-gray-300 text-sm md:text-base leading-relaxed pt-2">
-                                    Trở thành một trong những người đầu tiên tham gia thử nghiệm tính năng Agentic Workflow và RAG đa luồng của LegalBot.
+                                <p className="text-zinc-600 text-sm md:text-base leading-relaxed font-medium group-hover:text-[#1A2530] transition-colors duration-300">
+                                    Ưu tiên mời dùng thử Agentic Workflow và RAG đa nguồn theo nhóm nhỏ, tập trung đúng nghiệp vụ.
                                 </p>
-                            </div>
+                            </li>
 
                             {/* Dòng 2 */}
-                            <div className="flex items-start gap-5 group">
-                                <div className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 shrink-0 group-hover:border-cyan-500/50 group-hover:text-cyan-400 transition-colors">
+                            <li className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 items-start group">
+                                <div className="text-lg md:text-xl font-black tracking-[0.1em] text-zinc-400 group-hover:text-[#B8985D] transition-colors duration-300 tabular-nums pt-0.5">
                                     02
                                 </div>
-                                <p className="text-gray-300 text-sm md:text-base leading-relaxed pt-2">
-                                    Cùng chúng tôi định hình tương lai của ngành luật Việt Nam.
+                                <p className="text-zinc-600 text-sm md:text-base leading-relaxed font-medium group-hover:text-[#1A2530] transition-colors duration-300">
+                                    Nhận tài liệu cập nhật ngắn gọn, giúp bạn đánh giá khả năng áp dụng vào quy trình hiện tại.
                                 </p>
-                            </div>
+                            </li>
 
                             {/* Dòng 3 */}
-                            <div className="flex items-start gap-5 group">
-                                <div className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400 shrink-0 group-hover:border-cyan-500/50 group-hover:text-cyan-400 transition-colors">
+                            <li className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 items-start group">
+                                <div className="text-lg md:text-xl font-black tracking-[0.1em] text-zinc-400 group-hover:text-[#B8985D] transition-colors duration-300 tabular-nums pt-0.5">
                                     03
                                 </div>
-                                <p className="text-gray-300 text-sm md:text-base leading-relaxed pt-2">
-                                    Khám phá cách trí tuệ nhân tạo giúp rút ngắn 80% thời gian rà soát hợp đồng và giảm thiểu tối đa rủi ro pháp lý.
+                                <p className="text-zinc-600 text-sm md:text-base leading-relaxed font-medium group-hover:text-[#1A2530] transition-colors duration-300">
+                                    Gửi phản hồi để chúng tôi tinh chỉnh cách trình bày trích dẫn và ngữ cảnh, tăng độ tin cậy khi sử dụng.
                                 </p>
-                            </div>
-
-                        </div>
+                            </li>
+                        </ol>
                     </div>
                 </motion.div>
             </section>

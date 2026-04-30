@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import {
     XMarkIcon,
@@ -27,15 +28,26 @@ export default function ChatbotAI({ isOpen, onClose }) {
     // Khởi tạo tin nhắn chào mừng
     useEffect(() => {
         setIsSaved(false);
-        if (chatMode === 'ai') {
-            setMessages([
-                { id: 'ai-init', text: "Chào bạn! Tôi là LegalAI. Bạn cần thẩm định hay tư vấn điều khoản nào?", isBot: true }
-            ]);
-        } else {
-            setMessages([
-                { id: 'human-init', text: "Chào bạn! Bạn đã kết nối với chế độ Luật sư. Vui lòng mô tả vấn đề của bạn.", isBot: true }
-            ]);
-        }
+        
+        // Dùng 'prev' để kiểm tra trạng thái hiện tại trước khi hành động
+        setMessages(prev => {
+         
+            // TUYỆT ĐỐI KHÔNG được reset mảng. Giữ nguyên đoạn chat!
+            if (prev && prev.length > 1) {
+                return prev;
+            }
+
+            // Nếu mảng đang trống (hoặc chỉ mới có câu chào cũ), thì mới khởi tạo
+            if (chatMode === 'ai') {
+                return [
+                    { id: 'ai-init', text: "Chào bạn! Tôi là LegalAI. Bạn cần thẩm định hay tư vấn điều khoản nào?", isBot: true }
+                ];
+            } else {
+                return [
+                    { id: 'human-init', text: "Chào bạn! Bạn đã kết nối với chế độ Luật sư. Vui lòng mô tả vấn đề của bạn.", isBot: true }
+                ];
+            }
+        });
     }, [chatMode]);
 
     // Tự động cuộn xuống tin nhắn mới
@@ -119,7 +131,7 @@ export default function ChatbotAI({ isOpen, onClose }) {
                 }, 1500);
             }
         } catch (error) {
-            setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ Server LegAI đang bận, thử lại sau nhé Duy.", isBot: true }]);
+            setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.", isBot: true }]);
         } finally {
             if (chatMode === 'ai') setIsLoading(false);
         }
@@ -133,22 +145,83 @@ export default function ChatbotAI({ isOpen, onClose }) {
     };
 
     if (!isOpen) return null;
+   // =========================================================================
+    // HÀM  Xử lý mọi cấu trúc JSON từ Gemini trả về
+    // =========================================================================
+    const formatAIMessage = (text) => {
+        if (!text) return "";
+        
+        try {
+            const parsed = JSON.parse(text);
+            
+            // 1. CHẶN NGAY LỖI CHỮ "C": Nếu JSON trả về là mảng chuỗi ["Chào bạn..."] 
+            // hoặc chuỗi trực tiếp "Chào bạn...", thì nối lại và trả về luôn.
+            if (typeof parsed === 'string') return parsed;
+            if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
+                return parsed.join('\n');
+            }
 
+            const data = Array.isArray(parsed) ? parsed[0] : parsed;
+
+            // Đảm bảo data là một Object thì mới bắt đầu trích xuất Key
+            if (typeof data !== 'object' || data === null) {
+                return String(data);
+            }
+
+            // 2. KIỂM TRA TRƯỜNG HỢP CÂU HỎI PHÁP LÝ (Có các key chuẩn)
+            const ketLuan = data["Kết luận"] || data["ket_luan"] || data["ketLuan"] || "";
+            const phanTich = data["Phân tích"] || data["phan_tich"] || data["phanTich"] || "";
+            const coSo = data["Cơ sở pháp lý"] || data["co_so_phap_ly"] || data["coSoPhapLy"] || "";
+            const loiKhuyen = data["Lời khuyên"] || data["loi_khuyen"] || data["loiKhuyen"] || "";
+
+            if (ketLuan || phanTich || coSo || loiKhuyen) {
+                let mdText = "";
+                if (ketLuan) mdText += `⚖️ **Kết luận:**\n${ketLuan}\n\n`;
+                if (phanTich) mdText += `🔍 **Phân tích:**\n${phanTich}\n\n`;
+                
+                if (coSo) {
+                    mdText += `📚 **Cơ sở pháp lý:**\n`;
+                    if (Array.isArray(coSo)) {
+                        coSo.forEach(item => mdText += `- ${item}\n`);
+                    } else {
+                        mdText += `${coSo}\n`;
+                    }
+                    mdText += `\n`;
+                }
+                
+                if (loiKhuyen) mdText += `💡 **Lời khuyên:**\n${loiKhuyen}\n\n`;
+                
+                return mdText.trim();
+            }
+
+            // 3. KIỂM TRA TRƯỜNG HỢP GIAO TIẾP THÔNG THƯỜNG BỊ BỌC JSON LẠ
+            // AI bị ép trả JSON nên sẽ tự bịa ra các key 
+            const fallbackText = data["text"] || data["message"] || data["response"] || data["reply"] || data["câu_trả_lời"] || data["phản_hồi"] || data["Phản hồi"];
+            if (fallbackText) return fallbackText;
+
+            // Nếu nó tạo ra key lạ, lôi ra Value là String đầu tiên (tránh lấy nhầm Array/Object)
+            const firstStringValue = Object.values(data).find(val => typeof val === 'string' && val.trim() !== '');
+            if (firstStringValue) return firstStringValue;
+
+            // Bí quá không bóc được thì in nguyên gốc
+            return text;
+
+        } catch (e) {
+            // Nếu JSON.parse báo lỗi -> Nghĩa là AI trả về text/markdown bình thường.
+            return text;
+        }
+    };
     return (
     <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        /* SỬA TẠI ĐÂY: 
-           - w-[90vw] md:w-[420px]: Tự thu nhỏ trên điện thoại.
-           - h-[min(600px,75vh)]: Giới hạn chiều cao thông minh, không bao giờ chạm Header.
-           - pointer-events-auto: Đảm bảo nó nhận chuột nhưng không chặn thằng khác.
-        */
+      
         className="fixed bottom-24 right-4 md:right-8 w-[95vw] md:w-[420px] h-[min(600px,75vh)] z-[101] flex flex-col pointer-events-auto"
     >
         <div className="flex-grow flex flex-col overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-3xl shadow-[0_20px_80px_rgba(0,0,0,0.4)]">
 
-            {/* HEADER (Giữ nguyên logic của Duy) */}
+            {/* HEADER  */}
             <div className="p-5 border-b border-white/10 bg-white/5 shrink-0">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -204,7 +277,16 @@ export default function ChatbotAI({ isOpen, onClose }) {
                                 ? 'bg-white/5 text-gray-300 rounded-tl-none border border-white/10' 
                                 : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-tr-none shadow-lg shadow-cyan-900/20'
                             }`}>
-                                {msg.text}
+                               
+                                {msg.isBot ? (
+                                    <div className="prose prose-invert max-w-none text-sm break-words markdown-chat">
+                                        <ReactMarkdown>
+                                            {formatAIMessage(msg.text)}
+                                        </ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                )}
                             </div>
                         </motion.div>
                     ))}
