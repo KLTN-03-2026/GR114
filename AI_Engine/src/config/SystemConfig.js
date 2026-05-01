@@ -1,4 +1,5 @@
 const { sql, pool } = require('./db');
+const { decrypt } = require('../utils/encryption');
 
 class SystemConfig {
     static appName = 'LEGAI HUB';
@@ -20,12 +21,30 @@ class SystemConfig {
                 const data = result.recordset[0];
                 this.appName = data.appName;
                 this.adminEmail = data.adminEmail;
-                this.geminiApiKey = data.geminiApiKey;
                 this.geminiModel = data.geminiModel;
                 this.temperature = parseFloat(data.temperature);
-                this.pineconeApiKey = data.pineconeApiKey;
                 this.pineconeIndex = data.pineconeIndex;
-                console.log('SystemConfig loaded from DB');
+
+                // --- BƯỚC GIẢI MÃ KHI LOAD TỪ DB CÓ BẢO VỆ CHỐNG CRASH ---
+                if (data.geminiApiKey) {
+                    try {
+                        this.geminiApiKey = decrypt(data.geminiApiKey);
+                    } catch (e) {
+                        console.log('⚠️ Cảnh báo: Gemini Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        this.geminiApiKey = data.geminiApiKey;
+                    }
+                }
+
+                if (data.pineconeApiKey) {
+                    try {
+                        this.pineconeApiKey = decrypt(data.pineconeApiKey);
+                    } catch (e) {
+                        console.log('⚠️ Cảnh báo: Pinecone Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        this.pineconeApiKey = data.pineconeApiKey;
+                    }
+                }
+
+                console.log('SystemConfig loaded and decrypted from DB');
             } else {
                 console.log('No AppConfigurations found in DB, using defaults');
             }
