@@ -5,6 +5,7 @@ import Header from "../components/PageHeader";
 import FloatingButtons from "../components/FloatingButtons"; 
 import ChatbotAI from "../components/ChatbotAI";           
 import Preloader from '../components/Preloader';
+import { Toaster } from 'react-hot-toast';
 
 const WAVES_CONFIG = ['top', 'middle', 'bottom'];
 
@@ -79,6 +80,21 @@ const MainLayout = ({ children }) => {
             <main className={`flex-grow relative z-10 pt-[80px] transition-all duration-1000 ${isReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
                 {children}
             </main>
+
+            {!isAdminPage && (
+                <Toaster
+                    position="top-right"
+                    toastOptions={{
+                        className: 'text-sm font-semibold',
+                        duration: 2800,
+                        style: {
+                            border: '1px solid #e4e4e7',
+                            borderRadius: '12px',
+                            color: '#1A2530'
+                        }
+                    }}
+                />
+            )}
 
             {/* Chỉ hiển thị Chatbot & Nút nổi khi KHÔNG PHẢI trang Admin */}
             {!isAdminPage && (
