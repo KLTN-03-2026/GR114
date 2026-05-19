@@ -28,7 +28,13 @@ const sampleDocuments = [
 
 const canUseDb = async () => {
   await poolConnect;
-  return isDbReady();
+  if (!isDbReady()) return false;
+  try {
+    await pool.request().query('SELECT 1 AS Ok');
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /**
