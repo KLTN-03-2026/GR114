@@ -39,19 +39,24 @@ const getCleanContent = (content) => {
     return content.trim();
 };
 
-// =============================================================================
-// BỘ PARSER VĂN BẢN PHÁP LUẬT V2: PHÂN CẤP THỤT LỀ + KHỬ TRÙNG TIÊU ĐỀ QUỐC HIỆU
-// =============================================================================
 const parseLegalContentToHTML = (content) => {
     if (!content) return null;
 
-    const lines = content.split('\n');
+
+    // Regex  chèn \n trước các từ khóa
+    const processedContent = content
+        .replace(/(CHƯƠNG\s+[IVXLCDM\d]+)/gi, '\n$1\n')
+        .replace(/(ĐIỀU\s+\d+[\.\s]+[^\n]*)/gi, '\n$1\n')
+        .replace(/(\d+\.\s+)/g, '\n$1 ')
+        .replace(/([a-z]\)\s+)/g, '\n$1 ');
+
+    const lines = processedContent.split('\n');
 
     return lines.map((line, index) => {
         const trimmedLine = line.trim();
-        if (!trimmedLine) return <div key={index} className="h-3" />;
+        if (!trimmedLine) return null;
 
-        // 🔥 CHỐT CHẶN KHỬ TRÙNG: Bỏ qua các dòng tiêu đề hành chính đã hiển thị ở Header A4
+
         const upperLine = trimmedLine.toUpperCase();
         if (
             upperLine === "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" ||
@@ -62,55 +67,53 @@ const parseLegalContentToHTML = (content) => {
             /Hà Nội, ngày\s+\d+/i.test(trimmedLine) ||
             /^-------$/i.test(trimmedLine) ||
             /^______+$/i.test(trimmedLine)
-        ) {
-            return null; // Trả về null để React tự động loại bỏ dòng này, không render lên giao diện nữa
-        }
+        ) return null;
 
-        // 1. Định dạng cấu trúc CHƯƠNG / MỤC -> Căn giữa, in đậm nổi bật
-        if (/^(Chương|Mục)\s+[IVXLCDM\d]+/i.test(trimmedLine) || /^[A-ZỨỜỞÁÀẠẢÃÝỲỴỶỸÉÈẸẺẼÓÒỌỎÕÚÙỤỦŨÍÌỊỈĨĐ\s]{10,}$/.test(trimmedLine)) {
+
+        // 1. CHƯƠNG / MỤC
+        if (/^(Chương|Mục)\s+[IVXLCDM\d]+/i.test(trimmedLine)) {
             return (
-                <div key={index} className="text-center font-bold text-gray-900 text-[15.5px] my-5 uppercase tracking-wide">
+                <div key={index} className="text-center font-bold text-gray-950 text-[16px] my-6 uppercase tracking-wider border-b border-gray-200 pb-2">
                     {trimmedLine}
                 </div>
             );
         }
 
-        // 2. Định dạng cấu trúc ĐIỀU -> In đậm tiêu đề điều khoản, sát lề trái
+        // 2. ĐIỀU
         if (/^Điều\s+\d+/i.test(trimmedLine)) {
             return (
-                <div key={index} className="font-bold text-zinc-950 text-[15px] mt-4 mb-2 text-left">
+                <div key={index} className="font-bold text-zinc-950 text-[15px] mt-8 mb-3 text-left">
                     {trimmedLine}
                 </div>
             );
         }
 
-        // 3. Định dạng cấu trúc KHOẢN (Ví dụ: 1., 2., 3.) -> Thụt lề cấp 1
+        // 3. KHOẢN
         if (/^\d+\.\s+/.test(trimmedLine)) {
             return (
-                <div key={index} className="pl-6 text-[14.5px] text-gray-800 leading-relaxed text-justify mb-1.5 font-medium">
+                <div key={index} className="pl-6 text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 font-medium">
                     {trimmedLine}
                 </div>
             );
         }
 
-        // 4. Định dạng cấu trúc ĐIỂM (Ví dụ: a), b), c)) -> Thụt lề cấp 2
+        // 4. ĐIỂM
         if (/^[a-z]\)\s+/.test(trimmedLine)) {
             return (
-                <div key={index} className="pl-12 text-[14.5px] text-gray-700 leading-relaxed text-justify mb-1 font-normal italic">
+                <div key={index} className="pl-12 text-[14.5px] text-gray-700 leading-relaxed text-justify mb-1.5 italic">
                     {trimmedLine}
                 </div>
             );
         }
 
-        // 5. Các dòng văn xuôi thông thường
+        // 5. Văn xuôi
         return (
-            <div key={index} className="text-[14.5px] text-gray-800 leading-relaxed text-justify mb-1.5 pl-2">
+            <div key={index} className="text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 pl-2">
                 {trimmedLine}
             </div>
         );
     });
 };
-
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
     const [categories, setCategories] = useState([]);

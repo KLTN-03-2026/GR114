@@ -22,7 +22,7 @@ exports.ask = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
         }
 
-        console.log(`\n💬 [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
+        console.log(`\n [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
 
         // TRUY XUẤT RAG
         let relatedDocs = [];
@@ -31,7 +31,7 @@ exports.ask = async (req, res) => {
         } catch (err) {
             console.error('  Lỗi RAG:', err.message);
         }
-        
+
         // LOG GIÁM SÁT NGUỒN DATA CHO CHATBOT
         if (relatedDocs && relatedDocs.length > 0) {
             console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật).`);
@@ -78,7 +78,7 @@ const maskingEngine = (text, context = {}) => {
     let cCount = context.cCount || 1;
     const entityMap = context.entityMap || new Map();
 
-    // Đưa các họ kép lên đầu danh sách để ưu tiên bắt trước
+
     // Tạo danh sách họ bao gồm cả dạng Capitalize và dạng IN HOA TOÀN BỘ
     const vnSurnamesRaw = "Âu Dương|Tôn Thất|Trịnh Lê|Nguyễn|Trần|Lê|Phạm|Hoàng|Huỳnh|Phan|Vũ|Võ|Đặng|Bùi|Đỗ|Hồ|Ngô|Dương|Lý|Lâm|Đoàn|Tôn|Trịnh|Đinh";
     const vnSurnames = vnSurnamesRaw.split('|').flatMap(s => [s, s.toUpperCase()]).join('|');
@@ -92,7 +92,7 @@ const maskingEngine = (text, context = {}) => {
             .replace(/\s+([Tt][Nn][Hh][Hh]|[Cc][Pp]|[Cc]ổ\s+phần|[Tt]rách\s+nhiệm\s+hữu\s+hạn|[Mm]ột\s+thành\s+viên|đại diện|đại|là|tại)$/gi, "")
             .trim();
 
-        // Fix Test 10: Xử lý tên viết HOA toàn bộ
+
         if (cleanName === cleanName.toUpperCase() && cleanName.length > 3) {
             cleanName = cleanName.toLowerCase().replace(/(^|\s)\S/g, l => l.toUpperCase());
         }
@@ -291,9 +291,9 @@ exports.analyzeContract = async (req, res) => {
 
         // LOG GIÁM SÁT NGUỒN DATA Ở TERMINAL
         if (relatedDocs && relatedDocs.length > 0) {
-            console.log(`🟢 [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật để rà soát hợp đồng).`);
+            console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật để rà soát hợp đồng).`);
         } else {
-            console.log(`🟡 [NGUỒN DATA]: PINECONE TRỐNG -> Chuyển sang Google Search Grounding để đối chiếu. Luật mới sẽ được lấy từ mạng.`);
+            console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Chuyển sang Google Search Grounding để đối chiếu. Luật mới sẽ được lấy từ mạng.`);
         }
         console.log("Dang gui noi dung da bao mat cho Gemini phan tich...");
 

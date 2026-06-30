@@ -5,7 +5,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { sql, poolConnect, pool } = require('../src/config/db');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
-// --- 1. KHỞI TẠO TRỰC TIẾP GEMINI EMBEDDING (ĐỒNG BỘ BẢN 001 - 768 DIMENSIONS) ---
+// --- 1. KHỞI TẠO TRỰC TIẾP GEMINI EMBEDDING  ---
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });

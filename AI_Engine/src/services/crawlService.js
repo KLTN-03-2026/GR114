@@ -3,7 +3,7 @@ const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const e = require('express');
+const pMap = require('p-map');
 
 puppeteer.use(StealthPlugin());
 
@@ -25,15 +25,22 @@ const pc = new Pinecone({
 // Trạng thái crawl
 let crawlStatus = { isRunning: false, current: 0, total: 0, title: '', step: '' };
 const getCrawlStatus = () => crawlStatus;
-
 const extremeDeepClean = (text) => {
     if (!text) return "";
     return text
+        // 1. Hàn các từ bị chẻ đôi
         .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1 $2')
-        .replace(/([^.!?:\n])\n(?![A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝ])[\s]*/g, '$1 ')
+
+        // 2. Nối dòng thông minh: Không nối nếu dòng đó bắt đầu bằng từ viết hoa thường dùng cho tiêu đề
+        // Chỉ nối nếu dòng sau không phải là bắt đầu bằng: Chương, Điều, Mục, QUỐC HỘI
+        .replace(/([^.!?:\n])\n(?!(Chương|Điều|Mục|QUỐC HỘI|CỘNG HÒA|CƠ QUAN|SỐ:))[ \t]*/g, '$1 ')
+
+        // 3. Fix cứng các cụm từ
         .replace(/Qu\s+ốc hội/gi, 'Quốc hội')
         .replace(/Cộng\s+hòa/gi, 'Cộng hòa')
         .replace(/Xã\s+hội/gi, 'Xã hội')
+
+        // 4. Thu gọn khoảng trắng
         .replace(/[ \t]+/g, ' ')
         .replace(/\n\s*\n/g, '\n\n')
         .trim();
@@ -79,7 +86,6 @@ const scrapeContent = async (url) => {
     try {
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
         await autoScroll(page);
-        await new Promise(r => setTimeout(r, 2000));
 
         const data = await page.evaluate((minLen) => {
             const noise = [
@@ -157,7 +163,7 @@ const scrapeContent = async (url) => {
                 finalContent = finalContent.substring(0, bestCutIndex);
             }
 
-            // LƯỚI LỌC RÁC CHỐT HẠ
+            // LƯỚI LỌC 
             const trashKeywords = [
                 "Lưu trữ", "Ghi chú", "Ý kiến", "Facebook", "Email", "In", "Bài liên quan:",
                 "Từ khóa:", "Văn bản liên quan", "Bản án liên quan",
@@ -187,17 +193,63 @@ const scrapeContent = async (url) => {
 
 const processLegalCrawl = async (urlArray, io) => {
     try {
+        const startTime = Date.now();
         crawlStatus = { isRunning: true, current: 0, total: urlArray.length, title: '', step: '' };
+        console.log(` Bắt đầu quá trình crawl ${urlArray.length} URL...`);
         console.log(" KIỂM TRA ĐẦU VÀO url:", JSON.stringify(urlArray));
         await poolConnect;
 
-        let successCount = 0; let duplicateCount = 0; let failCount = 0;
+        const normalizedUrls = (urlArray || [])
+            .map(url => String(url || '').trim())
+            .filter(url => url.length > 0);
 
-        function smartChunk(content) {
+        const uniqueUrls = [];
+        const seenUrls = new Set();
+        let duplicateCount = 0;
+        let failCount = 0;
+        let successCount = 0;
+
+        for (const url of normalizedUrls) {
+            if (seenUrls.has(url)) {
+                duplicateCount++;
+                continue;
+            }
+            seenUrls.add(url);
+            uniqueUrls.push(url);
+        }
+
+        const existingUrls = new Set();
+        if (uniqueUrls.length > 0) {
+            const request = pool.request();
+            const urlParams = uniqueUrls.map((url, index) => {
+                const key = `url${index}`;
+                request.input(key, sql.NVarChar(1000), url);
+                return `@${key}`;
+            });
+
+            const existingResult = await request.query(
+                `SELECT SourceUrl FROM dbo.LegalDocuments WHERE SourceUrl IN (${urlParams.join(',')})`
+            );
+            existingResult.recordset.forEach(row => {
+                if (row.SourceUrl) existingUrls.add(row.SourceUrl);
+            });
+        }
+
+        const pendingUrls = uniqueUrls.filter(url => {
+            if (existingUrls.has(url)) {
+                duplicateCount++;
+                return false;
+            }
+            return true;
+        });
+
+        const smartChunk = (content) => {
             if (!content || typeof content !== 'string' || content.length === 0) return [];
             const chunks = [];
-            const chunkSize = 1500; const overlap = 200;
-            let start = 0; const max = content.length;
+            const chunkSize = 1500;
+            const overlap = 200;
+            let start = 0;
+            const max = content.length;
             while (start < max) {
                 const end = Math.min(start + chunkSize, max);
                 if (end <= start) break;
@@ -209,45 +261,35 @@ const processLegalCrawl = async (urlArray, io) => {
                 if (start >= end) start = end;
             }
             return chunks;
-        }
+        };
 
-        for (let i = 0; i < urlArray.length; i++) {
-            const url = String(urlArray[i] || '').trim();
-            if (!url) continue;
+        const index = pc.index(process.env.PINECONE_INDEX_NAME || 'legai-index-v2');
+        const dataList = [];
+        let processedCount = 0;
+
+        await pMap(pendingUrls, async (url) => {
+            const current = ++processedCount;
+            if (io) io.emit('crawl-progress', { ...crawlStatus, current, title: 'Đang bóc tách dữ liệu...', step: 'crawl' });
 
             try {
-                // Kiểm tra trùng lặp
-                const checkResult = await pool.request()
-                    .input('url', sql.NVarChar(1000), url)
-                    .query('SELECT Id FROM dbo.LegalDocuments WHERE SourceUrl = @url');
-
-                if (checkResult.recordset.length > 0) {
-                    duplicateCount++; continue;
-                }
-
-                if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang bóc tách dữ liệu...', step: 'crawl' });
-
                 console.log(`[Crawl] Đang truy cập URL: ${url}`);
 
-                // Gọi Puppeteer 
                 const scrapedData = await scrapeContent(url);
                 const minThreshold = url.includes('/cong-van/') ? 150 : 200;
                 if (!scrapedData || !scrapedData.content || scrapedData.content.length < minThreshold) {
-                    console.error(`Bỏ qua URL do bóc tách thất bại hoặc nội dung quá ngắn.`);
+                    console.error(`Bỏ qua URL do bóc tách thất bại hoặc nội dung quá ngắn: ${url}`);
                     failCount++;
-                    continue;
+                    return;
                 }
 
-                // Áp dụng DeepClean 
                 const title = scrapedData.title;
                 const content = extremeDeepClean(scrapedData.content);
 
                 console.log(`[Crawl] Hoàn tất bóc tách | Độ dài: ${content.length}`);
 
-                // Phân loại và ID
                 const finalCategory = getCategoryFromUrl(url);
                 const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})\b/);
-                const documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
+                let documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
 
                 if (documentNumber === "Đang cập nhật") {
                     const urlMatch = url.match(/([0-9]{1,4}-[A-Z0-9-]{2,10}-[0-9]{4})/i);
@@ -255,141 +297,153 @@ const processLegalCrawl = async (urlArray, io) => {
                 }
 
                 const urlSlug = url.split('/').pop().replace('.aspx', '');
-                const yearMatch = documentNumber.match(/\d{4}/) || content.match(/năm\s+(20\d{2})/i);
-                const issueYear = yearMatch ? parseInt(yearMatch[0] || yearMatch[1]) : new Date().getFullYear();
+                const yearMatch = (documentNumber && documentNumber.match) ? documentNumber.match(/\d{4}/) : null;
+                const yearFromContent = content.match(/năm\s+(20\d{2})/i);
+                const issueYear = yearMatch ? parseInt(yearMatch[0]) : (yearFromContent ? parseInt(yearFromContent[1]) : new Date().getFullYear());
                 let idSource = "";
                 if (documentNumber && documentNumber !== "Đang cập nhật") {
                     idSource = documentNumber;
                 } else if (title && title !== "Không tìm thấy tiêu đề") {
                     idSource = title;
-                }
-                else {
+                } else {
                     idSource = urlSlug;
                 }
-                let documentId = convertLegalStringToSlug(idSource);
+                const documentId = convertLegalStringToSlug(idSource);
 
                 console.log(`Generated document ID: ${documentId}`);
-                // gửi tín hiệu tiến độ để sáng Pipeline
-                if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang lưu vào SQL Server...', step: 'sql' });
-                // Lưu SQL
-                await pool.request()
-                    .input('id', sql.NVarChar(100), documentId)
-                    .input('title', sql.NVarChar(500), title)
-                    .input('docNum', sql.NVarChar(100), documentNumber)
-                    .input('year', sql.Int, issueYear)
-                    .input('category', sql.NVarChar(100), finalCategory)
-                    .input('content', sql.NVarChar(sql.MAX), content)
-                    .input('sourceUrl', sql.NVarChar(1000), url)
-                    .input('syncSsms', sql.NVarChar(50), 'success')
-                    .input('syncPinecone', sql.NVarChar(50), 'pending')
-                    .query(`
-                        INSERT INTO dbo.LegalDocuments 
-                        (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, SourceUrl, CreatedAt, SyncStatusSsms, SyncStatusPinecone) 
-                        VALUES 
-                        (@id, @title, @docNum, @year, N'Còn hiệu lực', @category, @content, @sourceUrl, GETDATE(), @syncSsms, @syncPinecone)
-                    `);
 
-                // =============================================================================
-                // KHỐI XỬ LÝ EMBEDDING & PINECONE V2 ĐÃ ĐƯỢC BỌC THÉP - KHỚP LỆNH DASHBOARD 100%
-                // =============================================================================
-                if (io) io.emit('crawl-progress', { ...crawlStatus, current: i + 1, title: 'Đang tạo vector...', step: 'pinecone' });
+                // báo tiến độ trước khi tạo vector
+                if (io) io.emit('crawl-progress', { ...crawlStatus, current, title: 'Đang tạo vector...', step: 'pinecone' });
 
                 const chunkData = smartChunk(content);
+                if (!chunkData || chunkData.length === 0) {
+                    console.log(`Cảnh báo: Không tách được chunk cho URL: ${url}`);
+                    failCount++;
+                    return;
+                }
 
-                //  Trỏ chính xác tuyệt đối sang tên Index hiển thị trên Dashboard Cloud
-                const index = pc.index(process.env.PINECONE_INDEX_NAME || 'legai-index-v2');
-                const vectors = [];
-
-                for (let chunkIdx = 0; chunkIdx < chunkData.length; chunkIdx++) {
-                    try {
-
-                        const embedResult = await embedModel.embedContent({
-                            content: { parts: [{ text: chunkData[chunkIdx].text }] },
+                // Batch embedding
+                const textsToEmbed = chunkData.map(c => c.text);
+                let embedResult;
+                try {
+                    embedResult = await embedModel.batchEmbedContents({
+                        requests: textsToEmbed.map(text => ({
+                            content: { parts: [{ text }] },
                             outputDimensionality: 768
-                        });
-
-                        vectors.push({
-                            id: `${documentId}_chunk_${chunkIdx}`,
-                            values: Array.from(embedResult.embedding.values).map(Number),
-                            // Chuẩn hóa cấu trúc trường Metadata đồng bộ với bộ lọc RAG hệ thống
-                            metadata: {
-                                id: documentId,
-                                title: title,
-                                doc_type: 'law',
-                                text: chunkData[chunkIdx].text,
-                                chunk_length: chunkData[chunkIdx].text.length,
-                                text_preview: chunkData[chunkIdx].text.substring(0, 300),
-                                source: url
-                            }
-                        });
-
-                        // Nghỉ giãn cách nhẹ chống gậy chặn Rate-Limit 429
-                        await new Promise(r => setTimeout(r, 400));
-                    } catch (chunkError) {
-                        if (chunkError.message && chunkError.message.includes('429')) {
-                            console.log(` Quá tải API nhúng Vector, bộ điều phối LegAI Router tạm nghỉ 30 giây...`);
-                            await new Promise(r => setTimeout(r, 30000));
-                            chunkIdx--;
-                            continue;
-                        } else {
-                            console.error(`Lỗi tạo vector tại chunk ${chunkIdx}:`, chunkError.message);
+                        }))
+                    });
+                } catch (embedErr) {
+                    if (embedErr.message && embedErr.message.includes('429')) {
+                        console.log(` Quá tải API nhúng Vector, tạm nghỉ 30 giây và thử lại...`);
+                        await new Promise(r => setTimeout(r, 30000));
+                        try {
+                            embedResult = await embedModel.batchEmbedContents({
+                                requests: textsToEmbed.map(text => ({
+                                    content: { parts: [{ text }] },
+                                    outputDimensionality: 768
+                                }))
+                            });
+                        } catch (secondErr) {
+                            console.error('Lỗi embedding sau retry:', secondErr.message || secondErr);
+                            failCount++;
+                            return;
                         }
+                    } else {
+                        console.error('Lỗi embedding:', embedErr.message || embedErr);
+                        failCount++;
+                        return;
                     }
                 }
 
-                // ĐƯA VECTOR LÊN MÂY PINECONE V2 THEO TỪNG BATCH TỐI ƯU
-                if (vectors.length > 0) {
-                    try {
-                        console.log(`\n Đang phóng ${vectors.length} vector nhúng lên đám mây legai-index0v2...`);
-
-                        // Chia nhỏ mảng thành từng batch 50 phần tử để đẩy lên mượt mà, chống nghẽn mạng
-                        for (let k = 0; k < vectors.length; k += 50) {
-                            await index.upsert(vectors.slice(k, k + 50));
-                        }
-
-                        // Cập nhật cờ trạng thái đồng bộ thành công vào SQL Server
-                        await pool.request()
-                            .input('SyncId', sql.NVarChar(100), documentId)
-                            .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @SyncId");
-
-                        console.log(`[PINECONE V2] Hoàn tất đẩy dữ liệu nhúng thành công cho văn bản: ${documentId}`);
-                    } catch (upsertError) {
-                        console.error(` Thất bại khi đẩy vector lên Pinecone Cloud:`, upsertError.message);
+                const vectors = (embedResult && embedResult.embeddings) ? embedResult.embeddings.map((emb, chunkIdx) => ({
+                    id: `${documentId}_chunk_${chunkIdx}`,
+                    values: Array.from(emb.values).map(Number),
+                    metadata: {
+                        id: documentId,
+                        title: title,
+                        doc_type: 'law',
+                        text: chunkData[chunkIdx].text,
+                        chunk_length: chunkData[chunkIdx].text.length,
+                        text_preview: chunkData[chunkIdx].text.substring(0, 300),
+                        source: url
                     }
-                } else {
-                    console.log(` Không có dữ liệu vector hợp lệ để đồng bộ lên Pinecone.`);
-                }
-                if (vectors.length > 0) {
-                    for (let j = 0; j < vectors.length; j += 50) {
-                        await index.upsert(vectors.slice(j, j + 50));
-                    }
-                    await pool.request()
-                        .input('id', sql.NVarChar(100), documentId)
-                        .query("UPDATE LegalDocuments SET SyncStatusPinecone = 'success' WHERE Id = @id");
+                })) : [];
 
-                    successCount++;
-                    console.log(`Xử lý thành công: ${title.substring(0, 50)}...`);
-                    await new Promise(r => setTimeout(r, 2000));
-                } else {
-                    console.log(`Cảnh báo: Không tạo được vector cho tài liệu ${documentId}`);
+                // Kiểm tra duplicate theo Id trong DB, nếu tồn tại thì bỏ qua
+                const check = await pool.request()
+                    .input('id', sql.NVarChar(100), documentId)
+                    .query('SELECT COUNT(1) as cnt FROM dbo.LegalDocuments WHERE Id = @id');
+                if (check && check.recordset && check.recordset[0] && check.recordset[0].cnt > 0) {
+                    duplicateCount++;
+                    return;
                 }
+
+                // Tích trữ dữ liệu để bulk import/upsert sau khi pMap hoàn thành
+                dataList.push({
+                    documentId,
+                    title,
+                    documentNumber,
+                    issueYear,
+                    finalCategory,
+                    content,
+                    sourceUrl: url,
+                    vectors,
+                    agency: scrapedData.agency || "",
+                    issueDateString: scrapedData.issueDateFull || ""
+                });
+                successCount++;
 
             } catch (urlError) {
-                console.error(`Lỗi xử lý tại URL ${url}:`, urlError.message);
+                console.error(`Lỗi xử lý tại URL ${url}:`, urlError.message || urlError);
                 failCount++;
             }
-        }
+        }, { concurrency: 5 });
+        if (dataList.length > 0) {
+            if (io) io.emit('crawl-progress', { ...crawlStatus, current: urlArray.length, title: 'Đang lưu SQL & Pinecone...', step: 'sql' });
 
+            // 4.1 Concurrent Insert SQL 
+            const insertPromises = dataList.map(item => {
+                return pool.request()
+                    .input('id', sql.NVarChar(100), item.documentId)
+                    .input('title', sql.NVarChar(500), item.title)
+                    .input('docNum', sql.NVarChar(100), item.documentNumber)
+                    .input('year', sql.Int, item.issueYear)
+                    .input('status', sql.NVarChar(50), 'Còn hiệu lực')
+                    .input('category', sql.NVarChar(100), item.finalCategory)
+                    .input('content', sql.NVarChar(sql.MAX), item.content)
+                    .input('sourceUrl', sql.NVarChar(1000), item.sourceUrl)
+                    .input('syncSsms', sql.NVarChar(50), 'success')
+                    .input('syncPinecone', sql.NVarChar(50), 'success')
+                    .input('agency', sql.NVarChar(255), item.agency)
+                    .input('issueDateString', sql.NVarChar(100), item.issueDateString)
+                    .query(`
+                        INSERT INTO dbo.LegalDocuments 
+                        (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone, Agency, IssueDateString) 
+                        VALUES 
+                        (@id, @title, @docNum, @year, @status, @category, @content, GETDATE(), @sourceUrl, @syncSsms, @syncPinecone, @agency, @issueDateString)
+                    `);
+            });
+
+            //  INSERT 
+            await Promise.all(insertPromises);
+            // 4.2 Batch Upsert Pinecone
+            const allVectors = dataList.flatMap(item => item.vectors || []);
+            for (let offset = 0; offset < allVectors.length; offset += 50) {
+                await index.upsert(allVectors.slice(offset, offset + 50));
+            }
+        }
+        const endTime = Date.now();
+        const executionTime = ((endTime - startTime) / 1000).toFixed(2);
+        console.log(`\n [HOÀN THÀNH] : Tổng ${urlArray.length} URL | Thành công: ${successCount} | Trùng lặp: ${duplicateCount} | Thất bại: ${failCount} | Thời gian: ${executionTime}s`);
         if (io) io.emit('crawl-progress', {
             isRunning: false,
-
             current: urlArray.length,
             total: urlArray.length,
             title: 'Hoàn thành!',
             step: 'done',
-            result: { successCount, duplicateCount, failCount }
+            result: { successCount, duplicateCount, failCount, executionTime }
         });
-        return { successCount, duplicateCount, failCount };
+        return { successCount, duplicateCount, failCount, executionTime };
 
     } catch (error) {
         console.error('Lỗi hệ thống toàn cục:', error);

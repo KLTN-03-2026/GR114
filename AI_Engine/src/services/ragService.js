@@ -2,7 +2,7 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { Pinecone } = require('@pinecone-database/pinecone');
-const SystemConfig = require('../config/SystemConfig'); // 1. Bổ sung import config từ UI
+const SystemConfig = require('../config/SystemConfig');
 
 // Đọc tên index linh hoạt từ file .env, mặc định là legai-index-v2
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "legai-index-v2";
@@ -10,39 +10,39 @@ let genAI;
 let pc;
 let index;
 let embedModel;
-let currentApiKey = ""; // 2. Biến theo dõi Key hiện tại
+let currentApiKey = "";
 
-// 1. Khởi tạo kết nối hệ thống (Hỗ trợ Hot-Reload Key từ UI)
 const initCloudServices = () => {
-    // 3. Ưu tiên lấy Key từ SystemConfig (do UI cập nhật), nếu không có mới lấy từ .env
     const activeKey = SystemConfig?.geminiApiKey || process.env.GEMINI_API_KEY;
+    // BỌC THÉP: Bốc trực tiếp tên index từ SystemConfig tĩnh đã được load từ DB lên!
+    const activeIndexName = SystemConfig?.pineconeIndex || process.env.PINECONE_INDEX_NAME || "legai-index-v2";
 
     if (!activeKey) {
         console.error("Lỗi Pinecone RAG: Không tìm thấy API Key!");
         return;
     }
 
-    // 4. KIỂM TRA HOT-RELOAD: Nếu chưa có AI HOẶC sếp vừa đổi Key mới trên UI
     if (!genAI || currentApiKey !== activeKey) {
-        console.log("🔄 RAG Service nhận API Key mới, đang cập nhật kết nối...");
         genAI = new GoogleGenerativeAI(activeKey);
         embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-        currentApiKey = activeKey; // Lưu lại vết key để đối chiếu lần sau
+        currentApiKey = activeKey;
     }
 
-    if (!pc) {
-        pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-        index = pc.index(PINECONE_INDEX_NAME);
+    // Cập nhật khởi tạo lại Index chuẩn theo DB 
+    if (!pc || indexNameWithDB !== activeIndexName) {
+        pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY || SystemConfig?.pineconeApiKey });
+        index = pc.index(activeIndexName);
+        indexNameWithDB = activeIndexName; // Tạo một biến toàn cục lưu vết tên index hiện tại
+        console.log(` [ĐỒNG BỘ THÀNH CÔNG]: RAG Service đã khóa mục tiêu vào Pinecone Index: ${activeIndexName}`);
     }
 };
-
 
 // 2. Hàm tìm kiếm tri thức pháp luật từ Cloud
 const query = async (queryText, k = 5) => {
     try {
         if (!index) initCloudServices();
 
-        console.log(`🔍 Đang truy vấn Cloud cho: "${queryText}"`);
+        console.log(` Đang truy vấn Cloud cho: "${queryText}"`);
 
         // Biến câu hỏi thành Vector bằng định dạng object chuẩn Protobuf
         const result = await embedModel.embedContent({

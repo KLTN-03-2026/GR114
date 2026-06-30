@@ -5,7 +5,7 @@ class SystemConfig {
     static appName = 'LEGAI HUB';
     static adminEmail = 'admin@legai.vn';
     static geminiApiKey = '';
-    static geminiModel = 'gemini-2.5-flash';
+    static geminiModel = 'gemini-3.1-flash-lite';
     static temperature = 0.3;
     static pineconeApiKey = '';
     static pineconeIndex = 'legal-vectors';
@@ -30,7 +30,7 @@ class SystemConfig {
                     try {
                         this.geminiApiKey = decrypt(data.geminiApiKey);
                     } catch (e) {
-                        console.log('⚠️ Cảnh báo: Gemini Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        console.log(' Cảnh báo: Gemini Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
                         this.geminiApiKey = data.geminiApiKey;
                     }
                 }
@@ -39,7 +39,7 @@ class SystemConfig {
                     try {
                         this.pineconeApiKey = decrypt(data.pineconeApiKey);
                     } catch (e) {
-                        console.log('⚠️ Cảnh báo: Pinecone Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        console.log(' Cảnh báo: Pinecone Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
                         this.pineconeApiKey = data.pineconeApiKey;
                     }
                 }

@@ -8,7 +8,8 @@ import {
     ExclamationTriangleIcon,
     StopIcon,
     ShieldExclamationIcon,
-    XMarkIcon
+    XMarkIcon,
+    EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 import aiClient from "../../api/aiClient";
 import axios from "axios";
@@ -29,6 +30,9 @@ export default function ContractAnalysis() {
     const [analyzedFileName, setAnalyzedFileName] = usePersistedState('legai_contract_filename', '');
     const [result, setResult] = usePersistedState('legai_contract_result', null);
     const [isSaved, setIsSaved] = usePersistedState('legai_contract_is_saved', false);
+
+    // --- STATE Dropdown blank_fields ---
+    const [showBlankFieldsMenu, setShowBlankFieldsMenu] = useState(false);
 
     // --- REFS ---
     const abortControllerRef = useRef(null);
@@ -104,10 +108,10 @@ export default function ContractAnalysis() {
             // TRÍCH XUẤT CHUỖI VĂN BẢN GỐC AN TOÀN - CHỐNG [object Object]
             // =================================================================
             let rawContractString = "";
-            
+
             if (result?.original_text) {
                 // Nếu là đối tượng, ép về chuỗi hoặc bốc thuộc tính nội dung
-                rawContractString = typeof result.original_text === 'object' 
+                rawContractString = typeof result.original_text === 'object'
                     ? (result.original_text.text || JSON.stringify(result.original_text))
                     : String(result.original_text);
             } else if (result?.originalText) {
@@ -128,7 +132,7 @@ export default function ContractAnalysis() {
                 recordType: 'ANALYSIS',
                 riskScore: result.risk_score ?? result.riskScore ?? 0,
                 content: JSON.stringify(result), // Chứa JSON kết quả rà soát
-                
+
                 // 🎯 ĐÃ SỬA THÀNH CÔNG: Đảm bảo dữ liệu đẩy lên SQL Server luôn là STRING THÔ SẠCH SẼ
                 contractText: rawContractString
             };
@@ -184,6 +188,21 @@ export default function ContractAnalysis() {
         { name: 'An toàn', value: result.risk_score ?? result.riskScore ?? 0, color: '#06b6d4' },
         { name: 'Rủi ro', value: 100 - (result.risk_score ?? result.riskScore ?? 0), color: '#ef4444' }
     ] : [];
+
+    // Helper: Lấy màu sắc từ contract_status
+    const getStatusColor = (status) => {
+        const statusLower = (status || '').toLowerCase();
+        if (statusLower.includes('draft_template') || statusLower.includes('draft')) {
+            return 'text-amber-600';
+        }
+        if (statusLower.includes('incomplete_data') || statusLower.includes('incomplete')) {
+            return 'text-red-600';
+        }
+        if (statusLower.includes('fully_executed') || statusLower.includes('executed')) {
+            return 'text-emerald-600';
+        }
+        return 'text-zinc-600';
+    };
     // Helper: Reset tất cả trạng thái về ban đầu, bao gồm cả giá trị thẻ input
     const resetAll = () => {
         setFile(null);
@@ -362,6 +381,57 @@ export default function ContractAnalysis() {
                                     <p className="text-zinc-600 text-sm leading-relaxed font-medium">{result.summary ?? "Đang cập nhật..."}</p>
                                 </div>
                             </div>
+
+                            {/* Completeness Audit Section - Minimalist Style */}
+                            {result?.completeness_audit && (
+                                <div className="flex flex-col gap-4 mb-8 border-t border-zinc-100 pt-6">
+                                    {/* Mức độ hoàn thiện & Trạng thái */}
+                                    <div className="flex items-center justify-between gap-4">
+                                        <p className="text-sm text-zinc-600 font-medium">
+                                            Mức độ hoàn thiện: <span className="font-bold text-[#1A2530]">{result?.completeness_audit?.completeness_score ?? 0}%</span>
+                                            <span className="mx-2 text-zinc-300">•</span>
+                                            Trạng thái:
+                                            <span className={`font-bold ml-2 ${getStatusColor(result?.completeness_audit?.contract_status)}`}>
+                                                {result?.completeness_audit?.contract_status ?? 'Unknown'}
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    {/* UI Message */}
+                                    {result?.completeness_audit?.ui_message && (
+                                        <p className="text-xs text-zinc-500 italic">{result.completeness_audit.ui_message}</p>
+                                    )}
+
+                                    {/* Blank Fields Badge - Dropdown Minimalist */}
+                                    {result?.completeness_audit?.blank_fields_detected && result.completeness_audit.blank_fields_detected.length > 0 && (
+                                        <div className="relative inline-flex">
+                                            <button
+                                                onClick={() => setShowBlankFieldsMenu(!showBlankFieldsMenu)}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg hover:bg-zinc-100 hover:border-zinc-300 transition-all"
+                                            >
+                                                <span>⚠️</span>
+                                                <span>Thiếu {result.completeness_audit.blank_fields_detected.length} vị trí thông tin</span>
+                                            </button>
+
+                                            {/* Dropdown Menu - Absolute */}
+                                            {showBlankFieldsMenu && (
+                                                <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-zinc-200 rounded-lg shadow-lg backdrop-blur-sm min-w-[250px]">
+                                                    <div className="p-2.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2">Các trường thiếu:</p>
+                                                        <ul className="space-y-1">
+                                                            {result.completeness_audit.blank_fields_detected.map((field, idx) => (
+                                                                <li key={idx} className="text-[11px] text-zinc-600 py-1 px-2 rounded hover:bg-zinc-50 transition-colors">
+                                                                    • {field}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Danh sách phân tích rủi ro */}
                             <div className="space-y-5 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">

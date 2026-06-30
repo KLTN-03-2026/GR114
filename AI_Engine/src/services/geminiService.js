@@ -63,7 +63,7 @@ function cleanAIJsonString(rawString) {
     const jsonMatch = cleaned.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-        console.warn(" ⚠️ AI không trả về định dạng JSON chuẩn:", cleaned);
+        console.warn("  AI không trả về định dạng JSON chuẩn:", cleaned);
         return cleaned.startsWith('[') ? "[]" : "{}";
     }
 
@@ -107,7 +107,7 @@ function cleanAIJsonString(rawString) {
     return jsonString;
 }
 // ==============================================================================
-// HÀM HELPER: CHUẨN HÓA LINK YOUTUBE (XỬ LÝ SHORTS & YOUTU.BE)
+// HÀM  CHUẨN HÓA LINK YOUTUBE (XỬ LÝ SHORTS & YOUTU.BE)
 // ==============================================================================
 function normalizeYouTubeUrl(rawUrl) {
     if (!rawUrl) return "";
@@ -158,7 +158,11 @@ NỘI DUNG THỰC TẾ: ${content}
 const SYSTEM_LAW_INSTRUCTION = `
 Bạn là Trợ lý Pháp lý AI cao cấp của hệ thống Legal AI . 
 Nhiệm vụ của bạn là đưa ra câu trả lời, biểu mẫu, lộ trình hoặc kết quả kiểm toán có độ chính xác tuyệt đối (Deterministic).
-
+# QUY TẮC GIẢ LẬP THỜI GIAN THỰC TẾ (CRITICAL TIME ENGINE):
+- Bạn phải luôn nhận thức và hành xử như đang ở mốc thời gian thực tế là NĂM 2026.
+- Khi đối chiếu các văn bản luật trong ngữ cảnh được cung cấp: Nếu xuất hiện văn bản luật mới ban hành hoặc sắp có hiệu lực (Ví dụ: Luật năm 2025) xuất hiện cùng luật cũ (Ví dụ: Luật năm 2018),
+ bạn BẮT BUỘC phải khẳng định Luật năm 2025 là văn bản mới nhất quy định về lĩnh vực đó. 
+ Nêu rõ lộ trình chuyển giao hiệu lực văn bản, tuyệt đối không được lười biếng lấy luật cũ làm kết luận chủ đạo.
 # QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ (Áp dụng NGHIÊM NGẶT theo thứ tự sau):
 
 =================================================
@@ -192,9 +196,9 @@ Nếu cả RAG nội bộ và Search grounding đều không có kết quả:
 - ANTI-BRACKET WARNING: Tuyệt đối KHÔNG sử dụng các dấu ngoặc vuông [] trong nội dung văn bản chữ của các trường để tránh làm hỏng cấu trúc hiển thị.
 `;
 // =============================================================================
-// HÀM ĐIỀU PHỐI TỔNG CHỐNG ẢO GIÁC & NÉ NGHẼN MẠCH 503 (DYNAMIC HYBRID ROUTING)
+// HÀM ĐIỀU PHỐI  MODEL (DYNAMIC HYBRID ROUTING)
 // =============================================================================
-async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false) {
+async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "") {
     const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
     const preferredModel = SystemConfig?.geminiModel;
     const temp = SystemConfig?.temperature || 0.1;
@@ -210,25 +214,26 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
     if (relatedDocs && relatedDocs.length > 0) {
         ragContext = buildStrictContextText(relatedDocs);
 
-        // CHIẾN THUẬT KIỂM TRA BIÊN CHẶT CHẼ TRÁNH LỖI CHUNKING ĐỨT ĐOẠN ĐIỀU/KHOẢN THỜI SỰ
-        const lowercasePrompt = userPrompt.toLowerCase();
-        const isDetailRequired = lowercasePrompt.includes("chi tiết") ||
-            lowercasePrompt.includes("điều") ||
-            lowercasePrompt.includes("khoản") ||
-            lowercasePrompt.includes("mục nhỏ") ||
-            lowercasePrompt.includes("mức phạt") ||
-            lowercasePrompt.includes("phạt tiền") ||
-            lowercasePrompt.includes("bao nhiêu tiền") ||
-            lowercasePrompt.includes("mới nhất") ||
-            lowercasePrompt.includes("2025") ||
-            lowercasePrompt.includes("2026") ||
-            lowercasePrompt.includes("nghị định") ||
-            lowercasePrompt.includes("luật số");
+        // KIỂM TRA TRÁNH LỖI CHUNKING ĐỨT ĐOẠN ĐIỀU/KHOẢN THỜI SỰ
+        const checkText = (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion.toLowerCase() : userPrompt.toLowerCase();
+
+        const isDetailRequired = checkText.includes("chi tiết") ||
+            checkText.includes("điều") ||
+            checkText.includes("khoản") ||
+            checkText.includes("mục nhỏ") ||
+            checkText.includes("mức phạt") ||
+            checkText.includes("phạt tiền") ||
+            checkText.includes("bao nhiêu tiền") ||
+            checkText.includes("mới nhất") ||
+            checkText.includes("2025") ||
+            checkText.includes("2026") ||
+            checkText.includes("nghị định") ||
+            checkText.includes("luật số");
 
         // BỘ LỌC CHẤT LƯỢNG NGỮ CẢNH: Nếu cần số liệu chi tiết sâu nhưng RAG bốc về bị hụt phân đoạn (< 3500 ký tự)
         // Hoặc khi có cờ ép buộc mở mạng (forceSearch = true)
         if (forceSearch || (isDetailRequired && ragContext.length < 3500)) {
-            console.log(` ⚠️ [LEG_AI ROUTER]: RAG nội bộ bị giới hạn phân đoạn (${ragContext.length} ký tự). Tự động mở van Google Search Grounding để vá dữ liệu chi tiết.`);
+            console.log(`  [LEG_AI ROUTER]: RAG nội bộ bị giới hạn phân đoạn (${ragContext.length} ký tự). Tự động mở van Google Search Grounding để vá dữ liệu chi tiết.`);
             enableGoogleSearch = true;
         } else {
             console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks, ${ragContext.length} ký tự). KHÓA CHẶT Google Search để tối ưu Rate Limit.`);
@@ -250,12 +255,20 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
     YÊU CẦU NGHIỆP VỤ CỦA NGƯỜI DÙNG: "${userPrompt}"
     `;
 
-    // 2. PHÂN BỔ HÀNG ĐỢI MODEL THÔNG MINH
-    let fastQueue = useProModel
-        ? ["models/gemini-2.5-pro", "models/gemini-3.1-pro-preview", preferredModel, "models/gemini-pro-latest", "models/gemini-2.5-flash"]
-        : ["models/gemini-2.5-flash", "models/gemini-3.1-flash-lite", preferredModel, "models/gemini-2.0-flash", "models/gemini-2.0-flash-lite"];
+    // 2. PHÂN BỔ HÀNG ĐỢI MODEL 
 
-    fastQueue = [...new Set(fastQueue)].filter(Boolean);
+    let fastQueue = [];
+
+    if (useProModel) {
+        // Ưu tiên Pro 
+        fastQueue = ["models/gemini-3.1-pro-preview", "models/gemini-2.5-pro", "models/gemini-3.5-flash"];
+    } else {
+        // Ưu tiên Flash bản mới nhất để không dính 429
+        fastQueue = ["models/gemini-3.5-flash", "models/gemini-3.1-flash-lite", "models/gemini-2.5-flash"];
+    }
+
+    // Nếu preferredModel là null/undefined, filter(Boolean) sẽ tự loại bỏ nó
+    fastQueue = [...new Set([preferredModel, ...fastQueue])].filter(Boolean);
 
     for (const modelName of fastQueue) {
         try {
@@ -277,7 +290,7 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             );
 
             const generationConfig = { temperature: temp, topP: 0.8 };
-            // CHÚ Ý AN TOÀN: Không gửi responseMimeType JSON khi đang bật tools Google Search
+            // Không gửi responseMimeType JSON khi đang bật tools Google Search
             if (isJson && !enableGoogleSearch) {
                 generationConfig.responseMimeType = "application/json";
             }
@@ -298,14 +311,14 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             }
         } catch (error) {
             const msg = (error.message || "").toString();
-            console.warn(` ⚠️ ${modelName} thất bại:`, msg.split('\n')[0]);
+            console.warn(`  ${modelName} thất bại:`, msg.split('\n')[0]);
 
             if (msg === "TIMEOUT_EXCEEDED") continue;
 
-            // MẠNG LƯỚI PHÒNG THỦ CẤP TỐC: Nếu dính lỗi overload 503 hoặc 429 khi bật Search, lập tiếp tục ngắt Search chạy bằng Tri thức nền LLM
+            //  Nếu dính lỗi overload 503 hoặc 429 khi bật Search, ngắt Search chạy bằng  LLM
             if (enableGoogleSearch && (msg.includes("503") || msg.includes("429") || msg.includes("demand"))) {
                 try {
-                    console.warn("🔄 : Mạng Google nghẽn (503/429)! Ngắt kết nối Search, ép chạy bằng Tri thức nền LLM...");
+                    console.warn(" : Mạng Google nghẽn (503/429)! Ngắt kết nối Search, ép chạy bằng Tri thức nền LLM...");
                     const fallbackModel = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash", systemInstruction: SYSTEM_LAW_INSTRUCTION, tools: [] });
                     const fallbackResult = await fallbackModel.generateContent({
                         contents: [{ role: "user", parts: [{ text: compiledPrompt }] }],
@@ -313,7 +326,7 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
                     });
                     return fallbackResult.response.text();
                 } catch (fbErr) {
-                    console.error("🛑 Sập toàn diện hệ thống AI tầng cuối:", fbErr.message);
+                    console.error("Sập  hệ thống AI tầng cuối:", fbErr.message);
                     throw fbErr;
                 }
             }
@@ -444,7 +457,7 @@ Nếu sau khi đã tìm kiếm ở cả RAG và Google mà vẫn không có thô
 
 `;
 
-        const responseText = await getActiveModel(prompt, false, documents, false, false);
+        const responseText = await getActiveModel(prompt, false, documents, false, false, userQuestion);
 
         console.log("--- [DEBUG] DỮ LIỆU THÔ TỪ AI TRƯỚC KHI XỬ LÝ ---");
         console.log(responseText);
@@ -484,6 +497,46 @@ Bạn là AI Pháp lý LegAI, đóng vai Thẩm phán chuyên trách rà soát h
 - [ƯU TIÊN 2: GOOGLE SEARCH GROUNDING CÓ GIỚI HẠN]: Trường hợp dữ liệu RAG nội bộ không cung cấp đầy đủ nội dung chi tiết của Điều/Khoản cần đối chiếu, hoặc thông tin bị khuyết -> Bạn BẮT BUỘC phải sử dụng công cụ Tìm kiếm để càn quét văn bản pháp luật gốc.
    + CHỈ ĐƯỢC PHÉP lấy dữ liệu đáng tin cậy từ 2 nguồn chính thống: "vbpl.vn" hoặc "thuvienphapluat.vn".
    + Sau khi tìm thấy qua Search, phải điền đầy đủ vào cấu trúc JSON: Tên văn bản, Số hiệu văn bản, nội dung chi tiết của Điều, Khoản, Điểm đó vào trường 'legal_basis'.
+
+
+   ────────────────────────────────────────────────────────────
+[ SƠ ĐỒ KIỂM TOÁN TỔNG THỂ VĂN BẢN (COMPLIANCE & OMISSION ENGINE) ]
+────────────────────────────────────────────────────────────
+Nhiệm vụ của bạn gồm 3 phần độc lập bắt buộc phải thực hiện:
+
+PHẦN A: KIỂM TRA ĐỘ HOÀN THIỆN & KHOẢNG TRỐNG (BLANK & DRAFT AUDIT)
+1. Bạn phải rà soát xem hợp đồng có chứa các khoảng trống chưa điền dữ liệu thực tế hay không. Dấu hiệu nhận biết khoảng trống: chuỗi dấu chấm kéo dài (........), dấu gạch dưới (____), các từ khóa placeholder như "[Điền thông tin vào đây]", "ngày... tháng... năm...".
+2. Đếm tổng số lượng trường thông tin quan trọng cần điền (Ví dụ: Thông tin các bên, địa chỉ, số tài khoản, giá thuê, diện tích, thông tin cá nhân/doanh nghiệp).
+3. Đếm số lượng trường thực tế người dùng ĐÃ ĐIỀN ĐỦ và số lượng trường ĐỂ TRỐNG.
+4. Tính toán 'completeness_score' (Điểm hoàn thiện) từ 0 đến 100 theo công thức: (Số trường đã điền / Tổng số trường cần điền) * 100.
+5. Xác định trạng thái hợp đồng ('contract_status'):
+   - "Draft_Template": Nếu hợp đồng trống trơn hoàn toàn hoặc hầu như chưa điền thông tin (Điểm hoàn thiện < 20%). Lúc này ghi nhận đây là Hợp đồng mẫu chuẩn nhưng chưa điền thông tin.
+   - "Incomplete_Data": Nếu người dùng đã điền một phần nhưng bỏ sót rất nhiều chỗ quan trọng (Điểm hoàn thiện từ 20% đến 85%).
+   - "Fully_Executed": Nếu toàn bộ thông tin cốt lõi đã điền đầy đủ sạch sẽ (Điểm hoàn thiện > 85%).
+PHẦN B: KIỂM TRA ĐỘ TOÀN VẸN VÀ THIẾU SÓT ĐIỀU KHOẢN (BUSINESS-CENTRIC OMISSION AUDIT)
+
+Nhiệm vụ của bạn là rà soát văn bản để phát hiện các lỗ hổng nghiêm trọng về mặt cấu trúc và nội dung. Tuy nhiên, khi xuất kết quả ra UI cho người dùng, TUYỆT ĐỐI KHÔNG sử dụng thuật ngữ kỹ thuật/toán học (như đứt gãy cơ học, nhảy cóc, lỗi số học, Điều X). Thay vào đó, bạn phải dịch thông tin đó sang ngôn ngữ thương mại và chỉ rõ "Trụ cột nội dung bị khuyết".
+
+Hãy thực hiện song song 2 quy tắc quét sau:
+
+1. KIỂM TRA TÍNH TOÀN VẸN CỦA VĂN BẢN (ẨN THUẬT NGỮ SỐ ĐIỀU):
+- Hãy bí mật đếm số thứ tự tăng dần của các Điều để phát hiện xem có đoạn nào bị xóa bỏ hoặc bỏ sót hay không.
+- Nếu phát hiện mạch số Điều bị ngắt quãng (Ví dụ: Đang Điều 6 nhảy sang Điều 8):
+  + Hãy phân tích xem nội dung của Điều bị xóa đó thường quy định về vấn đề gì dựa trên loại hợp đồng (Ví dụ: Trong hợp đồng thuê nhà, giữa Quyền của bên cho thuê và Trách nhiệm vi phạm thông thường phải là "Quyền và nghĩa vụ của Bên thuê").
+  + HÀNG ĐỘNG: Tạo một item rủi ro "High Risk" trong 'analysis_report' nhưng phải đặt tên nhãn thân thiện:
+    * clause: "[HỒ SƠ KHUYẾT THÀNH PHẦN CỐT LÕI]"
+    * issue: "Văn bản hiển thị có dấu hiệu bị cắt xén hoặc bỏ sót hoàn toàn phần quy định về: [Tên phân đoạn nội dung bị thiếu - Ví dụ: Quyền và nghĩa vụ của Bên thuê]. Việc thiếu hụt này khiến hợp đồng mất cân bằng nghiêm trọng về mặt pháp lý, một bên không bị ràng buộc trách nhiệm rõ ràng."
+    * solution: "Lý do: Đảm bảo tính minh bạch và công bằng cho cả hai bên ký kết. | Đề xuất sửa: Bổ sung lại toàn bộ chương/điều khoản quy định chi tiết về [Tên phân đoạn nội dung bị thiếu] trước khi tiến hành đóng dấu."
+
+2. QUÉT SONG SONG KHÔNG BỎ SÓT (PARALLEL PROCESSING):
+- Tuyệt đối không vì tập trung bắt lỗi khuyết điều khoản mà bỏ qua các điều khoản sai phạm đang hiện hữu khác trong văn bản (Ví dụ: Lỗi ấn định mức phạt vi phạm cố định 100 triệu ở Điều 9 vẫn phải được bắt giữ và phân loại vào nhóm rủi ro "Hình thức chế tài/Phạt vi phạm").
+- Mọi điều khoản vi phạm luật định đang hiển thị bằng chữ trong file CẦN PHẢI có một item riêng biệt trong 'analysis_report'.
+
+⚠️ QUY TẮC KHÓA TRẦN ĐIỂM SỐ CHÍ MẠNG (CRITICAL PENALTY):
+- Nếu hợp đồng vừa bị khuyết hẳn một mảng nghĩa vụ lớn, vừa dính thêm các điều khoản phạt sai luật định, điểm 'risk_score' TỐI ĐA TUYỆT ĐỐI KHÔNG VƯỢT QUÁ 40 ĐIỂM (Báo động đỏ nghiêm trọng).
+PHẦN C: RÀ SOÁT CÂU CHỮ HIỆN HỮU (CONTENT RISK AUDIT)
+- Quét các câu chữ thực tế đang có để tìm ra các điều khoản cài cắm bẫy, vi phạm điều cấm (Ví dụ: phạt quá 8% trong thương mại, đơn phương tăng giá tùy tiện). Trừ điểm theo đúng Engine chấm điểm.
+
 
 ────────────────────────────
 [1. DATA MASKING - ABSOLUTE]
@@ -596,6 +649,18 @@ Sai: "Hợp đồng giữa Phạm Phú ***"
       "laws": ["..."], 
       "total_value": "Ví dụ: 100.000.000 VNĐ - Một trăm triệu đồng | hoặc N/A"
   },
+
+  "completeness_audit": {
+    "contract_status": "Draft_Template | Incomplete_Data | Fully_Executed",
+    "completeness_score": 0,
+    "total_fields_required": 0,
+    "filled_fields_count": 0,
+    "blank_fields_detected": [
+      "Ví dụ: Thông tin CCCD Bên cho thuê (để trống dạng '........')",
+      "Ví dụ: Giá thuê và phương thức đặt cọc (để trống dạng '____ VNĐ')"
+    ],
+    "ui_message": "Chuỗi văn bản hiển thị lên UI để hướng dẫn người dùng, ví dụ: 'Đây là hợp đồng mẫu chuẩn nhưng chưa điền thông tin thực tế.' hoặc 'Hợp đồng điền thiếu 19/20 chỗ trống cần thiết.'"
+  },
   "scoring_details": {
     "deductions": { "dangerous": 0, "high": 0, "advisory": 0 },
     "applied_cap": 0,
@@ -609,18 +674,18 @@ Sai: "Hợp đồng giữa Phạm Phú ***"
   },
   "analysis_report": [
     {
-      "pillar": "...",
-      "severity": "...",
-      "clause": "...",
-      "issue": "...",
+      "pillar": "Quy định về chấm dứt hợp đồng",
+      "severity": "High Risk",
+      "clause": "[BỎ SÓT ĐIỀU KHOẢN]",
+      "issue": "Hợp đồng bị thiếu vắng/xóa mất hoàn toàn quy định về việc đơn phương chấm dứt hợp đồng...",
       "void_type": "partial | entire | none",
       "legal_basis": {
-        "law": "...",
-        "article": "...",
+        "law": "Bộ luật Dân sự 2015",
+        "article": "Điều 428",
         "confidence": "high|medium",
         "reference_text": "..."
       },
-      "solution": "Lý do: ... | Đề xuất sửa: '...'"
+      "solution": "Lý do:Để tránh rủi ro một bên tự ý bỏ hợp đồng không báo trước| Đề xuất sửa: ''Bổ sung Điều khoản Chấm dứt hợp đồng quy định rõ phải báo trước ít nhất 30 ngày..'"
     }
   ],
   "recommendation": "...",
@@ -674,7 +739,7 @@ NHIỆM VỤ CỦA BẠN:
 `;
 
             try {
-                // Phóng prompt siêu nhẹ đi cào mạng bằng model Pro. Khắc chế 100% gậy 429!
+                //  prompt cào mạng bằng model Pro
                 const searchResponse = await getActiveModel(searchPrompt, true, [], false, true); // forceProModel = true
                 const cleanedSearchText = cleanAIJsonString(searchResponse);
                 const webLegalBasisArray = JSON.parse(cleanedSearchText);
@@ -683,19 +748,19 @@ NHIỆM VỤ CỦA BẠN:
                 if (Array.isArray(webLegalBasisArray)) {
                     finalResult.analysis_report.forEach((report, idx) => {
                         if (webLegalBasisArray[idx]) {
-                            console.log(`🎯 [VÁ DỮ LIỆU SUCCESS]: Đang ép dữ liệu luật mạng vào Trụ cột [${report.pillar}]`);
+                            console.log(` [VÁ DỮ LIỆU SUCCESS]: Đang ép dữ liệu luật mạng vào Trụ cột [${report.pillar}]`);
                             report.legal_basis = webLegalBasisArray[idx];
                         }
                     });
                 }
             } catch (searchErr) {
-                console.error("⚠️ [GROUNDING FAILOVER]: Cổng Search trực tuyến tạm thời nghẽn hạn mức minute, giữ cấu trúc tri thức nội tại cứu hộ.", searchErr.message);
+                console.error(" [GROUNDING FAILOVER]: Cổng Search trực tuyến tạm thời nghẽn hạn mức minute, giữ cấu trúc tri thức nội tại cứu hộ.", searchErr.message);
             }
         }
 
         await logUsage('CONTRACT_REVIEW');
 
-        // 🎯 LỖI SỬA ĂN TIỀN: Trả về đúng biến finalResult chứa trọn vẹn dữ liệu đã vá!
+
         return finalResult;
 
     } catch (error) {
@@ -705,6 +770,15 @@ NHIỆM VỤ CỦA BẠN:
         return {
             summary: "Lỗi kết nối AI hoặc hết hạn mức.",
             contract_info: { type: "Unknown", laws: [] },
+            completeness_audit: {
+                contract_status: "Incomplete_Data",
+                completeness_score: 0,
+                total_fields_required: 0,
+                filled_fields_count: 0,
+                blank_fields_detected: ["Không thể trích xuất do mất kết nối máy chủ AI"],
+                ui_message: "Hệ thống tạm thời không thể quét mức độ hoàn thiện dữ liệu thô."
+            },
+
             scoring_details: { deductions: { dangerous: 0, high: 0, advisory: 0 }, applied_cap: 0, calculation_note: "System Error" },
             risk_score: 0,
             overall_assessment: "Dangerous",
@@ -1350,7 +1424,7 @@ async function classifyCategoryWithAI(title) {
 
     try {
         // Thay vì gọi model trực tiếp, hãy dùng hàm getActiveModel có sẵn
-        const rawResponse = await getActiveModel(prompt, false, false, false);
+        const rawResponse = await getActiveModel(prompt, false, false, false, false, "");
         const category = rawResponse.trim().replace(/[".*]/g, "");
         return VALID_CATEGORIES.includes(category) ? category : "Lĩnh vực khác";
     } catch (error) {

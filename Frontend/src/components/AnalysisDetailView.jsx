@@ -108,20 +108,20 @@ export default function AnalysisDetailView({ record, riskScore }) {
         <div className="grid gap-8 lg:grid-cols-[1.2fr_1.8fr]">
           <aside className="space-y-6">
             <div className="sticky top-6 self-start rounded-[2rem] border border-zinc-200 bg-white/90 shadow-[0_20px_60px_rgba(0,0,0,0.05)] p-6">
-             
+
               {/* 3. NỘI DUNG VĂN BẢN GỐC */}
-<div className="mt-8 border-t border-zinc-200 pt-8 print:border-black/20 break-inside-avoid text-left">
-  <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530] mb-4 flex items-center gap-2">
-    <DocumentMagnifyingGlassIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
-    Văn bản gốc hợp đồng
-  </h3>
-  <div className="bg-white p-6 md:p-10 border border-zinc-200 rounded-2xl shadow-sm text-[15px] leading-relaxed font-medium text-zinc-700 bg-zinc-50/30 flex items-center gap-3">
-    <DocumentTextIcon className="w-6 h-6 text-[#B8985D] shrink-0" />
-    <span>
-      {record?.FileName || record?.fileName || record?.fullData?.FileName || "Không có văn bản hợp đồng gốc để hiển thị."}
-    </span>
-  </div>
-</div>
+              <div className="mt-8 border-t border-zinc-200 pt-8 print:border-black/20 break-inside-avoid text-left">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#1A2530] mb-4 flex items-center gap-2">
+                  <DocumentMagnifyingGlassIcon className="w-5 h-5 text-[#B8985D] stroke-2" />
+                  Văn bản gốc hợp đồng
+                </h3>
+                <div className="bg-white p-6 md:p-10 border border-zinc-200 rounded-2xl shadow-sm text-[15px] leading-relaxed font-medium text-zinc-700 bg-zinc-50/30 flex items-center gap-3">
+                  <DocumentTextIcon className="w-6 h-6 text-[#B8985D] shrink-0" />
+                  <span>
+                    {record?.FileName || record?.fileName || record?.fullData?.FileName || "Không có văn bản hợp đồng gốc để hiển thị."}
+                  </span>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -145,6 +145,28 @@ export default function AnalysisDetailView({ record, riskScore }) {
                 <div className="flex-grow">
                   <h3 className="text-lg font-bold text-[#1A2530] mb-2 uppercase tracking-wide">Đánh giá tổng quan</h3>
                   <p className="text-zinc-600 text-sm leading-relaxed font-medium print:text-black">{summaryText}</p>
+
+                  {result?.completeness_audit && (
+                    <div className="border-b border-zinc-200 pb-3 mb-4 print:border-black/20">
+                      <h3 className="text-sm font-semibold text-zinc-800 uppercase tracking-wider mb-2 print:text-black">
+                        1. Kiểm toán dữ liệu thô đầu vào
+                      </h3>
+                      <p className="text-xs text-zinc-600 leading-relaxed print:text-black">
+                        • Tỷ lệ điền thông tin thực tế: <span className="font-medium text-zinc-900 print:text-black">{result?.completeness_audit?.completeness_score}%</span>
+                        <span className="mx-2">|</span>
+                        • Trạng thái hồ sơ: <span className="font-medium text-zinc-900 print:text-black">
+                          {result?.completeness_audit?.contract_status === 'Draft_Template' && 'Phôi hợp đồng mẫu (Chưa điền dữ liệu)'}
+                          {result?.completeness_audit?.contract_status === 'Incomplete_Data' && 'Hồ sơ khuyết thông tin'}
+                          {result?.completeness_audit?.contract_status === 'Fully_Executed' && 'Hợp đồng đã hoàn thiện'}
+                        </span>
+                      </p>
+                      {result?.completeness_audit?.blank_fields_detected?.length > 0 && (
+                        <div className="mt-2 text-[11px] text-zinc-500 leading-normal print:text-black/70">
+                          <span className="font-medium text-zinc-700 print:text-black">Các vị trí trống cần bổ sung ký kết:</span> {result.completeness_audit.blank_fields_detected.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

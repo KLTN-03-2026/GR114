@@ -253,7 +253,7 @@ async function generateEmbedding(text) {
 
         return vectorValues;
     } catch (error) {
-        log(`❌ Embedding error: ${error.message}`, true);
+        log(` Embedding error: ${error.message}`, true);
         throw error;
     }
 }
