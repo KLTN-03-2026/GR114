@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Khởi tạo Gemini cho embedding
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
 const geminiService = require('../services/geminiService');
 const crawlService = require('../services/crawlService');
 // Khởi tạo Pinecone client

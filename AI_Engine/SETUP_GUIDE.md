@@ -6,7 +6,7 @@ Hướng dẫn chi tiết để upload **40,000 văn bản pháp luật** từ J
 
 **Phiên bản**: 2.0 (Production Ready)  
 **Pinecone SDK**: v3.0.0  
-**Gemini Model**: gemini-embedding-001 (3072 chiều)  
+**Gemini Model**: gemini-embedding-2  
 **Cập nhật**: 25 Tháng 3 năm 2026
 
 ---
@@ -24,7 +24,7 @@ Hướng dẫn chi tiết để upload **40,000 văn bản pháp luật** từ J
 
 ### 1.1 Google Gemini API Key
 
-> **Lý do**: Sử dụng `gemini-embedding-001` để tạo vector 3072 chiều từ text
+> **Lý do**: Sử dụng `gemini-embedding-2` để tạo vector từ text
 
 1. Truy cập: https://makersuite.google.com/app/apikey
 2. Click **"Create API Key"** → **"Create API key in new project"**
@@ -224,7 +224,7 @@ Truy cập: https://www.pinecone.io/
 node -e "
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+const model = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
 model.embedContent('test').then(r => {
   console.log('Embedding OK:', r.embedding.values.length);
   process.exit(0);

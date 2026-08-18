@@ -1,4 +1,4 @@
-// CHÚ Ý: Dùng thư viện mssql gốc (không dùng msnodesqlv8 nữa)
+
 const sql = require('mssql');
 
 const dbConfig = {
@@ -25,10 +25,10 @@ const poolConnect = pool.connect()
         console.log('========================================');
         console.log(' Đã  kết nối TCP/IP tới SQL Server!');
         console.log(' Tài khoản: sa | Cổng: 1433');
-        console.log('========================================');
+      
     })
     .catch(err => {
-        console.error(' Lỗi kết nối DB (Cách 2):', err.message);
+        console.error(' Lỗi kết nối DB :', err.message);
     });
 
 module.exports = { sql, pool, poolConnect };

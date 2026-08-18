@@ -11,6 +11,9 @@ const { YoutubeTranscript } = require('youtube-transcript');
 const sql = require('mssql');
 const { pool, poolConnect } = require('../config/db');
 const ragService = require('./ragService');
+const lawSourceService = require('./lawSourceService');
+
+
 // ==============================================================================
 // HÀM LOGGING THỐNG KÊ 
 // ==============================================================================
@@ -50,16 +53,16 @@ async function logUsage(featureName) {
     }
 }
 function cleanAIJsonString(rawString) {
-    if (!rawString) return "[]"; // Mặc định trả về mảng rỗng nếu không có data
+    if (!rawString) return "[]";
 
-    // 1. Xử lý thô: Khử sạch các khối mã markdown (json, html, hoặc cặp ```)
+    // 1. clean markdown 
     let cleaned = rawString
         .replace(/```json/gi, '')
         .replace(/```html/gi, '')
         .replace(/```/g, '')
         .trim();
 
-    // 2. PHẪU THUẬT CHÍNH: Tìm và trích xuất khối JSON thực sự nằm giữa cặp ngoặc [] hoặc {}
+
     const jsonMatch = cleaned.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
 
     if (!jsonMatch) {
@@ -69,15 +72,15 @@ function cleanAIJsonString(rawString) {
 
     let jsonString = jsonMatch[0];
 
-    // 3. BỌC THÉP CHUYÊN SÂU CHỐNG LỖI CONTROL CHARACTER:
-    // Chỉ xử lý các ký tự điều khiển \n, \r, \t NẰM TRONG cặp dấu nháy kép của giá trị chuỗi JSON
+    // 3. Anti CONTROL CHARACTER:
+
     let insideString = false;
     let bockThepString = "";
 
     for (let i = 0; i < jsonString.length; i++) {
         let char = jsonString[i];
 
-        // Phát hiện xem có đang nằm trong chuỗi văn bản nháy kép hay không
+
         if (char === '"' && jsonString[i - 1] !== '\\') {
             insideString = !insideString;
             bockThepString += char;
@@ -85,29 +88,64 @@ function cleanAIJsonString(rawString) {
         }
 
         if (insideString) {
-            // Nếu đang nằm trong chuỗi nháy kép thì mới escape ký tự ngắt dòng vật lý
+
             if (char === '\n') bockThepString += '\\n';
             else if (char === '\r') bockThepString += '\\r';
             else if (char === '\t') bockThepString += '\\t';
             else bockThepString += char;
         } else {
-            // Nếu nằm ngoài chuỗi (khoảng trắng cấu trúc JSON), giữ nguyên
+
             bockThepString += char;
         }
     }
     jsonString = bockThepString;
 
-    // 4. CỨU VIỆN PHÁT HIỆN LỖI VỊ TRÍ ĐẦU CHUỖI VÀ KÝ TỰ VÔ HÌNH
+
     jsonString = jsonString
-        .replace(/^\{\s*\,/, '{')  // Khử lỗi dạng {, "key": ...}
-        .replace(/^\[\s*\,/, '[')  // Khử lỗi dạng [, {"key": ...}
-        .replace(/[\u200B-\u200D\uFEFF]/g, '') // Khử sạch các ký tự vô hình gây lỗi parse
+        .replace(/^\{\s*\,/, '{')
+        .replace(/^\[\s*\,/, '[')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
         .trim();
 
     return jsonString;
 }
+
+/**
+ * Evaluates whether retrieved RAG chunks match the requested legal documents.
+ * 
+ * @param {string} userQuery - The input prompt or raw question from user.
+ * @param {Array<Object>} relatedDocs - Retrieved context chunks from Pinecone.
+ * @returns {boolean} True if RAG context is relevant to the query; otherwise false.
+ */
+function checkRagRelevance(userQuery, relatedDocs) {
+    if (!relatedDocs || relatedDocs.length === 0) return false;
+
+    const checkText = userQuery.toLowerCase();
+
+    // Extract document identification numbers (e.g., "03/2007", "15/2023", "59/2020")
+    const lawNumberMatches = checkText.match(/\d+[\/\-_]\d+[\/\-_]?[a-zA-Z0-9]*/g) || [];
+
+    // Verify document identifier alignment when explicitly requested
+    if (lawNumberMatches.length > 0) {
+        const isMatched = relatedDocs.some(doc => {
+            const title = (doc.title || doc.law_name || doc.doc_id || "").toLowerCase();
+            const content = (doc.content || doc.text || doc.noi_dung_tom_tat || "").toLowerCase();
+            return lawNumberMatches.some(num => title.includes(num) || content.includes(num));
+        });
+
+        if (!isMatched) {
+            console.warn(`[LEG_AI RELEVANCE CHECK]: Document identifier mismatch. Expected: [${lawNumberMatches.join(', ')}].`);
+        }
+        return isMatched;
+    }
+
+    // Fallback to vector semantic relevance threshold for keyword queries
+    return relatedDocs.some(doc => (doc.score ? doc.score > 0.72 : true));
+}
+
+
 // ==============================================================================
-// HÀM  CHUẨN HÓA LINK YOUTUBE (XỬ LÝ SHORTS & YOUTU.BE)
+//  YOUTUBE (XỬ LÝ SHORTS & YOUTU.BE)
 // ==============================================================================
 function normalizeYouTubeUrl(rawUrl) {
     if (!rawUrl) return "";
@@ -137,33 +175,130 @@ function normalizeYouTubeUrl(rawUrl) {
 }
 
 // ==============================================================================
-// HÀM GIÚP SOẠN THẢO SIÊU CHỈ THỊ CHỐNG ẢO GIÁC CHO CÁC HÀM RIÊNG BIỆT
+//  SOẠN THẢO 
 // ==============================================================================
 function buildStrictContextText(documents) {
-    if (!documents || documents.length === 0) return "Hoàn toàn không có dữ liệu RAG xác thực.";
+    if (!documents || documents.length === 0) return "<rag_context>Hoàn toàn không có dữ liệu RAG xác thực.</rag_context>";
     return documents.map((doc, index) => {
-        const title = doc.title || "Văn bản pháp luật";
+        const title = doc.title || doc.law_name || "Văn bản pháp luật";
         let rawContent = doc.content || doc.noi_dung_tom_tat || "";
         const content = typeof rawContent === 'object' ? JSON.stringify(rawContent) : rawContent;
-        return `--- VÙNG DỮ LIỆU XÁC THỰC MỤC ${index + 1} ---
-VĂN BẢN QUY CHIẾU: ${title}
-ĐIỀU KHOẢN: Điều ${doc.dieu || "Chưa rõ"}
-NỘI DUNG THỰC TẾ: ${content}
---- KẾT THÚC VÙNG DỮ LIỆU MỤC ${index + 1} ---`;
+
+        // fallback 
+        let sourceUrl = doc.source || doc.sourceUrl || "";
+        if (!sourceUrl || sourceUrl.trim() === "" || sourceUrl.includes("#")) {
+            sourceUrl = "";
+        }
+
+        return `<rag_chunk index="${index + 1}">
+  <law_name>${title}</law_name>
+  <article_number>Điều ${doc.dieu || "Chưa rõ"}</article_number>
+  <protected_url DO_NOT_MODIFY="TRUE">${sourceUrl}</protected_url>
+  <content_verbatim>${content}</content_verbatim>
+</rag_chunk>`;
     }).join("\n\n");
 }
 // =============================================================================
-// SIÊU CHỈ THỊ VÀ QUY TẮC TRUY XUẤT PHÁP LÝ 
+// CHỈ THỊ VÀ QUY TẮC TRUY XUẤT PHÁP LÝ (DYNAMIC TIME ENGINE)
 // =============================================================================
-const SYSTEM_LAW_INSTRUCTION = `
-Bạn là Trợ lý Pháp lý AI cao cấp của hệ thống Legal AI . 
+const getSystemLawInstruction = () => {
+    const currentYear = new Date().getFullYear();
+    const previousYear = currentYear - 1;
+
+    return `
+Bạn là Trợ lý Pháp lý AI cao cấp của hệ thống Legal AI. 
 Nhiệm vụ của bạn là đưa ra câu trả lời, biểu mẫu, lộ trình hoặc kết quả kiểm toán có độ chính xác tuyệt đối (Deterministic).
-# QUY TẮC GIẢ LẬP THỜI GIAN THỰC TẾ (CRITICAL TIME ENGINE):
-- Bạn phải luôn nhận thức và hành xử như đang ở mốc thời gian thực tế là NĂM 2026.
-- Khi đối chiếu các văn bản luật trong ngữ cảnh được cung cấp: Nếu xuất hiện văn bản luật mới ban hành hoặc sắp có hiệu lực (Ví dụ: Luật năm 2025) xuất hiện cùng luật cũ (Ví dụ: Luật năm 2018),
- bạn BẮT BUỘC phải khẳng định Luật năm 2025 là văn bản mới nhất quy định về lĩnh vực đó. 
- Nêu rõ lộ trình chuyển giao hiệu lực văn bản, tuyệt đối không được lười biếng lấy luật cũ làm kết luận chủ đạo.
+
+# QUY TẮC THỜI GIAN THỰC TẾ (DYNAMIC TIME ENGINE):
+- Bạn phải luôn nhận thức và hành xử như đang ở mốc thời gian thực tế là NĂM ${currentYear}.
+- Khi đối chiếu các văn bản luật trong ngữ cảnh được cung cấp: Nếu xuất hiện văn bản luật mới ban hành hoặc sắp có hiệu lực (Ví dụ: Luật năm ${currentYear} hoặc ${previousYear}) xuất hiện cùng luật cũ, bạn BẮT BUỘC phải khẳng định văn bản mới nhất quy định về lĩnh vực đó. 
+- Nêu rõ lộ trình chuyển giao hiệu lực văn bản, tuyệt đối không được lười biếng lấy luật cũ làm kết luận chủ đạo.
+
 # QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ (Áp dụng NGHIÊM NGẶT theo thứ tự sau):
+=================================================
+[QUY TẮC PHÁP LÝ BẮT BUỘC - STRICT STRICT LEGAL RULES]
+
+1. TUYỆT ĐỐI BẢO TOÀN SỐ ĐIỀU VÀ SỐ KHOẢN (ZERO HALLUCINATION):
+- Đọc kỹ số Điều và số Khoản trong VÙNG DỮ LIỆU XÁC THỰC (RAG Context).
+- RAG ghi Điều mấy, Khoản mấy thì BẮT BUỘC ghi đúng con số đó. 
+- CẤM TỰ Ý ĐÁNH LẠI SỐ KHOẢN 1, 2, 3 TỪ TRÊN XUỐNG! (Ví dụ: Nếu RAG ghi Khoản 4 là "Người mắc bệnh" thì BẮT BUỘC phải ghi Khoản 4, CẤM đổi thành Khoản 2 hay Khoản 3).
+- CẤM nhầm lẫn giữa Điều 2 (Giải thích từ ngữ) và Điều 3 (Phân loại bệnh).
+
+2. KỶ LUẬT COPY-PASTE LINK URL 100%:
+- Nhúng link Markdown theo cú pháp: [Điều X - Tên Luật](URL_Source)
+=================================================
+QUY TẮC NGUỒN VÀ URL
+=================================================
+
+URL_SOURCE phải là URL CỤ THỂ của trang chi tiết văn bản pháp luật đang được trích dẫn.
+
+Có 2 nguồn URL hợp lệ, theo thứ tự ưu tiên:
+
+TRƯỜNG HỢP 1: RAG CUNG CẤP URL CHI TIẾT
+
+Nếu <protected_url> chứa URL chi tiết của chính văn bản,
+hãy sử dụng chính xác URL đó.
+
+Không được sửa, rút gọn hoặc tự tạo lại URL này.
+
+
+TRƯỜNG HỢP 2: RAG KHÔNG CUNG CẤP URL CHI TIẾT
+
+Nếu <protected_url> rỗng, không tồn tại hoặc không phải URL
+chi tiết của văn bản:
+
+- Nếu Google Search Grounding đang được bật, được phép sử dụng
+  URL chi tiết được tìm thấy từ kết quả Google Search Grounding.
+- URL phải thuộc domain:
+  https://vbpl.vn/
+- Ưu tiên URL có cấu trúc:
+  https://vbpl.vn/van-ban/chi-tiet/...
+
+- Phải tìm URL thực tế từ kết quả tìm kiếm.
+- Không được tự tạo URL.
+- Không được suy đoán UUID hoặc slug.
+- Không được lấy URL homepage làm URL của văn bản.
+
+
+QUY TẮC QUAN TRỌNG:
+
+https://vbpl.vn/
+
+CHỈ là domain/homepage.
+
+Nó KHÔNG được coi là URL chi tiết của một văn bản.
+
+Do đó:
+
+https://vbpl.vn/
+
+KHÔNG BAO GIỜ được sử dụng làm URL_SOURCE cho một văn bản cụ thể.
+
+Nếu không tìm thấy URL chi tiết đã được xác minh,
+URL_SOURCE phải để trống.
+
+
+THỨ TỰ ƯU TIÊN URL:
+
+1. URL chi tiết hợp lệ từ RAG <protected_url>
+2. URL chi tiết hợp lệ từ Google Search Grounding
+3. Không tìm thấy → URL_SOURCE = ""
+
+
+KHÔNG ĐƯỢC sử dụng URL của website khác làm URL_SOURCE,
+kể cả khi website đó xác nhận đúng văn bản.
+
+Ví dụ không hợp lệ:
+
+https://thuvienphapluat.vn/...
+https://luatvietnam.vn/...
+https://chinhphu.vn/...
+https://congbao.chinhphu.vn/...
+
+Các nguồn khác chỉ được dùng để đối chiếu thông tin,
+không được dùng làm URL_SOURCE cuối cùng.
+- CẤM TUYỆT ĐỐI việc tự đổi số ID ở đuôi link (Ví dụ: Context cấp '--12900' thì BẮT BUỘC giữ nguyên '--12900', CẤM tự ý đổi thành '--22995' hay bất kỳ số nào khác).
+=================================================
 
 =================================================
 [ƯU TIÊN 1: RAG NỘI BỘ LEGAI]
@@ -190,15 +325,16 @@ Nếu cả RAG nội bộ và Search grounding đều không có kết quả:
 - TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ Ý TẠO RA: Số hiệu văn bản giả lập, các Khoản/Điểm bị khuyết, mức phạt bằng tiền cụ thể hoặc số năm tù cụ thể.
 
 [QUY TẮC AN TOÀN KHI SỬ DỤNG DỮ LIỆU INTERNET]
-- MỤC ĐÍCH DUY NHẤT: Cập nhật các thông số mới nhất (tỷ lệ %, mức phạt, tên văn bản luật, chỉ thị mới ra đời trong năm 2025-2026).
+- MỤC ĐÍCH DUY NHẤT: Cập nhật các thông số mới nhất (tỷ lệ %, mức phạt, tên văn bản luật, chỉ thị mới ra đời trong giai đoạn ${previousYear}-${currentYear}).
 - CẤM SAO CHÉP THỂ THỨC: TUYỆT ĐỐI KHÔNG được sao chép cấu trúc, văn phong, hay các mẫu biểu trôi nổi trên các trang blog luật sư, trang tin tức hoặc diễn đàn.
 - BẢO TOÀN KIẾN TRÚC VĂN BẢN: Dữ liệu tìm kiếm được chỉ dùng làm "Nguyên liệu". Bạn phải tự ráp nguyên liệu đó vào cấu trúc chuẩn của một văn bản pháp lý/hành chính chuyên nghiệp. Trình bày rành mạch, không chèn các đường link báo mạng rác.
-- ANTI-BRACKET WARNING: Tuyệt đối KHÔNG sử dụng các dấu ngoặc vuông [] trong nội dung văn bản chữ của các trường để tránh làm hỏng cấu trúc hiển thị.
 `;
+};
+
 // =============================================================================
-// HÀM ĐIỀU PHỐI  MODEL (DYNAMIC HYBRID ROUTING)
+// GET MODEL 
 // =============================================================================
-async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "") {
+async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null) {
     const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
     const preferredModel = SystemConfig?.geminiModel;
     const temp = SystemConfig?.temperature || 0.1;
@@ -207,15 +343,17 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // 1. PHÂN TÍCH NGỮ CẢNH ĐỂ ĐIỀU HƯỚNG BẬT/TẮT GOOGLE SEARCH CHỦ ĐỘNG
+    // 1. Enable GOOGLE SEARCH 
     let enableGoogleSearch = false;
     let ragContext = "";
 
     if (relatedDocs && relatedDocs.length > 0) {
         ragContext = buildStrictContextText(relatedDocs);
-
-        // KIỂM TRA TRÁNH LỖI CHUNKING ĐỨT ĐOẠN ĐIỀU/KHOẢN THỜI SỰ
+        console.log("=== RAG CONTEXT  VÀO AI ===");
+        console.log(ragContext);
+        console.log("=========================================");
         const checkText = (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion.toLowerCase() : userPrompt.toLowerCase();
+        const isRagRelevant = checkRagRelevance(checkText, relatedDocs);
 
         const isDetailRequired = checkText.includes("chi tiết") ||
             checkText.includes("điều") ||
@@ -225,63 +363,192 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             checkText.includes("phạt tiền") ||
             checkText.includes("bao nhiêu tiền") ||
             checkText.includes("mới nhất") ||
-            checkText.includes("2025") ||
-            checkText.includes("2026") ||
+
             checkText.includes("nghị định") ||
             checkText.includes("luật số");
 
-        // BỘ LỌC CHẤT LƯỢNG NGỮ CẢNH: Nếu cần số liệu chi tiết sâu nhưng RAG bốc về bị hụt phân đoạn (< 3500 ký tự)
-        // Hoặc khi có cờ ép buộc mở mạng (forceSearch = true)
-        if (forceSearch || (isDetailRequired && ragContext.length < 3500)) {
-            console.log(`  [LEG_AI ROUTER]: RAG nội bộ bị giới hạn phân đoạn (${ragContext.length} ký tự). Tự động mở van Google Search Grounding để vá dữ liệu chi tiết.`);
+        const currentYear = new Date().getFullYear();
+        const isSeekingNewInfo = /mới nhất|tuần này|tháng này|năm này| vừa ra |vừa ban hành|cập nhật/i.test(checkText);
+        const isRagOutdated = relatedDocs.every(doc => (doc.IssueYear || 0) < currentYear);
+        //   (forceSearch = true)
+        if (forceSearch || !isRagRelevant || (isSeekingNewInfo && isRagOutdated)) {
+            console.log(`[LEG_AI ROUTER]: Kích hoạt Search (Lý do: ${isSeekingNewInfo ? 'Tin mới/RAG cũ' : 'Chi tiết/RAG hụt'}).`);
             enableGoogleSearch = true;
         } else {
-            console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks, ${ragContext.length} ký tự). KHÓA CHẶT Google Search để tối ưu Rate Limit.`);
+            console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks, ${ragContext.length} ký tự). KHÓA Google Search để tối ưu Rate Limit.`);
             enableGoogleSearch = false;
         }
     } else {
-        console.log("[LEG_AI ROUTER]: Kho RAG nội bộ trống! Chuyển trạng thái sang Google Grounding làm khiên dự phòng.");
-        enableGoogleSearch = true;
-    }
 
+        // Nếu forceSearch = false
+        enableGoogleSearch = forceSearch;
+
+        if (enableGoogleSearch) {
+            console.log("[LEG_AI ROUTER]: RAG nội bộ trống + forceSearch = Google Search ");
+        } else {
+            console.log("[LEG_AI ROUTER]: RAG nội bộ trống nhưng forceSearch KHÓA  Google Search ");
+        }
+    }
+    const today = new Date().toLocaleDateString('vi-VN');
+    const timeContext = `[THÔNG TIN THỜI GIAN THỰC TẾ CHO AI: Hôm nay là ngày ${today}.
+     Bất kỳ tham chiếu nào về "tuần này", "tháng này", "năm này" trong câu hỏi của người dùng đều phải được hiểu là thời điểm hiện tại (${today}).
+     Hãy dùng mốc này để đối chiếu dữ liệu RAG/Search.]`;
     const compiledPrompt = `
-    ${SYSTEM_LAW_INSTRUCTION}
-    
-    NGỮ CẢNH DỮ LIỆU RAG NỘI BỘ ĐƯỢC CUNG CẤP:
-    ---
-    ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nội bộ."}
-    ---
-    
-    YÊU CẦU NGHIỆP VỤ CỦA NGƯỜI DÙNG: "${userPrompt}"
+====================================================================
+[DỮ LIỆU THỜI GIAN THỰC TẾ - DYNAMIC TIME ENGINE]
+====================================================================
+Hôm nay là ngày ${today}.
+Bất kỳ tham chiếu nào về "tuần này", "tháng này", "năm này" đều phải được hiểu là thời điểm hiện tại.
+
+====================================================================
+[RAG CONTEXT - VÙNG DỮ LIỆU XÁC THỰC NỘI BỘ LEGALBOT]
+====================================================================
+${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nội bộ."}
+
+====================================================================
+[STRICT RULES - QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ]
+====================================================================
+[QUY TẮC PHÁP LÝ BẮT BUỘC - ZERO HALLUCINATION]:
+
+1. TUYỆT ĐỐI BẢO TOÀN SỐ ĐIỀU VÀ SỐ KHOẢN:
+   Khi thông tin được lấy từ RAG, phải giữ nguyên số Điều/Khoản/Điểm
+   theo dữ liệu RAG. CẤM tự ý đánh lại hoặc bổ sung số Khoản/Điểm.
+
+2. QUY TẮC NGUỒN URL:
+
+   ƯU TIÊN URL THEO THỨ TỰ:
+
+   PRIORITY 1:
+   Nếu RAG cung cấp <protected_url> là URL chi tiết hợp lệ,
+   BẮT BUỘC sử dụng chính xác URL đó.
+
+   PRIORITY 2:
+   Nếu RAG không cung cấp URL chi tiết, nhưng Google Search Grounding
+   tìm được trang chi tiết chính thức của văn bản trên:
+
+   - https://vbpl.vn/
+
+   thì sử dụng URL đó.
+
+   PRIORITY 3:
+   Nếu không tìm được URL chi tiết trên vbpl.vn, được phép sử dụng
+   URL văn bản pháp luật đã được xác minh từ:
+
+   - https://thuvienphapluat.vn/
+
+   PRIORITY 4:
+   Nếu không tìm được các nguồn trên, nhưng Google Search Grounding
+   tìm được TOÀN VĂN văn bản pháp luật trên website chính thức của
+   Cổng Thông tin điện tử Chính phủ:
+
+   - https://xaydungchinhsach.chinhphu.vn/
+
+   thì được phép sử dụng URL đó làm sourceUrl.
+
+   Đặc biệt chấp nhận các trang có tiêu đề hoặc nội dung dạng:
+   "Toàn văn [Tên văn bản] [Số hiệu]".
+
+   Ví dụ:
+   https://xaydungchinhsach.chinhphu.vn/toan-van-luat-thu-do-so-02-2026-qh16-11926052309491329.htm
+
+   URL này được xem là nguồn pháp lý hợp lệ nếu Google Search Grounding
+   xác minh rằng trang chứa toàn văn chính xác của văn bản được trích dẫn.
+
+3. NGHIÊM CẤM:
+   - Tự tạo URL.
+   - Tự suy đoán UUID hoặc ID.
+   - Tự sửa đổi URL tìm được.
+   - Dùng homepage làm sourceUrl.
+   - Dùng trang tìm kiếm làm sourceUrl.
+   - Dùng URL không được Google Search Grounding xác minh.
+   - Dùng website tin tức/blog cá nhân làm nguồn pháp luật.
+
+4. QUY TẮC SOURCE URL:
+
+   sourceUrl chỉ được phép thuộc một trong các domain:
+
+   - vbpl.vn
+   - thuvienphapluat.vn
+   - xaydungchinhsach.chinhphu.vn
+
+   Trong đó:
+
+   vbpl.vn được ưu tiên cao nhất.
+
+   thuvienphapluat.vn là fallback thứ hai.
+
+   xaydungchinhsach.chinhphu.vn là fallback cho trường hợp
+   tìm được TOÀN VĂN văn bản chính thức nhưng không có URL detail
+   phù hợp trên các nguồn ưu tiên cao hơn.
+
+5. Nếu không có URL chi tiết/toàn văn đã được Google Search Grounding
+   xác minh:
+   sourceUrl phải là chuỗi rỗng.
+
+====================================================================
+[CÂU HỎI CỦA NGƯỜI DÙNG - USER QUESTION]
+====================================================================
+"${userPrompt}"
     `;
 
-    // 2. PHÂN BỔ HÀNG ĐỢI MODEL 
+    const normalizeModelName = (modelName) => {
+        if (!modelName) return null;
 
+        return modelName.replace(/^models\//, '');
+    };
+
+    // 2. PHÂN BỔ HÀNG ĐỢI MODEL - STRICT PRIORITY
     let fastQueue = [];
 
     if (useProModel) {
-        // Ưu tiên Pro 
+        // PRO MODEL PRIORITY: 
         fastQueue = ["models/gemini-3.1-pro-preview", "models/gemini-2.5-pro", "models/gemini-3.5-flash"];
     } else {
-        // Ưu tiên Flash bản mới nhất để không dính 429
-        fastQueue = ["models/gemini-3.5-flash", "models/gemini-3.1-flash-lite", "models/gemini-2.5-flash"];
+        // FLASH MODEL PRIORITY
+        fastQueue = ["models/gemini-3.5-flash", "models/gemini-2.5-flash", "models/gemini-3.1-flash-lite"];
     }
 
-    // Nếu preferredModel là null/undefined, filter(Boolean) sẽ tự loại bỏ nó
-    fastQueue = [...new Set([preferredModel, ...fastQueue])].filter(Boolean);
+
+    // Normalize the preferred model before inserting it into the queue.
+    const normalizedPreferredModel = normalizeModelName(preferredModel);
+
+    if (
+        normalizedPreferredModel &&
+        normalizedPreferredModel !== "gemini-3.1-flash-lite"
+    ) {
+        fastQueue = [
+            normalizedPreferredModel,
+            ...fastQueue.filter(
+                model => normalizeModelName(model) !== normalizedPreferredModel
+            )
+        ];
+    }
+
+
+    // Normalize and deduplicate all model names.
+    fastQueue = [
+        ...new Set(
+            fastQueue
+                .map(normalizeModelName)
+                .filter(Boolean)
+        )
+    ];
 
     for (const modelName of fastQueue) {
+        let timeoutId = null;
         try {
             console.log(`  Đang gọi: ${modelName} | Grounding (Search): ${enableGoogleSearch}`);
 
             const modelConfig = {
                 model: modelName,
-                systemInstruction: SYSTEM_LAW_INSTRUCTION
+                systemInstruction: getSystemLawInstruction()
             };
 
             if (enableGoogleSearch) {
                 modelConfig.tools = [{ googleSearch: {} }];
             }
+
+            //console.log(`[DEBUG] Gemini model used: ${modelName}`, modelConfig);
 
             const model = genAI.getGenerativeModel(modelConfig);
 
@@ -290,9 +557,13 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             );
 
             const generationConfig = { temperature: temp, topP: 0.8 };
-            // Không gửi responseMimeType JSON khi đang bật tools Google Search
+
             if (isJson && !enableGoogleSearch) {
                 generationConfig.responseMimeType = "application/json";
+
+                if (responseSchema) {
+                    generationConfig.responseSchema = responseSchema;
+                }
             }
 
             const apiPromise = model.generateContent({
@@ -301,9 +572,19 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             });
 
             const result = await Promise.race([apiPromise, timeoutPromise]);
+            if (timeoutId) clearTimeout(timeoutId);
 
             if (result && result.response) {
                 const text = result.response.text();
+                const groundingMetadata =
+                    result.response.candidates?.[0]?.groundingMetadata;
+
+                console.log(
+                    "=== FULL GEMINI RESPONSE ===",
+                    JSON.stringify(result.response, null, 2)
+                );
+
+
                 if (text) {
                     console.log(`  ${modelName} phản hồi thành công!`);
                     return text;
@@ -314,19 +595,79 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             console.warn(`  ${modelName} thất bại:`, msg.split('\n')[0]);
 
             if (msg === "TIMEOUT_EXCEEDED") continue;
-
-            //  Nếu dính lỗi overload 503 hoặc 429 khi bật Search, ngắt Search chạy bằng  LLM
-            if (enableGoogleSearch && (msg.includes("503") || msg.includes("429") || msg.includes("demand"))) {
+            if (
+                enableGoogleSearch &&
+                (msg.includes("503") ||
+                    msg.includes("429") ||
+                    msg.includes("demand"))
+            ) {
                 try {
-                    console.warn(" : Mạng Google nghẽn (503/429)! Ngắt kết nối Search, ép chạy bằng Tri thức nền LLM...");
-                    const fallbackModel = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash", systemInstruction: SYSTEM_LAW_INSTRUCTION, tools: [] });
-                    const fallbackResult = await fallbackModel.generateContent({
-                        contents: [{ role: "user", parts: [{ text: compiledPrompt }] }],
-                        generationConfig: { temperature: temp, responseMimeType: isJson ? "application/json" : undefined }
+                    console.warn(
+                        "Google Search Grounding gặp lỗi 503/429. " +
+                        "Chuyển sang LLM fallback..."
+                    );
+
+                    const fallbackModel = genAI.getGenerativeModel({
+                        model: normalizeModelName("models/gemini-2.5-flash"),
+                        systemInstruction: getSystemLawInstruction(),
+                        tools: []
                     });
+
+                    const fallbackGenerationConfig = {
+                        temperature: temp
+                    };
+
+                    // Giữ Structured Citation khi fallback về LLM.
+                    if (isJson) {
+                        fallbackGenerationConfig.responseMimeType = "application/json";
+
+                        if (responseSchema) {
+                            fallbackGenerationConfig.responseSchema = responseSchema;
+                        }
+                    }
+
+
+
+                    const fallbackPrompt = `
+[CHẾ ĐỘ LLM FALLBACK]
+
+Google Search Grounding hiện không khả dụng do lỗi hệ thống
+hoặc quá tải.
+
+Bạn được phép sử dụng kiến thức nội tại của model để cố gắng
+trả lời phần nội dung câu hỏi.
+TUYỆT ĐỐI KHÔNG:
+
+- tự tạo URL pháp luật;
+- tự suy đoán URL vbpl.vn;
+- tự suy đoán URL thuvienphapluat.vn;
+- tự suy đoán URL xaydungchinhsach.chinhphu.vn;
+- tự tạo UUID hoặc ID ở cuối URL;
+- giả vờ rằng URL đã được xác minh bởi Google Search.
+
+Nếu không có URL chi tiết/toàn văn đã được xác minh từ RAG
+hoặc Google Search Grounding, sourceUrl phải là chuỗi rỗng.
+
+${compiledPrompt}
+`;
+
+                    const fallbackResult = await fallbackModel.generateContent({
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [{ text: fallbackPrompt }]
+                            }
+                        ],
+                        generationConfig: fallbackGenerationConfig
+                    });
+
                     return fallbackResult.response.text();
+
                 } catch (fbErr) {
-                    console.error("Sập  hệ thống AI tầng cuối:", fbErr.message);
+                    console.error(
+                        " Lỗi hệ thống AI :",
+                        fbErr.message
+                    );
                     throw fbErr;
                 }
             }
@@ -337,11 +678,171 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
     }
     throw new Error("Tất cả model đều từ chối hoặc hết hạn mức.");
 }
+const CITATION_SCHEMA = {
+    type: "OBJECT",
+    properties: {
+        answer: {
+            type: "STRING",
+            description: "Câu trả lời đầy đủ tuân thủ ngặt nghèo các kịch bản pháp lý và rules của LegAI"
+        },
+        citations: {
+            type: "ARRAY",
+            description: "Mảng trích dẫn nguồn luật chính xác",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    lawName: { type: "STRING" },
+                    dieu: { type: "STRING" },
+                    khoan: { type: "STRING" },
+                    quoteSnippet: { type: "STRING" },
+                    sourceUrl: {
+                        type: "STRING",
+                        description: `
+URL NGUỒN ĐÃ ĐƯỢC XÁC MINH CỦA VĂN BẢN PHÁP LUẬT ĐƯỢC TRÍCH DẪN.
+
+THỨ TỰ ƯU TIÊN:
+
+1. URL detail từ RAG <protected_url>.
+2. URL detail chính thức từ vbpl.vn được Google Search Grounding xác minh.
+3. URL văn bản từ thuvienphapluat.vn được Google Search Grounding xác minh.
+4. URL TOÀN VĂN từ xaydungchinhsach.chinhphu.vn được Google Search Grounding xác minh.
+
+DOMAIN ĐƯỢC PHÉP:
+
+- https://vbpl.vn/
+- https://thuvienphapluat.vn/
+- https://xaydungchinhsach.chinhphu.vn/
+
+ĐỐI VỚI xaydungchinhsach.chinhphu.vn:
+
+Chỉ được sử dụng khi trang thực sự chứa TOÀN VĂN hoặc nội dung
+pháp luật tương ứng với văn bản đang được trích dẫn.
+
+Ví dụ hợp lệ:
+
+https://xaydungchinhsach.chinhphu.vn/toan-van-luat-thu-do-so-02-2026-qh16-11926052309491329.htm
+
+URL phải được Google Search Grounding xác minh.
+
+KHÔNG ĐƯỢC:
+
+- tự tạo URL;
+- tự tạo UUID hoặc ID;
+- sửa đổi URL tìm được;
+- sử dụng homepage;
+- sử dụng trang tìm kiếm;
+- sử dụng URL không được Grounding xác minh.
+
+Nếu không tìm thấy URL hợp lệ đã được xác minh:
+trả về chuỗi rỗng.
+`
+                    }
+                },
+                required: ["lawName", "dieu", "sourceUrl"]
+            }
+        }
+    },
+    required: ["answer", "citations"]
+};
+
+
+function isAllowedLegalSourceUrl(sourceUrl) {
+    if (!sourceUrl || typeof sourceUrl !== "string") {
+        return false;
+    }
+
+    try {
+        const url = new URL(sourceUrl);
+        const hostname = url.hostname.toLowerCase();
+        const pathname = url.pathname.toLowerCase();
+
+        const allowedHosts = [
+            "vbpl.vn",
+            "www.vbpl.vn",
+            "thuvienphapluat.vn",
+            "www.thuvienphapluat.vn",
+            "xaydungchinhsach.chinhphu.vn"
+        ];
+
+        if (!allowedHosts.includes(hostname)) {
+            return false;
+        }
+
+        // Không cho homepage
+        if (pathname === "/" || pathname === "") {
+            return false;
+        }
+
+        // Không cho URL tìm kiếm
+        if (
+            pathname.includes("/tim-kiem") ||
+            pathname.includes("/search")
+        ) {
+            return false;
+        }
+
+        return true;
+
+    } catch {
+        return false;
+    }
+}
+
+function sanitizeCitations(citations = []) {
+    if (!Array.isArray(citations)) {
+        return [];
+    }
+
+    return citations.map(citation => {
+        if (!citation || typeof citation !== "object") {
+            return citation;
+        }
+
+        if (!isAllowedLegalSourceUrl(citation.sourceUrl)) {
+            return {
+                ...citation,
+                sourceUrl: ""
+            };
+        }
+
+        return citation;
+    });
+}
+
+/**
+ * Utility function to convert standard Markdown legal citations 
+ * into internal Proxy Redirect URLs for Lazy Resolve mechanism.
+ *
+ * @param {string} responseText - The raw string generated by the Gemini model.
+ * @returns {string} The formatted string containing proxy redirect links.
+ */
+function formatProxyCitations(responseText) {
+    if (!responseText || typeof responseText !== 'string') {
+        return responseText;
+    }
+
+    const baseUrl = process.env.BASE_URL || 'http://localhost:8000';
+
+    return responseText.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+        (match, text) => {
+            const lawMatch = text.match(/\d+[\/\-_]\d+[\/\-_]?[a-zA-Z0-9]*/g);
+            if (lawMatch) {
+                const lawNum = lawMatch[0];
+                const proxyUrl = `${baseUrl}/api/source/resolve?lawNum=${encodeURIComponent(lawNum)}&lawName=${encodeURIComponent(text)}`;
+                return `[${text}](${proxyUrl})`;
+            }
+            return match;
+        }
+    );
+}
+
+
 // ==============================================================================
-//  1. HÀM CHAT BOT AI
+//  1.CHAT BOT AI
 // ==============================================================================
-async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = []) {
-    console.log(">>> V4.1 -  chống ảo giác");
+async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = [], useStructuredCitations = true) {
+    console.log(">>> V4.1");
     try {
         const historyText = chatHistory.length > 0
             ? chatHistory.map(msg => `${msg.role === 'user' ? 'NGƯỜI DÙNG' : 'LEGAI'}: ${msg.content}`).join("\n\n")
@@ -354,7 +855,14 @@ Bạn là LegAI - Hệ thống Trí tuệ Nhân tạo Pháp luật cao cấp t�
 Bạn được kết nối với hệ thống dữ liệu pháp luật của LegAI.
 
 # SIÊU CHỈ THỊ TUYỆT ĐỐI KHÔNG ẢO GIÁC (STRICT RAG BOUNDARY):
-1. Bạn CHỈ ĐƯỢC PHÉP sử dụng thông tin văn bản nằm TRONG vùng ranh giới "NỘI DUNG THỰC TẾ TRONG BỘ NHỚ PINECONE" được cung cấp ở bên dưới.
+1. Bạn CHỈ ĐƯỢC PHÉP sử dụng thông tin từ các nguồn
+được hệ thống cung cấp trong request hiện tại:
+
+1.1 Nội dung RAG từ Pinecone.
+1.2 Kết quả Google Search Grounding nếu hệ thống đã kích hoạt Search.
+
+Không sử dụng kiến thức nội tại để bổ sung dữ liệu pháp luật
+mà RAG hoặc Grounding không cung cấp.
 2. NẾU một Điều luật xuất hiện trong dữ liệu nhưng bị khuyết các Khoản/Điểm (Ví dụ: dữ liệu chỉ hiển thị Khoản 1 và Khoản 2, hoàn toàn không nhắc gì tới Khoản 3, Khoản 4), bạn BẮT BUỘC phải coi như các Khoản/Điểm thiếu đó CHƯA TỒN TẠI trên hệ thống. 
 3. NGHIÊM CẤM tuyệt đối việc tự ý sử dụng trí nhớ nội tại hoặc kiến thức nền của bạn để tự động bổ sung, điền thêm, hoặc hoàn thiện các Khoản/Điểm/Mức hình phạt bị khuyết từ RAG.
 4. Nếu câu hỏi của người dùng hỏi trúng vào phần dữ liệu bị khuyết hoặc không có trong ranh giới xác thực,
@@ -376,20 +884,37 @@ THÌ:
 - Không suy diễn thêm khung phạt hoặc tình tiết tăng nặng ngoài dữ liệu.
 
 =================================================
-[ƯU TIÊN 2: GOOGLE SEARCH GROUNDING CÓ GIỚI HẠN]
+[ƯU TIÊN 2: GOOGLE SEARCH GROUNDING]
 Trường hợp dữ liệu RAG nội bộ bị khuyết hoặc thiếu thông tin chi tiết về số Điều/Khoản người dùng hỏi, và hệ thống đã kích hoạt mở cổng kết nối mạng:
 - Hãy sử dụng công cụ Tìm kiếm để càn quét văn bản pháp luật gốc.
-- CHỈ được lấy dữ liệu đáng tin cậy từ 2 nguồn: "vbpl.vn" hoặc "thuvienphapluat.vn".
-- Nếu tìm thấy, phải trích xuất rõ ràng: Tên văn bản, Số hiệu văn bản, nội dung chi tiết của Điều, Khoản, Điểm đó.
+- CHỈ được lấy dữ liệu từ các nguồn pháp lý được phép:
+
+  1. https://vbpl.vn/
+  2. https://thuvienphapluat.vn/
+  3. https://xaydungchinhsach.chinhphu.vn/
+
+- Ưu tiên tuyệt đối vbpl.vn.
+
+- Nếu vbpl.vn không có kết quả phù hợp, thử thuvienphapluat.vn.
+
+- Nếu hai nguồn trên không có kết quả phù hợp, được phép sử dụng
+  xaydungchinhsach.chinhphu.vn nếu tìm thấy trang TOÀN VĂN chính thức
+  của đúng văn bản.
+
+- Khi sử dụng xaydungchinhsach.chinhphu.vn, phải xác minh:
+  + đúng tên văn bản;
+  + đúng số hiệu;
+  + đúng nội dung Điều/Khoản đang được hỏi;
+  + trang thực sự chứa toàn văn hoặc nội dung chính thức của văn bản.
+
+- Không được sử dụng các trang tin tức, blog hoặc website khác.
+- Nếu tìm thấy, phải trích xuất rõ ràng: Tên văn bản, Số hiệu văn bản, nội dung chi tiết của Điều, Khoản,link URL Điểm đó.
 =================================================
 [ƯU TIÊN 3: TRI THỨC NỘI TẠI CÓ KIỂM SOÁT]
 Nếu: RAG không có VÀ Search grounding không có.
 Được phép dùng tri thức nội tại CHỈ ĐỂ dẫn dắt đến các nguyên tắc pháp lý hoặc điều luật phổ biến (ví dụ: Luật Dân sự, Luật SHTT).
 ĐƯỢC PHÉP: Trích dẫn các điều luật cơ bản, nổi tiếng nếu chắc chắn đúng 100%.
-TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ TẠO:
-✗ Số hiệu văn bản
-✗ Các Khoản/Điểm bị khuyết
-✗ Mức tiền phạt hoặc số năm tù cụ thể
+TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ Ý TẠO RA: Số hiệu văn bản giả lập, các Khoản/Điểm bị khuyết, mức phạt bằng tiền cụ thể hoặc số năm tù cụ thể.
 
 =================================================
 [ƯU TIÊN 4: THIẾU THÔNG TIN]
@@ -422,15 +947,55 @@ Hãy tự động phân tích "YÊU CẦU TỪ NGƯỜI DÙNG" để xếp vào 
 - Áp dụng khi: Dữ liệu RAG có đầy đủ thông tin để trả lời chắc chắn (tình huống pháp lý, tra cứu luật, điều kiện, thủ tục...).
 - Quy tắc:
   1. KHÔNG chào hỏi dư thừa. ĐI THẲNG VÀO PHẦN KẾT LUẬN.
-  2. KHÔNG trả về JSON hoặc Array. Dùng Markdown.
+  2. QUY TẮC ĐỊNH DẠNG OUTPUT : Nếu hệ thống yêu cầu Structured Citation hoặc cung cấp
+response schema:
+- BẮT BUỘC trả về đúng JSON schema được cung cấp.
+- Không trả Markdown bên ngoài JSON.
+  - Không thêm giải thích bên ngoài JSON.
+  - Không tự thêm hoặc bỏ field khỏi schema.
+
+Nếu hệ thống KHÔNG yêu cầu Structured Citation:
+
+- Trả lời bằng Markdown theo format thông thường.
+   
+  .
   3. KHÔNG dùng cụm "Dựa trên tài liệu". Trả lời tự tin.
 - Cấu trúc bắt buộc:
    **Kết luận:** (Ngắn gọn 1-2 câu).
    **Phân tích:** (Giải thích logic bằng các đoạn văn/gạch đầu dòng).
    **Cơ sở pháp lý:** (Trình bày liền mạch. Tuân thủ ngặt nghèo QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ ở trên.
-   Trình bày rõ ràng: "Theo Điều X, Khoản Y của văn bản Z, quy định rằng: [Nội dung trích dẫn]".
-    Tuyệt đối không được nói chung chung "theo luật hiện hành".
+  Trình bày rõ ràng: "Theo [Điều X - Tên Luật](URL_Source), Khoản Y quy định rằng: [Nội dung trích dẫn]".
+URL_Source phải tuân thủ QUY TẮC NGUỒN VÀ URL ở trên.
+- Nếu RAG có URL chi tiết hợp lệ:
+  sử dụng URL từ <protected_url>.
+
+- Nếu RAG không có URL:
+  sử dụng URL đã được Google Search Grounding xác minh theo thứ tự:
+
+  1. vbpl.vn
+  2. thuvienphapluat.vn
+  3. xaydungchinhsach.chinhphu.vn
+
+- Đối với xaydungchinhsach.chinhphu.vn:
+  chỉ sử dụng nếu đó là trang TOÀN VĂN hoặc trang chính thức
+  chứa nội dung của đúng văn bản đang được trích dẫn.
+
+- Nếu không tìm thấy URL đã xác minh:
+  sourceUrl phải để trống.
+
+- Không được tự tạo hoặc suy đoán URL.
+
+
+Tuyệt đối không được nói chung chung "theo luật hiện hành".
     TUYỆT ĐỐI KHÔNG ghi chú nguồn gốc như "Từ RAG" hay "Từ tri thức nội tại" vào câu trả lời).
+
+[CHỈ THỊ CHỐNG HALLUCINATION ÉP BUỘC CHO KỊCH BẢN 3]:
+1. BẢNG TOÀN SỐ KHOẢN NGUYÊN VĂN - CHỈ LẤY TỪ <content_verbatim>: Khi RAG cung cấp dữ liệu chứa <article_number>Điều X</article_number>, BẮT BUỘC giữ nguyên vị số Khoản/Điểm này. CẤM TỰ Ý RENUMBER từ 1, 2, 3 từ trên xuống khi dữ liệu gốc chỉ hiển thị Khoản 1, 3, 5 (bị khuyết 2, 4).
+2.TRÍCH URL THEO QUY TẮC URL AUTHORITY:
+
+- RAG có URL detail → lấy từ <protected_url>.
+- RAG không có URL detail → lấy URL detail từ Google Search Grounding nếu đã xác minh.
+- Không được lấy homepage https://vbpl.vn/.
 
    **Lời khuyên:** (Hướng dẫn hành động).
 
@@ -438,7 +1003,24 @@ Hãy tự động phân tích "YÊU CẦU TỪ NGƯỜI DÙNG" để xếp vào 
 
 Áp dụng khi: Dữ liệu RAG không cung cấp đầy đủ Điều/Khoản hoặc thông tin bị khuyết.
 
-BẮT BUỘC: Sử dụng [ƯU TIÊN 2: GOOGLE SEARCH] để tìm kiếm văn bản pháp luật gốc từ các trang chính thống (vbpl.vn, thuvienphapluat.vn).
+BẮT BUỘC: Sử dụng [ƯU TIÊN 2: GOOGLE SEARCH] để tìm kiếm văn bản
+pháp luật từ các nguồn theo thứ tự:
+
+1. vbpl.vn
+2. thuvienphapluat.vn
+3. xaydungchinhsach.chinhphu.vn
+
+Nếu tìm thấy trang "Toàn văn" chính thức trên
+xaydungchinhsach.chinhphu.vn thì được phép sử dụng trang đó
+làm sourceUrl.
+
+Sau khi tìm thấy phải trích dẫn:
+- Tên văn bản
+- Số hiệu
+- Điều
+- Khoản
+- Nội dung tương ứng
+- sourceUrl đã được Grounding xác minh
 
 Sau khi tìm thấy, phải trích dẫn Tên văn bản, Số hiệu, Điều, Khoản cụ thể.
 
@@ -447,8 +1029,15 @@ Nếu sau khi đã tìm kiếm ở cả RAG và Google mà vẫn không có thô
 **[KỊCH BẢN 5]: YÊU CẦU CHỦ ĐỘNG GẶP LUẬT SƯ**
 - Áp dụng khi: "Tôi muốn gặp luật sư", "Cần tư vấn trực tiếp".
 - Phản hồi: Chào và nhả DUY NHẤT mã code: [CONTACT_LAWYER]
-# ĐỊNH DẠNG ĐẦU RA (ĐỊNH KHUÂN CHUẨN FRONTEND):
-- CHỈ TRẢ VỀ VĂN BẢN THUẦN (TEXT) DƯỚI DẠNG MARKDOWN. TUYỆT ĐỐI KHÔNG bọc trong object JSON.
+# ĐỊNH DẠNG ĐẦU RA
+
+NẾU hệ thống yêu cầu Structured Citation:
+- Chỉ trả về JSON hợp lệ theo response schema.
+- Không bọc JSON trong Markdown hoặc code fence.
+- Không thêm bất kỳ nội dung nào bên ngoài JSON.
+
+NẾU hệ thống KHÔNG yêu cầu Structured Citation:
+- Trả về Markdown theo format thông thường.
 - CẤM TUYỆT ĐỐI việc in các dòng chữ tiêu đề kỹ thuật như "[KỊCH BẢN 1]", "[KỊCH BẢN 3]", "[KỊCH BẢN 4]" vào nội dung câu trả lời gửi về cho người dùng. Người dùng không được phép nhìn thấy các nhãn phân loại này.
 - Đi thẳng vào nội dung câu trả lời (Kết luận, Phân tích... đối với Kịch bản 3, hoặc đoạn văn từ chối đối với Kịch bản 4).
 ---
@@ -457,22 +1046,54 @@ Nếu sau khi đã tìm kiếm ở cả RAG và Google mà vẫn không có thô
 
 `;
 
-        const responseText = await getActiveModel(prompt, false, documents, false, false, userQuestion);
+        const responseText = await getActiveModel(prompt, useStructuredCitations, documents, false, false, userQuestion, useStructuredCitations ? CITATION_SCHEMA : null);
 
-        console.log("--- [DEBUG] DỮ LIỆU THÔ TỪ AI TRƯỚC KHI XỬ LÝ ---");
         console.log(responseText);
         await logUsage('CHATBOT');
+        if (useStructuredCitations) {
+            try {
+                const cleanJson = cleanAIJsonString(responseText);
+                const parsed = JSON.parse(cleanJson);
+
+                parsed.citations = sanitizeCitations(parsed.citations);
+                for (const citation of parsed.citations) {
+                    if (citation.sourceUrl) {
+                        await lawSourceService.validateAndCacheResolvedUrl(
+                            citation.lawName,
+                            citation.lawName,
+                            citation.sourceUrl
+                        );
+                    }
+                }
+                return parsed;
+
+            } catch (err) {
+                console.warn(
+                    "Lỗi Parse Citation JSON, fallback về text:",
+                    err.message
+                );
+
+                return {
+                    answer: responseText,
+                    citations: []
+                };
+            }
+        }
+        responseText = formatProxyCitations(responseText);
         return responseText;
 
     } catch (error) {
         console.error(" Lỗi toàn bộ hệ thống Gemini:", error.message);
-        return "Legal đang quá tải. Vui lòng thử lại sau một lát.";
+        return useStructuredCitations
+            ? { answer: "LegAI đang quá tải. Vui lòng thử lại sau.", citations: [] }
+            : "LegAI đang quá tải. Vui lòng thử lại sau.";
     }
 }
 
 
+
 // ==============================================================================
-// 2. HÀM PHÂN TÍCH HỢP ĐỒNG 
+// 2. Contract Analyzer 
 // ==============================================================================
 async function analyzeContract(contractText, documents = [], isUserPreMasked = false) {
     try {
@@ -485,7 +1106,20 @@ Bạn là AI Pháp lý LegAI, đóng vai Thẩm phán chuyên trách rà soát h
 ────────────────────────────────────────────────────────────
 [ SIÊU CHỈ THỊ TUYỆT ĐỐI KHÔNG ẢO GIÁC CHO AI (STRICT RAG BOUNDARY)]
 ────────────────────────────────────────────────────────────
-1. Bạn CHỈ ĐƯỢC PHÉP sử dụng thông tin văn bản nằm TRONG vùng ranh giới "NGỮ CẢNH DỮ LIỆU RAG NỘI BỘ" được cung cấp ở cuối prompt hoặc kết quả tìm kiếm từ Google Search Grounding (nếu hệ thống mở cổng mạng).
+1. NGUỒN DỮ LIỆU ĐƯỢC PHÉP
+
+Bạn chỉ được sử dụng thông tin từ các nguồn được hệ thống cung cấp:
+
+1. RAG nội bộ từ Pinecone.
+2. Google Search Grounding khi công cụ Search được bật.
+
+Khi RAG có thông tin phù hợp, ưu tiên sử dụng RAG.
+
+Khi RAG không có thông tin phù hợp hoặc không có văn bản cần tìm,
+được phép sử dụng Google Search Grounding.
+
+Không sử dụng kiến thức nội tại để tự suy đoán thông tin pháp luật
+hoặc tự tạo URL chưa được xác minh..
 2. NẾU một Điều luật xuất hiện trong dữ liệu RAG nhưng bị khuyết các Khoản/Điểm (Ví dụ: dữ liệu chỉ hiển thị Khoản 1 và Khoản 2, hoàn toàn không nhắc gì tới Khoản 3, Khoản 4), bạn BẮT BUỘC phải coi như các Khoản/Điểm thiếu đó CHƯA TỒN TẠI trên hệ thống RAG nội bộ. 
 3. NGHIÊM CẤM tuyệt đối việc tự ý sử dụng trí nhớ nội tại hoặc kiến thức nền của bạn để tự động bổ sung, điền thêm, hoặc hoàn thiện các Khoản/Điểm/Mức hình phạt bị khuyết từ RAG.
 4. LUÔN ƯU TIÊN TRÍCH DẪN ĐIỀU LUẬT CỤ THỂ (ĐIỀU, KHOẢN, ĐIỂM) TRONG TRƯỜNG 'legal_basis'. NẾU BÁO CÁO PHÂN TÍCH KHÔNG CÓ TRÍCH DẪN CHI TIẾT, HỆ THỐNG SẼ BỊ ĐÁNH GIÁ LÀ LỖI CHẤT LƯỢNG KÉM.
@@ -532,7 +1166,7 @@ Hãy thực hiện song song 2 quy tắc quét sau:
 - Tuyệt đối không vì tập trung bắt lỗi khuyết điều khoản mà bỏ qua các điều khoản sai phạm đang hiện hữu khác trong văn bản (Ví dụ: Lỗi ấn định mức phạt vi phạm cố định 100 triệu ở Điều 9 vẫn phải được bắt giữ và phân loại vào nhóm rủi ro "Hình thức chế tài/Phạt vi phạm").
 - Mọi điều khoản vi phạm luật định đang hiển thị bằng chữ trong file CẦN PHẢI có một item riêng biệt trong 'analysis_report'.
 
-⚠️ QUY TẮC KHÓA TRẦN ĐIỂM SỐ CHÍ MẠNG (CRITICAL PENALTY):
+ QUY TẮC KHÓA TRẦN ĐIỂM SỐ (CRITICAL PENALTY):
 - Nếu hợp đồng vừa bị khuyết hẳn một mảng nghĩa vụ lớn, vừa dính thêm các điều khoản phạt sai luật định, điểm 'risk_score' TỐI ĐA TUYỆT ĐỐI KHÔNG VƯỢT QUÁ 40 ĐIỂM (Báo động đỏ nghiêm trọng).
 PHẦN C: RÀ SOÁT CÂU CHỮ HIỆN HỮU (CONTENT RISK AUDIT)
 - Quét các câu chữ thực tế đang có để tìm ra các điều khoản cài cắm bẫy, vi phạm điều cấm (Ví dụ: phạt quá 8% trong thương mại, đơn phương tăng giá tùy tiện). Trừ điểm theo đúng Engine chấm điểm.
@@ -740,7 +1374,9 @@ NHIỆM VỤ CỦA BẠN:
 
             try {
                 //  prompt cào mạng bằng model Pro
-                const searchResponse = await getActiveModel(searchPrompt, true, [], false, true); // forceProModel = true
+                const shouldSearch = finalResult.analysis_report.length > 0;
+                const searchResponse = await getActiveModel(searchPrompt, true, [], shouldSearch, true); // forceSearch = true, forceProModel = true
+                console.log(" [LEG_AI ROUTER - PHASE 2]: Kích hoạt Google Search Grounding để tra cứu luật trực tiếp từ vbpl.vn/thuvienphapluat.vn");
                 const cleanedSearchText = cleanAIJsonString(searchResponse);
                 const webLegalBasisArray = JSON.parse(cleanedSearchText);
 
@@ -989,7 +1625,7 @@ TUYỆT ĐỐI không trả lời chung chung (như "Vui lòng kiểm tra lại.
     ]
   }
 }
-# CẢNH BÁO TỐI THƯỢNG:
+# CẢNH BÁO :
 CHỈ trả về JSON thuần túy. KHÔNG chào hỏi rườm rà bên ngoài. Nếu không tuân thủ cấu trúc JSON này, hệ thống sẽ lỗi.\`;
 `;
 
@@ -1116,7 +1752,7 @@ Phân tích hồ sơ -> Đối chiếu RAG và Tri thức nội tại cập nh�
     }
 }
 // ==============================================================================
-// HÀM BỔ TRỢ: XỬ LÝ ĐIỂM SỐ & ĐỒNG BỘ DỮ LIỆU (POST-PROCESSING)
+//  XỬ LÝ ĐIỂM SỐ & ĐỒNG BỘ DỮ LIỆU (POST-PROCESSING)
 
 // ==============================================================================
 
@@ -1163,7 +1799,7 @@ function adaptAndScoreV7(aiParsedResult) {
 
     const finalTrustScore = Math.min(rawScore, appliedCap);
 
-    // 5. Tự động sinh ghi chú (Calculation Note)
+    // 5. (Calculation Note)
     let noteParts = [];
     if (dangerous > 0) noteParts.push(`${dangerous} rủi ro nghiêm trọng (DANGEROUS)`);
     if (high > 0) noteParts.push(`${high} sai lệch cốt lõi (HIGH_RISK)`);
@@ -1173,7 +1809,7 @@ function adaptAndScoreV7(aiParsedResult) {
         ? `Hệ thống ghi nhận ${noteParts.join(', ')}. Điểm số được điều chỉnh dựa trên mức độ vi phạm thực tế.`
         : "Nội dung video tuân thủ tốt, không phát hiện sai lệch pháp lý đáng kể.";
 
-    // 6. Trả về Object chuẩn hóa cho Frontend
+    // 6. Return Object for Frontend
     return {
         ...aiParsedResult,
         trustScore: finalTrustScore,
@@ -1189,7 +1825,7 @@ function adaptAndScoreV7(aiParsedResult) {
 }
 
 // ==============================================================================
-// HÀM PHÂN TÍCH VIDEO (VIDEO ANALYSIS) - V7.0 FINAL
+// (VIDEO ANALYSIS) 
 // ==============================================================================
 
 async function analyzeVideo(videoUrl) {
@@ -1210,17 +1846,17 @@ async function analyzeVideo(videoUrl) {
 
         // Khai báo các biến phục vụ RAG và Prompt
         let ragContext = '';
-        let ragStatus = 'EMPTY'; // Mặc định là EMPTY
+        let ragStatus = 'EMPTY';
         let relatedDocs = [];
-        let legalClaims = ''; // Dự phòng nếu sếp chưa có hàm trích xuất AI #1
+        let legalClaims = '';
 
-        // 2. RAG GROUNDING (TRUY XUẤT LUẬT THỰC TẾ)
+        // 2. RAG GROUNDING 
         try {
             const keywordPrompt = `Bạn là một chuyên gia trích xuất dữ liệu hệ thống (Data Extractor). Hãy đọc đoạn văn bản sau và trích xuất ra từ 3-5 từ khóa hoặc cụm từ pháp lý cốt lõi bằng tiếng Việt để làm chuỗi tìm kiếm dữ liệu (Search Query).
     
-    QUY TẮC ÉP BUỘC (SỐNG CÒN):
+    QUY TẮC ÉP BUỘC :
     1. CHỈ trả về các từ khóa/cụm từ cách nhau bằng dấu phẩy (Ví dụ: quy chế thi, đề thi mẫu, bộ giáo dục và đào tạo).
-    2. TUYỆT ĐỐI KHÔNG có lời mở đầu, không có số thứ tự (1, 2, 3), không giải thích trong ngoặc, không dùng dấu gạch đầu dòng, không bọc dấu markdown.
+    2. TUYỆT ĐỐI KHÔNG có lời mở đầu, không có số thứ tự (1, 2, 3), không giải thích trong ngoặc, không bọc dấu markdown.
     3. Chủ động sửa các lỗi chính tả nghe từ tai tiếng sang từ ngữ pháp lý chuẩn (Ví dụ: 'sở giục đo tạ' -> 'Sở Giáo dục và Đào tạo', 'quy chế thi vào tháng 11' -> 'Quy chế thi tốt nghiệp THPT').
     
     Đoạn văn bản cần trích xuất: "${transcript.substring(0, 1000)}"`;
@@ -1230,20 +1866,20 @@ async function analyzeVideo(videoUrl) {
             relatedDocs = await ragService.query(refinedKeywords.trim());
 
             if (relatedDocs && relatedDocs.length > 0) {
-                ragStatus = 'SUCCESS'; // Đánh dấu RAG thành công
-                console.log(`🟢 [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật để audit video).`)
+                ragStatus = 'SUCCESS';
+                console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật để audit video).`)
             } else {
-                ragStatus = 'EMPTY'; // Truy vấn OK nhưng không có kết quả
-                console.log(`🟡 [NGUỒN DATA]: PINECONE TRỐNG -> Đã cấp quyền dùng Google Search Grounding để fact-check pháp lý video.`);
+                ragStatus = 'EMPTY';
+                console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Đã cấp quyền dùng Google Search Grounding để fact-check pháp lý video.`);
             }
         }
 
         catch (rErr) {
-            ragStatus = 'FAILED'; // Đánh dấu lỗi hệ thống
+            ragStatus = 'FAILED';
             console.warn(" Lỗi của RAG:", rErr.message);
         }
 
-        // 3.  PROMPT V7.0 
+        // 3.  PROMPT 
         const prompt = `
 [CRITICAL SYSTEM RULES - HIGHEST PRIORITY]
 
@@ -1268,7 +1904,7 @@ GROUNDING_MODE:
 
 QUY TẮC PHÒNG THỦ & TRÍ THỨC NỀN 2026:
 1. Nếu RAG_STATUS thuộc ["FAILED", "TIMEOUT", "EMPTY"], kích hoạt chế độ GROUNDING_MODE = "DEGRADED".
-2. Khi chạy ở chế độ "DEGRADED" hoặc khi RAG không chứa văn bản luật cụ thể: NGHIÊM CẤM bịa đặt số hiệu văn bản giả. Tuy nhiên, BẮT BUỘC phải sử dụng [TRI THỨC NỘI TẠI CẬP NHẬT ĐẾN NĂM 2026] để trích xuất và tóm tắt các quy định pháp luật hiện hành hoặc các Đề án chỉ đạo cốt lõi của Nhà nước liên quan đến chủ đề (Ví dụ về Tiền điện tử/Tiền ảo: Phải liên kết được với Quyết định 1255/QĐ-TTg của Thủ tướng Chính phủ về đề án hoàn thiện khung pháp lý tài sản ảo; các Chỉ thị của Ngân hàng Nhà nước và Luật Thuế hiện hành).
+2. Khi chạy ở chế độ "DEGRADED" hoặc khi RAG không chứa văn bản luật cụ thể: NGHIÊM CẤM bịa đặt số hiệu văn bản giả. Tuy nhiên, BẮT BUỘC phải sử dụng [TRI THỨC NỘI TẠI CẬP NHẬT ĐẾN NĂM 2026] để trích xuất và tóm tắt các quy định pháp lý hiện hành hoặc các Đề án chỉ đạo cốt lõi của Nhà nước liên quan đến chủ đề (Ví dụ về Tiền điện tử/Tiền ảo: Phải liên kết được với Quyết định 1255/QĐ-TTg của Thủ tướng Chính phủ về đề án hoàn thiện khung pháp lý tài sản ảo; các Chỉ thị của Ngân hàng Nhà nước và Luật Thuế hiện hành).
 3. Tuyệt đối không để trống hoặc ghi "Chưa xác minh cụ thể" ở phần tóm tắt luật hiện hành nếu tri thức nền của bạn có thể cung cấp tổng quan quy định pháp lý tương ứng.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1423,8 +2059,8 @@ async function classifyCategoryWithAI(title) {
     Kết quả:`;
 
     try {
-        // Thay vì gọi model trực tiếp, hãy dùng hàm getActiveModel có sẵn
-        const rawResponse = await getActiveModel(prompt, false, false, false, false, "");
+
+        const rawResponse = await getActiveModel(prompt, false, [], false, false, "");
         const category = rawResponse.trim().replace(/[".*]/g, "");
         return VALID_CATEGORIES.includes(category) ? category : "Lĩnh vực khác";
     } catch (error) {
@@ -1434,6 +2070,7 @@ async function classifyCategoryWithAI(title) {
 module.exports = {
     getActiveModel,
     generateAnswerWithGemini,
+
     analyzeContract,
     generateForm,
     generatePlan,

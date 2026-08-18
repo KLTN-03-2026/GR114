@@ -206,7 +206,7 @@ cat AI_Engine/.env | grep GEMINI
 node -e "
 const {GoogleGenerativeAI} = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-genAI.getGenerativeModel({model:'gemini-embedding-001'})
+genAI.getGenerativeModel({model:'gemini-embedding-2'})
   .embedContent('test')
   .then(() => console.log('✅ Gemini OK'))
   .catch(e => console.log('❌ Error:', e.message));

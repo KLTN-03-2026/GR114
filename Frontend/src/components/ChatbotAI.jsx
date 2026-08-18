@@ -199,14 +199,14 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                 }
             }
         } catch (e) {
-            // Nếu không phải JSON (AI trả về Text thuần), giữ nguyên để xử lý tiếp
+            // Nếu không phải JSON (AI trả về Text thuần)
             content = text;
         }
 
         // Đảm bảo dữ liệu đầu ra là chuỗi String
         if (typeof content !== 'string') content = String(content);
 
-        // BƯỚC 2: TỰ ĐỘNG ÉP ĐỊNH DẠNG TIÊU ĐỀ (ĐÃ FIX LỖI REGEX)
+        //  ÉP ĐỊNH DẠNG TIÊU ĐỀ 
         const titles = [
             { key: 'Kết luận' },
             { key: 'Phân tích' },
@@ -216,17 +216,17 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
 
         titles.forEach(item => {
 
-            // Xóa sạch các icon cũ, dấu sao cũ, dấu hai chấm cũ
+
             const regex = new RegExp(`([\\s\\*\\-⚖️🔍📚💡]*)${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gi');
 
 
-            // Bơm 2 dấu \n ở sau (để đẩy nội dung của nó xuống dòng)
+
             content = content.replace(regex, `\n\n**${item.key}:**\n\n`);
         });
-        // BƯỚC 3: XỬ LÝ MIỄN TRỪ TRÁCH NHIỆM (Disclaimer)
+
         content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
 
-        // BƯỚC 4: DỌN DẸP KHOẢNG TRẮNG THỪA (Tối đa 2 lần xuống dòng để tránh giãn quá rộng)
+
         content = content.replace(/\n{3,}/g, '\n\n').trim();
 
         return content;
@@ -302,7 +302,20 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                                             <LawyerCard />
                                         ) : (
                                             <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
-                                                <ReactMarkdown>
+                                                <ReactMarkdown
+                                                    components={{
+                                                        // đường link trích dẫn pháp lý
+                                                        a: ({ node, ...props }) => (
+                                                            <a
+                                                                {...props}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title="Bấm để xem văn bản pháp luật gốc"
+                                                                className="text-blue-600 hover:text-blue-800 font-semibold underline underline-offset-2 transition-colors"
+                                                            />
+                                                        )
+                                                    }}
+                                                >
                                                     {formatAIMessage(msg.text)}
                                                 </ReactMarkdown>
                                             </div>
@@ -328,11 +341,11 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* INPUT AREA */}
+
                 {/* INPUT AREA */}
                 <div className="p-4 bg-white border-t border-zinc-200 shrink-0 rounded-b-[2.5rem]">
                     {!isLoggedIn && guestCount >= 3 ? (
-                        // GIAO DIỆN CHẶN KIỂU SHOPEE
+                        // GIAO DIỆN CHẶN 
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}

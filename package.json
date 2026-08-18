@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@pinecone-database/pinecone": "^7.1.0",
+    "axios": "^1.19.0",
+    "cheerio": "^1.2.0",
     "slugify": "^1.6.9",
     "sweetalert2": "^11.26.24"
   }

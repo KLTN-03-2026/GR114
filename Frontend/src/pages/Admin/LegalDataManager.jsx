@@ -43,76 +43,11 @@ const parseLegalContentToHTML = (content) => {
     if (!content) return null;
 
 
-    // Regex  chèn \n trước các từ khóa
-    const processedContent = content
-        .replace(/(CHƯƠNG\s+[IVXLCDM\d]+)/gi, '\n$1\n')
-        .replace(/(ĐIỀU\s+\d+[\.\s]+[^\n]*)/gi, '\n$1\n')
-        .replace(/(\d+\.\s+)/g, '\n$1 ')
-        .replace(/([a-z]\)\s+)/g, '\n$1 ');
-
-    const lines = processedContent.split('\n');
-
-    return lines.map((line, index) => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) return null;
-
-
-        const upperLine = trimmedLine.toUpperCase();
-        if (
-            upperLine === "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" ||
-            upperLine === "ĐỘC LẬP – TỰ DO – HẠNH PHÚC" ||
-            upperLine === "ĐỘC LẬP - TỰ DO - HẠNH PHÚC" ||
-            upperLine === "QUỐC HỘI" ||
-            /^SỐ:\s+\d+/i.test(trimmedLine) ||
-            /Hà Nội, ngày\s+\d+/i.test(trimmedLine) ||
-            /^-------$/i.test(trimmedLine) ||
-            /^______+$/i.test(trimmedLine)
-        ) return null;
-
-
-        // 1. CHƯƠNG / MỤC
-        if (/^(Chương|Mục)\s+[IVXLCDM\d]+/i.test(trimmedLine)) {
-            return (
-                <div key={index} className="text-center font-bold text-gray-950 text-[16px] my-6 uppercase tracking-wider border-b border-gray-200 pb-2">
-                    {trimmedLine}
-                </div>
-            );
-        }
-
-        // 2. ĐIỀU
-        if (/^Điều\s+\d+/i.test(trimmedLine)) {
-            return (
-                <div key={index} className="font-bold text-zinc-950 text-[15px] mt-8 mb-3 text-left">
-                    {trimmedLine}
-                </div>
-            );
-        }
-
-        // 3. KHOẢN
-        if (/^\d+\.\s+/.test(trimmedLine)) {
-            return (
-                <div key={index} className="pl-6 text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 font-medium">
-                    {trimmedLine}
-                </div>
-            );
-        }
-
-        // 4. ĐIỂM
-        if (/^[a-z]\)\s+/.test(trimmedLine)) {
-            return (
-                <div key={index} className="pl-12 text-[14.5px] text-gray-700 leading-relaxed text-justify mb-1.5 italic">
-                    {trimmedLine}
-                </div>
-            );
-        }
-
-        // 5. Văn xuôi
-        return (
-            <div key={index} className="text-[14.5px] text-gray-800 leading-relaxed text-justify mb-2 pl-2">
-                {trimmedLine}
-            </div>
-        );
-    });
+    return (
+        <div className="whitespace-pre-wrap text-[14.5px] leading-relaxed text-justify font-serif text-gray-900">
+            {content}
+        </div>
+    );
 };
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
@@ -855,7 +790,7 @@ export default function LegalDataManager() {
                                 </button>
                             </div>
 
-                            {/* Content Area - Không gian cuộn mượt mà */}
+                            {/* Content Area  */}
                             <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-zinc-100/60 custom-scrollbar">
                                 {chunksLoading ? (
                                     <div className="flex flex-col items-center justify-center h-full text-gray-400 uppercase text-[10px] tracking-[0.2em] py-20">
@@ -863,7 +798,7 @@ export default function LegalDataManager() {
                                         Đang truy xuất bản gốc...
                                     </div>
                                 ) : (
-                                    /* TỜ GIẤY A4 QUỐC GIA - GIẢI PHÓNG CHIỀU RỘNG RỘNG RÃI */
+                                    /* TỜ GIẤY A4 QUỐC GIA  */
                                     <div
                                         className="w-full max-w-4xl bg-white text-black shadow-xl flex flex-col p-8 md:p-12 border border-gray-200 rounded-2xl h-fit min-h-full"
                                         style={{ fontFamily: "'Times New Roman', Times, serif" }}
@@ -892,60 +827,67 @@ export default function LegalDataManager() {
                                                 {selectedDoc?.Title}
                                             </h3>
                                         </div>
-                                        {/*  VÙNG ĐỌC LUẬT HIỂN THỊ PHÂN CẤP CHUẨN ĐÉT VBPL  */}
-                                        <div className="mt-4 flex-1 font-sans antialiased space-y-2.5 text-left w-full">
-                                            {parseLegalContentToHTML(selectedDoc?.Content)}
-                                        </div>
+                                        {/* VÙNG ĐỌC LUẬT */}
+                                        <div className="mt-4 flex-1 font-serif text-[14.5px] text-gray-900 leading-[1.6] text-justify w-full whitespace-pre-wrap"
+                                         style={{
+                                            fontFamily: "'Times New Roman', Times, serif", 
+                                            color: '#000'
+                                        }}>      
+                                        {selectedDoc?.Content}
+                                    </div>
                                     </div>
                                 )}
-                            </div>
                         </div>
                     </div>
-                )}
-
-                {/* Delete Modal */}
-                {showDeleteModal && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className={`${glassClass} w-full max-w-md mx-4 rounded-3xl p-6`}>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Xác nhận xóa</h2>
-                                <button
-                                    onClick={() => setShowDeleteModal(false)}
-                                    className="text-gray-500 hover:text-gray-700 transition-colors"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            <div className="text-center mb-6">
-                                <AlertTriangle size={48} className="text-red-500 mx-auto mb-4" />
-                                <p className="text-sm text-gray-700">
-                                    Bạn có chắc muốn xóa "<span className="text-gray-900 font-bold">{selectedDoc?.Title}</span>"?
-                                </p>
-                                <p className="text-xs text-gray-500 mt-2">Hành động này không thể hoàn tác.</p>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteModal(false)}
-                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-200 transition-all"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    onClick={confirmDelete}
-                                    disabled={modalLoading}
-                                    className="flex-1 px-4 py-2 bg-red-500/10 text-red-600 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-all disabled:opacity-50"
-                                >
-                                    {modalLoading ? 'Đang xóa...' : 'Xóa'}
-                                </button>
-                            </div>
-                        </div>
                     </div>
-                )}
-            </main>
+    )
+}
 
-            <style>{`
+{/* Delete Modal */ }
+{
+    showDeleteModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className={`${glassClass} w-full max-w-md mx-4 rounded-3xl p-6`}>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Xác nhận xóa</h2>
+                    <button
+                        onClick={() => setShowDeleteModal(false)}
+                        className="text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div className="text-center mb-6">
+                    <AlertTriangle size={48} className="text-red-500 mx-auto mb-4" />
+                    <p className="text-sm text-gray-700">
+                        Bạn có chắc muốn xóa "<span className="text-gray-900 font-bold">{selectedDoc?.Title}</span>"?
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">Hành động này không thể hoàn tác.</p>
+                </div>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowDeleteModal(false)}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-200 transition-all"
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        onClick={confirmDelete}
+                        disabled={modalLoading}
+                        className="flex-1 px-4 py-2 bg-red-500/10 text-red-600 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-all disabled:opacity-50"
+                    >
+                        {modalLoading ? 'Đang xóa...' : 'Xóa'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+            </main >
+
+    <style>{`
     .custom-scrollbar::-webkit-scrollbar { 
         width: 8px;              
         height: 8px; 
@@ -967,6 +909,6 @@ export default function LegalDataManager() {
         background: #a6874d;     
     }
 `}</style>
-        </div>
+        </div >
     );
 }

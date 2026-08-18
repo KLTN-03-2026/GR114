@@ -28,19 +28,12 @@ const getCrawlStatus = () => crawlStatus;
 const extremeDeepClean = (text) => {
     if (!text) return "";
     return text
-        // 1. Hàn các từ bị chẻ đôi
-        .replace(/([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])[\s]*[\n\r]+[\s]*([a-záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ])/gi, '$1 $2')
-
-        // 2. Nối dòng thông minh: Không nối nếu dòng đó bắt đầu bằng từ viết hoa thường dùng cho tiêu đề
-        // Chỉ nối nếu dòng sau không phải là bắt đầu bằng: Chương, Điều, Mục, QUỐC HỘI
-        .replace(/([^.!?:\n])\n(?!(Chương|Điều|Mục|QUỐC HỘI|CỘNG HÒA|CƠ QUAN|SỐ:))[ \t]*/g, '$1 ')
-
-        // 3. Fix cứng các cụm từ
+        // Fix cứng các cụm từ
         .replace(/Qu\s+ốc hội/gi, 'Quốc hội')
         .replace(/Cộng\s+hòa/gi, 'Cộng hòa')
         .replace(/Xã\s+hội/gi, 'Xã hội')
 
-        // 4. Thu gọn khoảng trắng
+        // Thu gọn khoảng trắng (giữ nguyên mọi ký tự \n từ crawler)
         .replace(/[ \t]+/g, ' ')
         .replace(/\n\s*\n/g, '\n\n')
         .trim();
@@ -131,6 +124,7 @@ const scrapeContent = async (url) => {
             }
 
             let finalContent = mainContent ? mainContent.trim() : "Lỗi: Không tìm thấy nội dung.";
+            finalContent = finalContent.normalize('NFC');
 
             // CẮT ĐẦU
             const startKeywords = ["CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", "QUỐC HỘI", "CHÍNH PHỦ", "ỦY BAN NHÂN DÂN"];

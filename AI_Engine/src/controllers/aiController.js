@@ -39,15 +39,33 @@ exports.ask = async (req, res) => {
             console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Đã cấp quyền dùng Google Search Grounding hoặc Tri thức nội tại.`);
         }
 
-        // GỌI AI
-        const answer = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs);
+        // ← GỌI AI VỚI CITATIONS STRUCTURED
+        // ← GỌI AI VỚI CITATIONS STRUCTURED - ÉP BUỘC DÙNG STRUCTURED CITATIONS
+        const result = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs, [], true);
+
+        // Trích xuất answer và citations từ result
+        const answer = typeof result === 'string' ? result : (result.answer || "");
+        const citations = (result && typeof result === 'object' && Array.isArray(result.citations)) ? result.citations : [];
+
+        // Chuyển đổi citations sang format tương thích Frontend
+        const formattedCitations = citations.map(cite => ({
+            lawName: cite.lawName || "Không xác định",
+            dieu: cite.dieu || "Không rõ",
+            khoan: cite.khoan || "",
+            quoteSnippet: cite.quoteSnippet || "",
+            sourceUrl: cite.sourceUrl || "",
+            title: cite.lawName
+        }));
 
         return res.json({
             success: true,
             answer,
-            sources: relatedDocs.map(doc => ({
-                title: doc.title,
-                source: doc.sourceUrl || 'Cơ sở dữ liệu nội bộ LegAI'
+            citations: formattedCitations,  // ← Trả về citations có structure
+            sources: formattedCitations.map(cite => ({
+                title: cite.lawName,
+                source: cite.sourceUrl || 'Cơ sở dữ liệu nội bộ LegAI',
+                dieu: cite.dieu,
+                khoan: cite.khoan
             }))
         });
     } catch (error) {
@@ -55,13 +73,14 @@ exports.ask = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',
-            error: error.message
+            error: error.message,
+            citations: []
         });
     }
 };
 
 // ==============================================================================
-// CAC HAM PHU TRO XU LY DU LIEU (DAT NGOAI EXPORTS)
+// clean contract text and masking engine
 // ==============================================================================
 
 const cleanContractText = (text) => {
@@ -123,7 +142,7 @@ const maskingEngine = (text, context = {}) => {
     const span = new SpanManager();
     let match;
 
-    // 1. PREFIX ID/STK (P1) 
+    // 1. PREFIX ID/STK  
     const idRegex = /(cccd|cmnd|mst|mã số thuế|stk|tài khoản|số tk)[\s:]*([\p{L}\d.-]{5,20})/giu;
     while ((match = idRegex.exec(text)) !== null) {
         const idStr = match[2].trim();
@@ -132,14 +151,14 @@ const maskingEngine = (text, context = {}) => {
         span.add(match.index + match[0].indexOf(idStr), match.index + match[0].indexOf(idStr) + idStr.length, masked, 1);
     }
 
-    // 2. EMAIL (P2)
+    // 2. EMAIL 
     const emailRegex = /[\p{L}\d._%+-]+@[\p{L}\d.-]+\.[\p{L}]{2,}/gu;
     while ((match = emailRegex.exec(text)) !== null) {
         const [u, d] = match[0].split("@");
         span.add(match.index, match.index + match[0].length, u[0] + "***@" + d, 2);
     }
 
-    // 3. PHONE (P3)
+    // 3. PHONE 
     const phoneRegex = /(?:\+?84|0)[\s.-]*\d([\s.-]*\d){8,11}/g;
     while ((match = phoneRegex.exec(text)) !== null) {
         const raw = match[0];
@@ -150,7 +169,7 @@ const maskingEngine = (text, context = {}) => {
         span.add(match.index, match.index + raw.length, raw.replace(/\d/g, (d) => (++idx > keep ? '*' : d)), 3);
     }
 
-    // 4. COMPANY - Fix Test 3: Cho phép từ khóa (Cổ phần, TNHH) viết hoa hoặc thường
+    // 4. COMPANY 
     const legalLower = "(?:[Tt]rách\\s+nhiệm\\s+hữu\\s+hạn|[Cc]ổ\\s+phần|[Tt]hương\\s+mại|[Dd]ịch\\s+vụ|[Đđ]ầu\\s+tư|[Tt]ập\\s+đoàn|[Mm]ột\\s+thành\\s+viên|[Tt][Nn][Hh][Hh]|[Cc][Pp])";
     const companyRegex = new RegExp(`([Cc]ông ty|[Cc][Tt][Yy]|[Nn]gân hàng|[Bb]ank|[Tt]ập đoàn|[Tt]ổng công ty|[Uu][Bb][Nn][Dd]|[Bb]ộ|[Ss]ở)\\s+((?:${legalLower}\\s*)*)((\\p{Lu}[\\p{L}\\d&.\\-]*)(?:\\s+\\p{Lu}[\\p{L}\\d&.\\-]*){0,6})`, "gu");
 
@@ -160,7 +179,7 @@ const maskingEngine = (text, context = {}) => {
         span.add(match.index, match.index + full.length, `[${getEntity(full, "company")}]`, 5);
     }
 
-    // 5. PERSON PREFIX - Fix Test 20: Chấp nhận "Ông/Bà" viết hoa đầu câu
+    // 5. PERSON PREFIX 
     const personPrefixRegex = /([Ôô]ng|[Bb]à|[Aa]nh|[Cc]hị|[Đđ]ại diện|[Cc]á nhân|[Bb]ên [ab]|[Hh]ọ tên|ÔNG|BÀ|ANH|CHỊ|ĐẠI DIỆN|BÊN [AB])[:\s]+((\p{Lu}[\p{L}\-]*\s*){2,6})/gu;
     while ((match = personPrefixRegex.exec(text)) !== null) {
         const name = match[2].trim();

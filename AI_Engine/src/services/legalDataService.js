@@ -12,7 +12,7 @@ let pineconeIndex;
 const initCloudServices = () => {
     if (!genAI) {
         genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+        embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
     }
     if (!pineconeClient) {
         pineconeClient = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
@@ -121,8 +121,8 @@ const upsertLegalData = async (data, isUpdate = false) => {
                     WHERE Id = @id
                 `);
 
-         
-           // Chỉ xóa vector cũ nếu nội dung có thay đổi
+
+            // Chỉ xóa vector cũ nếu nội dung có thay đổi
             if (shouldReVectorize) {
                 try {
                     // Dùng cú pháp trực tiếp không qua filter: { $eq: ... }
@@ -238,11 +238,11 @@ const deleteLegalData = async (documentId) => {
     try {
         // 1. XÓA TRÊN PINECONE ĐẦU TIÊN
 
-   
+
         try {
             // Bỏ $eq, dùng object trực tiếp - Đây là cách "cứu cánh" khi $eq bị lỗi illegal
-            await pineconeIndex.deleteMany({ 
-                doc_id: documentId.toString() 
+            await pineconeIndex.deleteMany({
+                doc_id: documentId.toString()
             });
             pineconeStatus = 'success';
             console.log(` Đã xóa các vector của ID: ${documentId}`);

@@ -11,9 +11,9 @@ const historyController = require('../controllers/historyController');
 const aiController = require('../controllers/aiController');
 const adminController = require('../controllers/adminController');
 const feedbackController = require('../controllers/feedbackController');
-
+const sourceController = require('../controllers/sourceController');
 // ============================================================
-// NHÓM 1: ROUTES CÔNG KHAI (KHÔNG CẦN LOGIN)
+// NHÓM 1: ROUTES CÔNG KHAI 
 // ============================================================
 
 // --- Auth công khai ---
@@ -27,9 +27,9 @@ router.post('/auth/reset-password', authController.resetPassword);
 router.get('/documents', documentController.getAllDocuments);
 router.get('/documents/:id', documentController.getDocumentDetail);
 router.get('/document-stats', documentController.getDocumentStats);
-
+router.get('/source/resolve', sourceController.resolveLink);
 // ============================================================
-// NHÓM 2: KÍCH HOẠT BẢO VỆ JWT (TẤT CẢ ROUTE DƯỚI ĐÂY PHẢI CÓ TOKEN)
+// NHÓM 2: KÍCH HOẠT BẢO VỆ JWT 
 // ============================================================
 router.use(authMiddleware);
 
@@ -50,7 +50,7 @@ router.delete('/history/delete/:id', historyController.deleteHistory);
 router.put('/history/update/:id', historyController.updateHistory);
 
 // ============================================================
-// NHÓM 3: LUẬT CỦA TÔI & VỪA XEM GẦN ĐÂY (CLEAN SYNC)
+// NHÓM 3: LUẬT CỦA TÔI & VỪA XEM GẦN ĐÂY 
 // ============================================================
 
 // --- Luật của tôi  ---
@@ -66,7 +66,7 @@ router.post('/user/record-view', adminController.recordRecentView);
 router.get('/user/saved-laws/:userId', historyController.getSavedLaws);
 router.get('/user/recent-docs/:userId', historyController.getRecentDocs);
 
-// --- Xóa bỏ (Nếu cần) ---
+// --- Xóa bỏ  ---
 router.delete('/user/remove-saved-law', historyController.removeSavedLaw);
 router.delete('/user/remove-recent-doc', historyController.removeRecentDoc);
 

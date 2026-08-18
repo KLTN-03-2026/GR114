@@ -49,7 +49,7 @@ async function migrateData() {
 
     if (allDocs.length === 0) return console.error("❌ Không tìm thấy dữ liệu!");
 
-    const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+    const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
 
     let vectorBatch = [];
     let totalUploaded = 0;
@@ -73,7 +73,7 @@ async function migrateData() {
                 // 2. ÉP KIỂU VỀ MẢNG JAVASCRIPT CHUẨN
                 let vectorValues = Array.from(rawValues);
 
-                // 3. KIỂM TRA ĐỘ DÀI SỐNG CÒN (Bắt buộc phải 3072 chiều cho Gemini-Embedding-001)
+                // 3. KIỂM TRA ĐỘ DÀI SỐNG CÒN (Kiểm tra kích thước vector theo model embedding - sử dụng gemini-embedding-2)
                 if (vectorValues.length !== 3072) {
                     console.error(`❌ CẢNH BÁO: Đoạn ${i} của Doc ${d} sinh ra vector dài ${vectorValues.length} (Kỳ vọng 768). Đã bỏ qua!`);
                     continue;

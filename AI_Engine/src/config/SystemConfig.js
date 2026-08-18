@@ -6,9 +6,9 @@ class SystemConfig {
     static adminEmail = 'admin@legai.vn';
     static geminiApiKey = '';
     static geminiModel = 'gemini-3.1-flash-lite';
-    static temperature = 0.3;
+    static temperature = 0.1;
     static pineconeApiKey = '';
-    static pineconeIndex = 'legal-vectors';
+    static pineconeIndex = 'legai-index-v3';
 
     // Hàm load dữ liệu từ DB vào static properties
     static async loadFromDB() {
@@ -21,30 +21,32 @@ class SystemConfig {
                 const data = result.recordset[0];
                 this.appName = data.appName;
                 this.adminEmail = data.adminEmail;
-                this.geminiModel = data.geminiModel;
-                this.temperature = parseFloat(data.temperature);
-                this.pineconeIndex = data.pineconeIndex;
+                this.geminiModel = process.env.GEMINI_MODEL || data.geminiModel || this.geminiModel;
+                this.temperature = parseFloat(process.env.TEMPERATURE || data.temperature || this.temperature);
 
-                // --- BƯỚC GIẢI MÃ KHI LOAD TỪ DB CÓ BẢO VỆ CHỐNG CRASH ---
+
+                this.pineconeIndex = process.env.PINECONE_INDEX_NAME || process.env.PINECONE_INDEX || data.pineconeIndex || 'legai-index-v3';
+
+                // --- BƯỚC GIẢI MÃ KHI LOAD TỪ DB
                 if (data.geminiApiKey) {
                     try {
-                        this.geminiApiKey = decrypt(data.geminiApiKey);
+                        this.geminiApiKey = process.env.GEMINI_API_KEY || decrypt(data.geminiApiKey);
                     } catch (e) {
-                        console.log(' Cảnh báo: Gemini Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        console.log(' Gemini Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
                         this.geminiApiKey = data.geminiApiKey;
                     }
                 }
 
                 if (data.pineconeApiKey) {
                     try {
-                        this.pineconeApiKey = decrypt(data.pineconeApiKey);
+                        this.pineconeApiKey = process.env.PINECONE_API_KEY || decrypt(data.pineconeApiKey);
                     } catch (e) {
-                        console.log(' Cảnh báo: Pinecone Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
+                        console.log('  Pinecone Key trong DB chưa được mã hóa. Đang tạm dùng key thô.');
                         this.pineconeApiKey = data.pineconeApiKey;
                     }
                 }
 
-                console.log('SystemConfig loaded and decrypted from DB');
+                console.log(`SystemConfig loaded: Model=[${this.geminiModel}], Index=[${this.pineconeIndex}], Temp=[${this.temperature}]`);
             } else {
                 console.log('No AppConfigurations found in DB, using defaults');
             }
@@ -53,7 +55,7 @@ class SystemConfig {
         }
     }
 
-    // Hàm lấy tất cả settings (dùng cho internal)
+    // lấy tất cả settings 
     static getAll() {
         return {
             appName: this.appName,
