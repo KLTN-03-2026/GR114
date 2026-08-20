@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
-import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, Bars3BottomLeftIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { parseLegalDocument } from "../../utils/legalDocumentParser";
 
 const blockClasses = {
@@ -13,7 +14,16 @@ const blockClasses = {
   clause: 'pl-5 text-[14.5px] leading-7 text-justify mb-2',
   point: 'pl-10 text-[14.5px] leading-7 text-justify mb-2',
   preamble: 'text-[14.5px] leading-7 text-justify mb-2 italic',
-  paragraph: 'text-[14.5px] leading-7 text-justify mb-2'
+  paragraph: 'text-[14.5px] leading-7 text-justify mb-2',
+  'signature-title': 'ml-auto w-full sm:w-1/2 text-center font-bold uppercase text-[14.5px] mt-12 mb-2',
+  'signature-note': 'ml-auto w-full sm:w-1/2 text-center italic text-[14px] mb-2',
+  'signature-name': 'ml-auto w-full sm:w-1/2 text-center font-bold text-[14.5px] mb-2',
+  'certification-office': 'ml-auto w-full sm:w-1/2 text-center font-bold uppercase text-[14px] mt-12 mb-1 border-t border-zinc-200 pt-5',
+  'certification-heading': 'ml-auto w-full sm:w-1/2 text-center font-bold uppercase text-[14px] mt-2 mb-1',
+  'certification-meta': 'ml-auto w-full sm:w-1/2 text-center italic text-[13.5px] mb-1',
+  'certification-title': 'ml-auto w-full sm:w-1/2 text-center font-bold uppercase text-[14px] mt-3 mb-1',
+  'certification-note': 'ml-auto w-full sm:w-1/2 text-center italic text-[13.5px] mb-1',
+  'certification-name': 'ml-auto w-full sm:w-1/2 text-center font-bold text-[14px] mb-1'
 };
 
 const formatDate = (dateStr) => {
@@ -32,6 +42,8 @@ export default function DocumentViewDetail() {
   const { id } = useParams();
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [activeBlockId, setActiveBlockId] = useState('');
 
   useEffect(() => {
     if (!id) return undefined;
@@ -58,6 +70,38 @@ export default function DocumentViewDetail() {
   }, [id, doc]);
 
   const parsedDocument = useMemo(() => parseLegalDocument(doc?.Content, doc?.Title), [doc?.Content, doc?.Title]);
+  const tocItems = useMemo(() => parsedDocument.blocks
+    .filter(block => ['chapter', 'section', 'article'].includes(block.type))
+    .map((block) => {
+      if (block.type !== 'chapter') return block;
+      const blockIndex = parsedDocument.blocks.findIndex(candidate => candidate.id === block.id);
+      const nextBlock = parsedDocument.blocks[blockIndex + 1];
+      return nextBlock?.type === 'center-heading'
+        ? { ...block, text: `${block.text} — ${nextBlock.text}` }
+        : block;
+    }), [parsedDocument]);
+
+  useEffect(() => {
+    if (!tocItems.length) return undefined;
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries.filter(entry => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (visible) setActiveBlockId(visible.target.id.replace('legal-', ''));
+    }, { rootMargin: '-18% 0px -70% 0px', threshold: 0 });
+    tocItems.forEach(item => {
+      const element = document.getElementById(`legal-${item.id}`);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, [tocItems]);
+
+  const scrollToBlock = (blockId) => {
+    const element = document.getElementById(`legal-${blockId}`);
+    if (!element) return;
+    setActiveBlockId(blockId);
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (window.innerWidth < 1024) setTocOpen(false);
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
@@ -80,7 +124,7 @@ export default function DocumentViewDetail() {
         </div>
       </header>
 
-      <main className="flex-grow p-3 sm:p-6 md:p-10 flex justify-center">
+      <main className="flex-grow p-3 pl-14 sm:p-6 sm:pl-20 md:p-10 md:pl-24 lg:p-10 flex justify-center">
         <article className="w-full max-w-[900px] bg-white text-black shadow-[0_15px_50px_rgba(0,0,0,0.08)] px-5 py-10 sm:px-10 md:p-[2cm_1.5cm]" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-4 mb-10 text-[13px]">
             <div className="flex flex-col items-center text-center">
@@ -102,7 +146,13 @@ export default function DocumentViewDetail() {
 
           <div className="mx-auto max-w-[760px]">
             {parsedDocument.blocks.map(block => (
-              <p key={block.id} className={blockClasses[block.type] || blockClasses.paragraph}>{block.text}</p>
+              <p
+                key={block.id}
+                id={`legal-${block.id}`}
+                className={`scroll-mt-24 ${blockClasses[block.type] || blockClasses.paragraph}`}
+              >
+                {block.text}
+              </p>
             ))}
           </div>
 
@@ -112,6 +162,50 @@ export default function DocumentViewDetail() {
           </footer>
         </article>
       </main>
+
+      {createPortal(<>
+        <button
+          type="button"
+          onClick={() => setTocOpen(current => !current)}
+          className="fixed left-3 bottom-8 lg:left-5 z-50 flex items-center gap-1.5 rounded-full border border-[#B8985D]/40 bg-[#B8985D] p-2.5 sm:px-3 sm:py-2 text-xs font-bold text-white shadow-lg shadow-[#B8985D]/20 hover:bg-[#9f7d4f] focus:outline-none focus:ring-2 focus:ring-[#B8985D]/40"
+          aria-expanded={tocOpen}
+          aria-controls="legal-document-toc"
+        >
+          <Bars3BottomLeftIcon className="h-4 w-4" />
+          <span className="hidden sm:inline">Mục lục</span>
+          <span className="sr-only sm:hidden">Mục lục</span>
+        </button>
+
+        {tocOpen && (
+          <aside
+            id="legal-document-toc"
+            className="fixed left-3 top-36 lg:left-5 z-50 flex max-h-[calc(100vh-10rem)] w-[min(20rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl"
+            aria-label="Mục lục văn bản"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#8E6D45]">Mục lục</p>
+                <p className="mt-0.5 text-[11px] text-zinc-500">{tocItems.length} đề mục</p>
+              </div>
+              <button type="button" onClick={() => setTocOpen(false)} className="rounded-full p-1.5 text-zinc-500 hover:bg-zinc-100" aria-label="Đóng mục lục">
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <nav className="overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin] [scrollbar-color:#d4d4d8_transparent]">
+              {tocItems.map(item => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => scrollToBlock(item.id)}
+                  className={`block w-full rounded-lg px-3 py-2 text-left text-xs leading-5 transition-colors ${item.type === 'article' ? 'pl-6' : 'font-bold'} ${activeBlockId === item.id ? 'bg-[#B8985D]/15 text-[#8E6D45]' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'}`}
+                >
+                  {item.text}
+                </button>
+              ))}
+            </nav>
+          </aside>
+        )}
+      </>, document.body)}
     </div>
   );
 }
