@@ -57,7 +57,7 @@ data.forEach((law) => {
   const content = law.Content || law.content || '';
   const regex = /(?=\n\s*Dieu\s+\d+[a-zA-ZdD]*[\.:\s])/g;
   const parts = content.split(regex);
-  
+
   parts.forEach(part => {
     const trim = part.trim();
     if (trim.length > 0) {

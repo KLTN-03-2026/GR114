@@ -37,14 +37,18 @@ const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
  * =============================================================================
  */
 
-const  CONFIG = {
+const CONFIG = {
     MAX_TOKENS_PER_BATCH: 7000,
-    TARGET_TPM: 18000,
+    TARGET_TPM: 750000,
+    MAX_TOTAL_EMBED_TOKENS: 3400000,
     CHARS_PER_TOKEN_VI: 2.5,
     MEASUREMENT_WINDOW_MS: 60000,
     MIN_DELAY_MS: 500,
     MAX_RETRIES: 5,
-    INITIAL_RETRY_DELAY_MS: 60000,
+    INITIAL_RETRY_DELAY_MS: 1000,
+    MAX_RETRY_DELAY_MS: 60000,
+    STANDARD_PRICE_USD_PER_MILLION_TOKENS: 0.20,
+    VND_PER_USD: 26000,
     VERBOSE: true
 };
 
@@ -142,6 +146,8 @@ class TPMTracker {
         this.successCount = 0;
         this.totalTokens = 0;
         this.totalBatches = 0;
+        this.retryCount = 0;
+        this.successfulTokens = 0;
     }
 
     recordTokens(count) {
@@ -179,6 +185,106 @@ class TPMTracker {
 }
 
 const tpmTracker = new TPMTracker();
+
+function getErrorStatus(error) {
+    const candidates = [
+        error && error.status,
+        error && error.statusCode,
+        error && error.code,
+        error && error.response && error.response.status,
+        error && error.response && error.response.data && error.response.data.error && error.response.data.error.code,
+        error && error.error && error.error.code
+    ];
+
+    for (const candidate of candidates) {
+        const parsed = Number(candidate);
+        if (Number.isInteger(parsed) && parsed >= 100 && parsed <= 599) return parsed;
+    }
+
+    const messageMatch = String((error && error.message) || '').match(/(?:^|\D)(408|429|5\d\d)(?:\D|$)/);
+    return messageMatch ? Number(messageMatch[1]) : null;
+}
+
+function parseRetryDelayValue(value) {
+    if (value === undefined || value === null) return null;
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, value * 1000);
+    }
+
+    if (typeof value === 'string') {
+        const secondsMatch = value.trim().match(/^([0-9]+(?:\.[0-9]+)?)s$/i);
+        if (secondsMatch) return Number(secondsMatch[1]) * 1000;
+
+        const numericSeconds = Number(value);
+        if (Number.isFinite(numericSeconds)) return Math.max(0, numericSeconds * 1000);
+
+        const retryDate = Date.parse(value);
+        if (!Number.isNaN(retryDate)) return Math.max(0, retryDate - Date.now());
+    }
+
+    if (typeof value === 'object') {
+        const seconds = Number(value.seconds || 0);
+        const nanos = Number(value.nanos || 0);
+        if (Number.isFinite(seconds) && Number.isFinite(nanos)) {
+            return Math.max(0, (seconds * 1000) + (nanos / 1000000));
+        }
+    }
+
+    return null;
+}
+
+function getServerRetryDelayMs(error) {
+    const headers = (error && error.response && error.response.headers) || (error && error.headers);
+    let retryAfter = null;
+    if (headers) {
+        retryAfter = typeof headers.get === 'function'
+            ? headers.get('retry-after')
+            : (headers['retry-after'] || headers['Retry-After']);
+    }
+
+    const retryAfterMs = parseRetryDelayValue(retryAfter);
+    if (retryAfterMs !== null) return retryAfterMs;
+
+    const detailContainers = [
+        error && error.errorDetails,
+        error && error.details,
+        error && error.error && error.error.details,
+        error && error.response && error.response.data && error.response.data.error && error.response.data.error.details
+    ];
+
+    for (const container of detailContainers) {
+        const details = Array.isArray(container) ? container : (container ? [container] : []);
+        for (const detail of details) {
+            const type = String((detail && (detail['@type'] || detail.type)) || '');
+            if (type.endsWith('google.rpc.RetryInfo') || type.endsWith('/RetryInfo')) {
+                const retryInfoMs = parseRetryDelayValue(detail.retryDelay);
+                if (retryInfoMs !== null) return retryInfoMs;
+            }
+        }
+    }
+
+    return null;
+}
+
+function isTransientStatus(status) {
+    return status === 408 || status === 429 || status === 500 ||
+        status === 502 || status === 503 || status === 504;
+}
+
+function getFallbackRetryDelayMs(retryIndex) {
+    const exponentialDelay = Math.min(
+        CONFIG.MAX_RETRY_DELAY_MS,
+        CONFIG.INITIAL_RETRY_DELAY_MS * Math.pow(2, retryIndex)
+    );
+    const jitterMultiplier = 0.5 + Math.random();
+    return Math.max(100, Math.round(exponentialDelay * jitterMultiplier));
+}
+
+function estimateCost(tokens) {
+    const usd = (tokens / 1000000) * CONFIG.STANDARD_PRICE_USD_PER_MILLION_TOKENS;
+    return { usd, vnd: usd * CONFIG.VND_PER_USD };
+}
 
 /*
  * =============================================================================
@@ -273,10 +379,9 @@ class DynamicBatcher {
  */
 
 async function embedChunksWithRetry(chunks) {
-    let retries = CONFIG.MAX_RETRIES;
-    let delayMs = CONFIG.INITIAL_RETRY_DELAY_MS;
+    let attempt = 0;
 
-    while (retries > 0) {
+    while (attempt < CONFIG.MAX_RETRIES) {
         try {
             const tokenCount = chunks.reduce((sum, text) => sum + estimateTokens(text), 0);
 
@@ -301,21 +406,30 @@ async function embedChunksWithRetry(chunks) {
             }
 
             tpmTracker.successCount++;
+            tpmTracker.successfulTokens += tokenCount;
             return embedResult.embeddings;
 
         } catch (error) {
-            if (error.message && error.message.includes('429')) {
-                console.warn("  [WARNING] Rate limit error (429). Retry wait: " + delayMs + "ms. Remaining retries: " + (retries - 1));
-                await new Promise(r => setTimeout(r, delayMs));
-                delayMs *= 2;
-                retries--;
+            const status = getErrorStatus(error);
+            attempt++;
 
-                if (retries === 0) {
-                    throw new Error("Failed after " + CONFIG.MAX_RETRIES + " retries: " + error.message);
-                }
-            } else {
+            if (!isTransientStatus(status) || attempt >= CONFIG.MAX_RETRIES) {
                 throw error;
             }
+
+            const serverDelayMs = getServerRetryDelayMs(error);
+            const delayMs = serverDelayMs !== null
+                ? serverDelayMs
+                : getFallbackRetryDelayMs(attempt - 1);
+
+            tpmTracker.retryCount++;
+            console.warn(
+                "  [WARNING] Transient HTTP " + status +
+                ". Retry wait: " + delayMs + "ms" +
+                (serverDelayMs !== null ? " (server-provided)" : " (exponential backoff with jitter)") +
+                ". Remaining attempts: " + (CONFIG.MAX_RETRIES - attempt)
+            );
+            await new Promise(r => setTimeout(r, delayMs));
         }
     }
 }
@@ -328,6 +442,7 @@ const importData = async () => {
         console.log("Configuration:");
         console.log("  Max batch tokens: " + CONFIG.MAX_TOKENS_PER_BATCH);
         console.log("  Target TPM: " + CONFIG.TARGET_TPM);
+        console.log("  Nominal token budget: " + CONFIG.MAX_TOTAL_EMBED_TOKENS);
         console.log("  Chars per token (Vietnamese): " + CONFIG.CHARS_PER_TOKEN_VI);
         console.log("  Measurement window: " + CONFIG.MEASUREMENT_WINDOW_MS + "ms");
         console.log("=".repeat(80) + "\n");
@@ -353,6 +468,8 @@ const importData = async () => {
         const totalLaws = laws.length;
         const startTime = Date.now();
         let totalVectorsUploaded = 0;
+        let nominalDocumentTokensAdmitted = 0;
+        let stoppedAtBudgetBoundary = false;
 
         /*
          * ===== MAIN DOCUMENT PROCESSING LOOP =====
@@ -385,6 +502,29 @@ const importData = async () => {
 
             const chunkData = smartChunk(cleanContent);
             console.log("   Generated " + chunkData.length + " chunks");
+
+            const documentEstimatedTokens = chunkData.reduce(
+                (sum, chunk) => sum + estimateTokens(chunk.text),
+                0
+            );
+
+            if (nominalDocumentTokensAdmitted + documentEstimatedTokens > CONFIG.MAX_TOTAL_EMBED_TOKENS) {
+                stoppedAtBudgetBoundary = true;
+                console.log(
+                    "   Budget boundary reached. Stopping before this document (document tokens: " +
+                    documentEstimatedTokens.toLocaleString('en-US') +
+                    ", admitted: " + nominalDocumentTokensAdmitted.toLocaleString('en-US') +
+                    ", budget: " + CONFIG.MAX_TOTAL_EMBED_TOKENS.toLocaleString('en-US') + ")"
+                );
+                break;
+            }
+
+            nominalDocumentTokensAdmitted += documentEstimatedTokens;
+            console.log(
+                "   Document admitted: " + documentEstimatedTokens.toLocaleString('en-US') +
+                " estimated tokens (nominal total: " +
+                nominalDocumentTokensAdmitted.toLocaleString('en-US') + ")"
+            );
 
             const vectors = [];
             const safeVectorId = toAsciiId(docId);
@@ -497,16 +637,34 @@ const importData = async () => {
          */
         const elapsed = (Date.now() - startTime) / 1000;
         const status = tpmTracker.getStatus();
+        const achievedTPM = elapsed > 0 ? (tpmTracker.totalTokens / elapsed) * 60 : 0;
+        const submittedCost = estimateCost(tpmTracker.totalTokens);
+
+        if (tpmTracker.totalTokens > CONFIG.MAX_TOTAL_EMBED_TOKENS) {
+            console.warn(
+                "WARNING: Retry overhead caused actual submitted tokens (" +
+                tpmTracker.totalTokens.toLocaleString('en-US') +
+                ") to exceed the nominal budget (" +
+                CONFIG.MAX_TOTAL_EMBED_TOKENS.toLocaleString('en-US') + ")."
+            );
+        }
 
         console.log("\n" + "=".repeat(80));
         console.log("IMPORT PIPELINE COMPLETED");
         console.log("=".repeat(80));
         console.log("Summary Report:");
-        console.log("  Documents processed: " + successCount + "/" + totalLaws);
+        console.log("  Completed documents: " + successCount + "/" + totalLaws);
+        console.log("  Stopped at budget boundary: " + (stoppedAtBudgetBoundary ? "yes" : "no"));
         console.log("  Total vectors uploaded: " + totalVectorsUploaded);
-        console.log("  Total batches sent: " + tpmTracker.totalBatches);
+        console.log("  Gemini requests: " + tpmTracker.totalBatches);
+        console.log("  Retry count: " + tpmTracker.retryCount);
         console.log("  Successful batches: " + tpmTracker.successCount);
-        console.log("  Total tokens consumed: " + tpmTracker.totalTokens.toLocaleString('en-US'));
+        console.log("  Nominal document tokens admitted: " + nominalDocumentTokensAdmitted.toLocaleString('en-US'));
+        console.log("  Actual estimated tokens submitted (including retries): " + tpmTracker.totalTokens.toLocaleString('en-US'));
+        console.log("  Successful embedding tokens: " + tpmTracker.successfulTokens.toLocaleString('en-US'));
+        console.log("  Achieved TPM (whole-run average): " + Math.round(achievedTPM).toLocaleString('en-US'));
+        console.log("  Estimated Standard cost: $" + submittedCost.usd.toFixed(6));
+        console.log("  Estimated Standard cost (VND): " + submittedCost.vnd.toFixed(2));
         console.log("  Elapsed time: " + elapsed.toFixed(0) + "s (" + (elapsed / 60).toFixed(2) + " minutes)");
         console.log("  Final minute TPM: " + status.currentTPM + "/" + CONFIG.TARGET_TPM);
         console.log("  Peak utilization: " + status.utilization);

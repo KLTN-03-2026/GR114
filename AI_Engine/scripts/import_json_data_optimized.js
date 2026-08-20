@@ -35,15 +35,15 @@ const CONFIG = {
   MAX_TOKENS_PER_BATCH: 15000,      // Max tokens in single API call (50% safety)
   TARGET_TPM: 25000,                 // Target tokens per minute (safe < 30K)
   CHARS_PER_TOKEN_VI: 2.5,           // Vietnamese: ~2.5 chars per token
-  
+
   // Timing
   MEASUREMENT_WINDOW_MS: 60000,      // 1 minute window for TPM tracking
   MIN_DELAY_MS: 500,                  // Minimum 500ms between requests
-  
+
   // Retry strategy
   MAX_RETRIES: 5,
   INITIAL_RETRY_DELAY_MS: 5000,      // Start at 5s
-  
+
   // Logging
   VERBOSE: true
 };
@@ -64,7 +64,7 @@ class TPMTracker {
     const now = Date.now();
     this.tokensInWindow.push({ timestamp: now, count });
     this.totalTokens += count;
-    
+
     // Clean old entries outside 60s window
     this.tokensInWindow = this.tokensInWindow.filter(
       entry => now - entry.timestamp < CONFIG.MEASUREMENT_WINDOW_MS
@@ -113,15 +113,15 @@ function estimateTokens(text) {
 function calculateAdaptiveDelay(tokensAboutToSend) {
   const currentTPM = tpmTracker.getCurrentTPM();
   const tpmAfterBatch = currentTPM + tokensAboutToSend;
-  
+
   if (tpmAfterBatch <= CONFIG.TARGET_TPM) {
     return CONFIG.MIN_DELAY_MS; // No delay needed
   }
-  
+
   // Linear scaling: if we would exceed target, delay proportionally
   const excessRatio = tpmAfterBatch / CONFIG.TARGET_TPM;
   const delayMs = (excessRatio - 1) * 60000; // Scale to 60 second window
-  
+
   return Math.max(CONFIG.MIN_DELAY_MS, Math.min(delayMs, 60000));
 }
 
@@ -216,7 +216,7 @@ class DynamicBatcher {
 
   addChunk(text) {
     const tokens = estimateTokens(text);
-    
+
     // If adding this chunk would exceed limit, return current batch (if not empty)
     if (this.currentTokens > 0 && this.currentTokens + tokens > this.maxTokens) {
       const batch = this.currentBatch;
@@ -224,7 +224,7 @@ class DynamicBatcher {
       this.currentTokens = tokens;
       return batch;  // Return full batch
     }
-    
+
     this.currentBatch.push(text);
     this.currentTokens += tokens;
     return null;  // Batch not full yet
@@ -253,37 +253,37 @@ class DynamicBatcher {
 async function embedChunksWithRetry(chunks) {
   let retries = CONFIG.MAX_RETRIES;
   let delayMs = CONFIG.INITIAL_RETRY_DELAY_MS;
-  
+
   while (retries > 0) {
     try {
       const tokenCount = chunks.reduce((sum, text) => sum + estimateTokens(text), 0);
       const adaptiveDelay = calculateAdaptiveDelay(tokenCount);
-      
+
       if (CONFIG.VERBOSE) {
         const status = tpmTracker.getStatus();
         console.log(`  [Embedding] Chunks: ${chunks.length}, Tokens: ${tokenCount}, Delay: ${adaptiveDelay}ms, TPM: ${status.currentTPM}/${CONFIG.TARGET_TPM}`);
       }
-      
+
       // Record tokens before sending
       tpmTracker.recordTokens(tokenCount);
-      
+
       // Wait adaptive delay
       await new Promise(r => setTimeout(r, adaptiveDelay));
-      
+
       // Call Gemini API
       const embedResult = await embedModel.batchEmbedContents({
         requests: chunks.map(text => ({
           content: { role: "user", parts: [{ text }] }
         }))
       });
-      
+
       if (!embedResult.embeddings || embedResult.embeddings.length === 0) {
         throw new Error('No embeddings returned from Gemini API');
       }
-      
+
       tpmTracker.successCount++;
       return embedResult.embeddings;
-      
+
     } catch (error) {
       if (error.message && error.message.includes('429')) {
         // Rate limit error - exponential backoff
@@ -291,7 +291,7 @@ async function embedChunksWithRetry(chunks) {
         await new Promise(r => setTimeout(r, delayMs));
         delayMs *= 2;  // Double delay for next retry
         retries--;
-        
+
         if (retries === 0) {
           throw new Error(`Failed to embed after ${CONFIG.MAX_RETRIES} retries: ${error.message}`);
         }
@@ -314,7 +314,7 @@ const importData = async () => {
     console.log("=".repeat(70));
     console.log("Config: MAX_BATCH=" + CONFIG.MAX_TOKENS_PER_BATCH + " tokens, TARGET_TPM=" + CONFIG.TARGET_TPM + ", CHARS_PER_TOKEN=" + CONFIG.CHARS_PER_TOKEN_VI);
     console.log("=".repeat(70) + "\n");
-    
+
     console.log("📡 Connecting to Database...");
     await poolConnect;
     console.log("✓ Database connected\n");
@@ -370,25 +370,25 @@ const importData = async () => {
 
       const vectors = [];
       const safeVectorId = toAsciiId(docId);
-      
+
       // ===== DYNAMIC BATCHING =====
       const batcher = new DynamicBatcher(CONFIG.MAX_TOKENS_PER_BATCH);
       let batchNumber = 0;
 
       for (let j = 0; j < chunkData.length; j++) {
         const chunkText = chunkData[j].text;
-        
+
         // Try to add chunk to current batch
         const fullBatch = batcher.addChunk(chunkText);
-        
+
         if (fullBatch) {
           // Batch is full, send it
           batchNumber++;
           console.log(`  🚀 Batch #${batchNumber}: ${fullBatch.length} chunks`);
-          
+
           try {
             const embeddings = await embedChunksWithRetry(fullBatch);
-            
+
             for (let m = 0; m < embeddings.length; m++) {
               const globalChunkIdx = vectors.length / (embeddings.length / fullBatch.length);
               // Find corresponding chunk data
@@ -399,7 +399,7 @@ const importData = async () => {
                   break;
                 }
               }
-              
+
               const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
               vectors.push({
                 id: `${safeVectorId}_chunk_${vectors.length}`,
@@ -430,10 +430,10 @@ const importData = async () => {
       if (remainingBatch && remainingBatch.length > 0) {
         batchNumber++;
         console.log(`  🚀 Batch #${batchNumber} (final): ${remainingBatch.length} chunks`);
-        
+
         try {
           const embeddings = await embedChunksWithRetry(remainingBatch);
-          
+
           for (let m = 0; m < embeddings.length; m++) {
             const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
             vectors.push({
@@ -479,7 +479,7 @@ const importData = async () => {
     // ===== SUMMARY =====
     const elapsed = (Date.now() - startTime) / 1000;
     const status = tpmTracker.getStatus();
-    
+
     console.log("\n" + "=".repeat(70));
     console.log("✅ PIPELINE COMPLETED SUCCESSFULLY");
     console.log("=".repeat(70));
@@ -492,7 +492,7 @@ const importData = async () => {
     console.log(`  - Final TPM: ${status.currentTPM}/${CONFIG.TARGET_TPM}`);
     console.log(`  - Max utilization: ${status.utilization}`);
     console.log("=".repeat(70) + "\n");
-    
+
     process.exit(0);
 
   } catch (err) {

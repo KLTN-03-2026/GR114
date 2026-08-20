@@ -315,15 +315,16 @@ exports.getSavedLaws = async (req, res) => {
       .input('userId', sql.BigInt, userId)
       .query(`
                 SELECT 
-                    Id, 
-                    DocumentId, 
-                    DocumentTitle AS Title, 
-                    DocumentNumber, 
-                    IssueYear,
-                    SavedAt
-                FROM [dbo].[UserSavedLaws]
-                WHERE UserId = @userId
-                ORDER BY SavedAt DESC;
+                    saved.Id, 
+                    saved.DocumentId, 
+                    COALESCE(doc.Title, saved.DocumentTitle) AS Title, 
+                    COALESCE(doc.DocumentNumber, saved.DocumentNumber) AS DocumentNumber,
+                    COALESCE(doc.IssueYear, saved.IssueYear) AS IssueYear,
+                    saved.SavedAt
+                FROM [dbo].[UserSavedLaws] saved
+                LEFT JOIN [dbo].[LegalDocuments] doc ON doc.Id = saved.DocumentId
+                WHERE saved.UserId = @userId
+                ORDER BY saved.SavedAt DESC;
             `);
 
     res.json({ success: true, data: result.recordset });

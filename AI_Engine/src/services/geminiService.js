@@ -12,6 +12,7 @@ const sql = require('mssql');
 const { pool, poolConnect } = require('../config/db');
 const ragService = require('./ragService');
 const lawSourceService = require('./lawSourceService');
+const { CANONICAL_CATEGORIES, normalizeLegalCategory } = require('../constants/legalCategories');
 
 
 // ==============================================================================
@@ -143,6 +144,38 @@ function checkRagRelevance(userQuery, relatedDocs) {
     return relatedDocs.some(doc => (doc.score ? doc.score > 0.72 : true));
 }
 
+function getRequestedLawIdentity(userQuestion) {
+    const rawQuestion = String(userQuestion || '');
+    const match = rawQuestion.match(/\b\d{1,3}\s*[\/_-]\s*\d{4}\s*[\/_-]\s*[a-zA-Z0-9Đđ]+\b/);
+    if (!match) return null;
+
+    return {
+        lawNumber: match[0].replace(/\s+/g, ''),
+        lawName: rawQuestion.replace(match[0], ' ').replace(/\s+/g, ' ').trim()
+    };
+}
+
+async function cacheGroundedLawSource(userQuestion, groundingMetadata) {
+    const identity = getRequestedLawIdentity(userQuestion);
+    const chunks = groundingMetadata && groundingMetadata.groundingChunks;
+    if (!identity || !Array.isArray(chunks)) return null;
+
+    for (const chunk of chunks) {
+        const cachedUrl = await lawSourceService.validateAndCacheGroundingSource(
+            identity.lawNumber,
+            identity.lawName,
+            chunk
+        );
+        if (cachedUrl) {
+            console.log(`[GROUNDING SOURCE CACHED] ${identity.lawNumber} -> ${cachedUrl}`);
+            return cachedUrl;
+        }
+    }
+
+    console.warn(`[GROUNDING SOURCE NOT CACHED] No metadata source matched ${identity.lawNumber}.`);
+    return null;
+}
+
 
 // ==============================================================================
 //  YOUTUBE (XỬ LÝ SHORTS & YOUTU.BE)
@@ -177,18 +210,177 @@ function normalizeYouTubeUrl(rawUrl) {
 // ==============================================================================
 //  SOẠN THẢO 
 // ==============================================================================
-function buildStrictContextText(documents) {
+function normalizeArticle(article) {
+    const normalized = String(article || "")
+        .trim()
+        .replace(/^(?:điều\s*)+/i, "")
+        .replace(/\s+/g, " ");
+
+    return normalized ? `Điều ${normalized}` : "Chưa rõ";
+}
+
+const RAG_SELECTOR_STOP_WORDS = new Set([
+    "theo", "la", "là", "va", "và", "cua", "của", "co", "có",
+    "duoc", "được", "nhung", "những", "nao", "nào", "gi", "gì",
+    "mot", "một", "cac", "các", "ve", "về", "trong", "cho", "voi", "với"
+]);
+
+function normalizeSelectorText(value) {
+    return String(value || "")
+        .normalize("NFC")
+        .toLocaleLowerCase("vi-VN")
+        .replace(/[\p{P}\p{S}]+/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function getSelectorTokens(value) {
+    return [...new Set(
+        normalizeSelectorText(value)
+            .split(" ")
+            .filter(token => token && !RAG_SELECTOR_STOP_WORDS.has(token))
+    )];
+}
+
+function getSiblingKey(doc) {
+    const { title, sourceUrl } = getContextDocumentDetails(doc);
+    const documentKey = doc.doc_id
+        ? `doc_id:${doc.doc_id}`
+        : `title_source:${title}\u0000${sourceUrl}`;
+    return `${documentKey}\u0000article:${normalizeArticle(doc.dieu).toLocaleLowerCase('vi-VN')}`;
+}
+
+function selectRagChunks(rawUserQuestion, relatedDocs) {
+    if (!Array.isArray(relatedDocs) || relatedDocs.length <= 1) {
+        return {
+            selectedDocs: relatedDocs || [],
+            scores: [],
+            fallbackAll: true,
+            reason: "Not enough chunks to select"
+        };
+    }
+
+    const queryTokens = getSelectorTokens(rawUserQuestion);
+    if (queryTokens.length < 2) {
+        return {
+            selectedDocs: relatedDocs,
+            scores: [],
+            fallbackAll: true,
+            reason: "Query has too few meaningful lexical tokens"
+        };
+    }
+
+    const queryTokenSet = new Set(queryTokens);
+    const searchableTokenSets = relatedDocs.map(doc => new Set(getSelectorTokens([
+        doc.content || doc.text || doc.noi_dung_tom_tat || "",
+        doc.title || doc.law_name || "",
+        doc.dieu || ""
+    ].join(" "))));
+    const tokenWeights = new Map(queryTokens.map(token => {
+        const documentFrequency = searchableTokenSets.reduce(
+            (count, tokens) => count + (tokens.has(token) ? 1 : 0),
+            0
+        );
+        return [token, 1 + Math.log((relatedDocs.length + 1) / (documentFrequency + 1))];
+    }));
+    const totalQueryWeight = queryTokens.reduce((total, token) => total + tokenWeights.get(token), 0);
+    const lexicalScore = value => {
+        const fieldTokens = new Set(getSelectorTokens(value));
+        const matchedWeight = [...queryTokenSet].reduce(
+            (total, token) => total + (fieldTokens.has(token) ? tokenWeights.get(token) : 0),
+            0
+        );
+        return totalQueryWeight > 0 ? matchedWeight / totalQueryWeight : 0;
+    };
+
+    const pineconeScores = relatedDocs.map(doc => Number(doc.score) || 0);
+    const minPineconeScore = Math.min(...pineconeScores);
+    const maxPineconeScore = Math.max(...pineconeScores);
+    const pineconeRange = maxPineconeScore - minPineconeScore;
+
+    const scores = relatedDocs.map((doc, index) => {
+        const contentScore = lexicalScore(doc.content || doc.text || doc.noi_dung_tom_tat || "");
+        const titleScore = lexicalScore(doc.title || doc.law_name || "");
+        const articleScore = lexicalScore(doc.dieu || "");
+        const pineconePrior = pineconeRange > 0
+            ? (pineconeScores[index] - minPineconeScore) / pineconeRange
+            : 1;
+        const finalScore = (contentScore * 0.68) +
+            (titleScore * 0.14) +
+            (articleScore * 0.10) +
+            (pineconePrior * 0.08);
+
+        return {
+            id: doc.id,
+            siblingKey: getSiblingKey(doc),
+            pineconeScore: pineconeScores[index],
+            contentScore,
+            titleScore,
+            articleScore,
+            finalScore
+        };
+    });
+
+    const siblingGroups = new Map();
+    scores.forEach(score => {
+        const current = siblingGroups.get(score.siblingKey);
+        if (!current || score.finalScore > current.finalScore) {
+            siblingGroups.set(score.siblingKey, score);
+        }
+    });
+    const rankedGroups = [...siblingGroups.values()].sort((a, b) => b.finalScore - a.finalScore);
+
+    if (rankedGroups.length <= 1) {
+        return {
+            selectedDocs: relatedDocs,
+            scores,
+            fallbackAll: false,
+            reason: "All chunks belong to the same document/article group"
+        };
+    }
+
+    const topGroup = rankedGroups[0];
+    const secondGroup = rankedGroups[1];
+    const finalScoreGap = topGroup.finalScore - secondGroup.finalScore;
+    const contentScoreGap = topGroup.contentScore - secondGroup.contentScore;
+    const hasClearSeparation = topGroup.contentScore > 0 &&
+        finalScoreGap >= 0.08 &&
+        contentScoreGap >= 0.05;
+
+    if (!hasClearSeparation) {
+        return {
+            selectedDocs: relatedDocs,
+            scores,
+            fallbackAll: true,
+            reason: `Ambiguous relevance separation (finalGap=${finalScoreGap.toFixed(4)}, contentGap=${contentScoreGap.toFixed(4)})`
+        };
+    }
+
+    const selectedDocs = relatedDocs.filter(doc => getSiblingKey(doc) === topGroup.siblingKey);
+    return {
+        selectedDocs,
+        scores,
+        fallbackAll: false,
+        reason: `Clear local relevance separation (finalGap=${finalScoreGap.toFixed(4)}, contentGap=${contentScoreGap.toFixed(4)}); kept complete sibling group`
+    };
+}
+
+function getContextDocumentDetails(doc) {
+    const title = doc.title || doc.law_name || "Văn bản pháp luật";
+    let sourceUrl = doc.source || doc.sourceUrl || "";
+    if (!sourceUrl || sourceUrl.trim() === "" || sourceUrl.includes("#")) {
+        sourceUrl = "";
+    }
+
+    return { title, sourceUrl };
+}
+
+function buildRawContextText(documents) {
     if (!documents || documents.length === 0) return "<rag_context>Hoàn toàn không có dữ liệu RAG xác thực.</rag_context>";
     return documents.map((doc, index) => {
-        const title = doc.title || doc.law_name || "Văn bản pháp luật";
+        const { title, sourceUrl } = getContextDocumentDetails(doc);
         let rawContent = doc.content || doc.noi_dung_tom_tat || "";
         const content = typeof rawContent === 'object' ? JSON.stringify(rawContent) : rawContent;
-
-        // fallback 
-        let sourceUrl = doc.source || doc.sourceUrl || "";
-        if (!sourceUrl || sourceUrl.trim() === "" || sourceUrl.includes("#")) {
-            sourceUrl = "";
-        }
 
         return `<rag_chunk index="${index + 1}">
   <law_name>${title}</law_name>
@@ -196,6 +388,65 @@ function buildStrictContextText(documents) {
   <protected_url DO_NOT_MODIFY="TRUE">${sourceUrl}</protected_url>
   <content_verbatim>${content}</content_verbatim>
 </rag_chunk>`;
+    }).join("\n\n");
+}
+
+function groupContextDocuments(documents) {
+    const documentGroups = new Map();
+
+    documents.forEach((doc, index) => {
+        const { title, sourceUrl } = getContextDocumentDetails(doc);
+        const documentKey = doc.doc_id
+            ? `doc_id:${doc.doc_id}`
+            : `title_source:${title}\u0000${sourceUrl}`;
+        const articleNumber = normalizeArticle(doc.dieu);
+
+        if (!documentGroups.has(documentKey)) {
+            documentGroups.set(documentKey, {
+                title,
+                sourceUrl,
+                articles: new Map()
+            });
+        }
+
+        const documentGroup = documentGroups.get(documentKey);
+        const articleKey = articleNumber.toLocaleLowerCase('vi-VN');
+        if (!documentGroup.articles.has(articleKey)) {
+            documentGroup.articles.set(articleKey, {
+                articleNumber,
+                chunks: []
+            });
+        }
+
+        let rawContent = doc.content || doc.noi_dung_tom_tat || "";
+        const content = typeof rawContent === 'object' ? JSON.stringify(rawContent) : rawContent;
+        documentGroup.articles.get(articleKey).chunks.push({
+            rank: index + 1,
+            content
+        });
+    });
+
+    return Array.from(documentGroups.values());
+}
+
+function buildStrictContextText(documents) {
+    if (!documents || documents.length === 0) return "<rag_context>Hoàn toàn không có dữ liệu RAG xác thực.</rag_context>";
+
+    return groupContextDocuments(documents).map(documentGroup => {
+        const articles = Array.from(documentGroup.articles.values()).map(article => {
+            const chunks = article.chunks.map(chunk =>
+                `    <content_verbatim chunk_rank="${chunk.rank}">${chunk.content}</content_verbatim>`
+            ).join("\n");
+
+            return `  <rag_article article_number="${article.articleNumber}">\n${chunks}\n  </rag_article>`;
+        }).join("\n\n");
+
+        return `<rag_document>
+  <law_name>${documentGroup.title}</law_name>
+  <protected_url DO_NOT_MODIFY="TRUE">${documentGroup.sourceUrl}</protected_url>
+
+${articles}
+</rag_document>`;
     }).join("\n\n");
 }
 // =============================================================================
@@ -334,7 +585,7 @@ Nếu cả RAG nội bộ và Search grounding đều không có kết quả:
 // =============================================================================
 // GET MODEL 
 // =============================================================================
-async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null) {
+async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null, returnResponseDetails = false) {
     const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
     const preferredModel = SystemConfig?.geminiModel;
     const temp = SystemConfig?.temperature || 0.1;
@@ -348,10 +599,14 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
     let ragContext = "";
 
     if (relatedDocs && relatedDocs.length > 0) {
-        ragContext = buildStrictContextText(relatedDocs);
-        console.log("=== RAG CONTEXT  VÀO AI ===");
-        console.log(ragContext);
-        console.log("=========================================");
+        console.log('[GEMINI RAG INPUT] relatedDocs received from Pinecone:');
+        console.table(relatedDocs.slice(0, 5).map((doc, index) => ({
+            rank: index + 1,
+            id: doc.id,
+            score: doc.score,
+            hasScore: typeof doc.score === 'number',
+            title: doc.title || doc.law_name || '(no title)'
+        })));
         const checkText = (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion.toLowerCase() : userPrompt.toLowerCase();
         const isRagRelevant = checkRagRelevance(checkText, relatedDocs);
 
@@ -375,9 +630,53 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             console.log(`[LEG_AI ROUTER]: Kích hoạt Search (Lý do: ${isSeekingNewInfo ? 'Tin mới/RAG cũ' : 'Chi tiết/RAG hụt'}).`);
             enableGoogleSearch = true;
         } else {
-            console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks, ${ragContext.length} ký tự). KHÓA Google Search để tối ưu Rate Limit.`);
+            console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks). KHÓA Google Search để tối ưu Rate Limit.`);
             enableGoogleSearch = false;
         }
+
+        const selectorResult = selectRagChunks(
+            (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion : userPrompt,
+            relatedDocs
+        );
+        const selectedDocs = selectorResult.selectedDocs;
+        console.log('[RAG SELECTOR]');
+        console.log({
+            rawChunks: relatedDocs.length,
+            selectedChunks: selectedDocs.length,
+            selectedIds: selectedDocs.map(doc => doc.id),
+            scores: selectorResult.scores.map(score => ({
+                id: score.id,
+                pineconeScore: score.pineconeScore,
+                contentScore: Number(score.contentScore.toFixed(4)),
+                titleScore: Number(score.titleScore.toFixed(4)),
+                articleScore: Number(score.articleScore.toFixed(4)),
+                finalScore: Number(score.finalScore.toFixed(4))
+            })),
+            fallbackAll: selectorResult.fallbackAll,
+            reason: selectorResult.reason
+        });
+
+        const rawContext = buildRawContextText(relatedDocs);
+        const documentGroups = groupContextDocuments(selectedDocs);
+        ragContext = buildStrictContextText(selectedDocs);
+        const articleGroups = documentGroups.reduce((total, documentGroup) => total + documentGroup.articles.size, 0);
+        const savedChars = rawContext.length - ragContext.length;
+        const savedPercent = rawContext.length > 0
+            ? Number(((savedChars / rawContext.length) * 100).toFixed(2))
+            : 0;
+        console.log('[RAG COMPACT METRICS]');
+        console.log({
+            rawChunks: relatedDocs.length,
+            documentCount: documentGroups.length,
+            articleGroups,
+            rawContextChars: rawContext.length,
+            compactContextChars: ragContext.length,
+            savedChars,
+            savedPercent
+        });
+        console.log("=== RAG CONTEXT  VÀO AI ===");
+        console.log(ragContext);
+        console.log("=========================================");
     } else {
 
         // Nếu forceSearch = false
@@ -389,6 +688,11 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             console.log("[LEG_AI ROUTER]: RAG nội bộ trống nhưng forceSearch KHÓA  Google Search ");
         }
     }
+    console.log('[GEMINI RESPONSE MODE]');
+    console.log({
+        grounded: enableGoogleSearch,
+        expectedFormat: enableGoogleSearch ? 'text' : (isJson ? 'json' : 'text')
+    });
     const today = new Date().toLocaleDateString('vi-VN');
     const timeContext = `[THÔNG TIN THỜI GIAN THỰC TẾ CHO AI: Hôm nay là ngày ${today}.
      Bất kỳ tham chiếu nào về "tuần này", "tháng này", "năm này" trong câu hỏi của người dùng đều phải được hiểu là thời điểm hiện tại (${today}).
@@ -552,9 +856,9 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
 
             const model = genAI.getGenerativeModel(modelConfig);
 
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("TIMEOUT_EXCEEDED")), 45000)
-            );
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error("TIMEOUT_EXCEEDED")), 45000);
+            });
 
             const generationConfig = { temperature: temp, topP: 0.8 };
 
@@ -575,9 +879,27 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
             if (timeoutId) clearTimeout(timeoutId);
 
             if (result && result.response) {
+                console.log(`[GEMINI PROMPT TOKENS] ${result.response.usageMetadata?.promptTokenCount ?? 'N/A'}`);
+                const finishReason = result.response.candidates?.[0]?.finishReason;
+                if (finishReason === 'RECITATION') {
+                    const recitationError = new Error('RECITATION');
+                    recitationError.code = 'RECITATION';
+                    throw recitationError;
+                }
                 const text = result.response.text();
                 const groundingMetadata =
                     result.response.candidates?.[0]?.groundingMetadata;
+
+                // Google Search Grounding supplies verified source URLs in
+                // groundingMetadata, not in the generated text. Cache only a
+                // metadata chunk that matches the requested document.
+                if (enableGoogleSearch && groundingMetadata) {
+                    try {
+                        await cacheGroundedLawSource(rawUserQuestion, groundingMetadata);
+                    } catch (cacheError) {
+                        console.warn('[GROUNDING SOURCE CACHE ERROR]:', cacheError.message);
+                    }
+                }
 
                 console.log(
                     "=== FULL GEMINI RESPONSE ===",
@@ -587,12 +909,26 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
 
                 if (text) {
                     console.log(`  ${modelName} phản hồi thành công!`);
-                    return text;
+                    return returnResponseDetails
+                        ? {
+                            text,
+                            grounded: enableGoogleSearch,
+                            groundingMetadata: groundingMetadata || null,
+                            model: modelName
+                        }
+                        : text;
                 }
             }
         } catch (error) {
+            if (timeoutId) clearTimeout(timeoutId);
             const msg = (error.message || "").toString();
             console.warn(`  ${modelName} thất bại:`, msg.split('\n')[0]);
+            console.log('[GEMINI GENERATION FAILURE]');
+            console.log({
+                model: modelName,
+                grounded: enableGoogleSearch,
+                type: classifyGenerationFailure(error)
+            });
 
             if (msg === "TIMEOUT_EXCEEDED") continue;
             if (
@@ -660,10 +996,34 @@ ${compiledPrompt}
                         ],
                         generationConfig: fallbackGenerationConfig
                     });
-
-                    return fallbackResult.response.text();
+                    const fallbackFinishReason = fallbackResult.response.candidates?.[0]?.finishReason;
+                    if (fallbackFinishReason === 'RECITATION') {
+                        const recitationError = new Error('RECITATION');
+                        recitationError.code = 'RECITATION';
+                        throw recitationError;
+                    }
+                    const fallbackText = fallbackResult.response.text();
+                    console.log('[GEMINI RESPONSE MODE]');
+                    console.log({
+                        grounded: false,
+                        expectedFormat: isJson ? 'json' : 'text'
+                    });
+                    return returnResponseDetails
+                        ? {
+                            text: fallbackText,
+                            grounded: false,
+                            groundingMetadata: null,
+                            model: 'gemini-2.5-flash'
+                        }
+                        : fallbackText;
 
                 } catch (fbErr) {
+                    console.log('[GEMINI GENERATION FAILURE]');
+                    console.log({
+                        model: 'gemini-2.5-flash',
+                        grounded: false,
+                        type: classifyGenerationFailure(fbErr)
+                    });
                     console.error(
                         " Lỗi hệ thống AI :",
                         fbErr.message
@@ -807,6 +1167,115 @@ function sanitizeCitations(citations = []) {
 
         return citation;
     });
+}
+
+function classifyGenerationFailure(error) {
+    const message = `${error?.code || ''} ${error?.message || ''}`.toUpperCase();
+    if (message.includes('TIMEOUT')) return 'TIMEOUT';
+    if (message.includes('RECITATION')) return 'RECITATION';
+    if (message.includes('429') || message.includes('QUOTA') || message.includes('DEMAND')) return 'QUOTA';
+    return 'API';
+}
+
+function normalizeAnswerText(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\\r?\n/g, '\n');
+}
+
+function cleanStructuredJsonResponse(value) {
+    return String(value || '')
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+}
+
+function extractGroundingCitations(groundingMetadata) {
+    const chunks = Array.isArray(groundingMetadata?.groundingChunks)
+        ? groundingMetadata.groundingChunks
+        : [];
+    const supports = Array.isArray(groundingMetadata?.groundingSupports)
+        ? groundingMetadata.groundingSupports
+        : [];
+    const supportTextByChunk = new Map();
+
+    for (const support of supports) {
+        const quoteSnippet = normalizeAnswerText(support?.segment?.text || '');
+        for (const chunkIndex of support?.groundingChunkIndices || []) {
+            if (!supportTextByChunk.has(chunkIndex) && quoteSnippet) {
+                supportTextByChunk.set(chunkIndex, quoteSnippet);
+            }
+        }
+    }
+
+    const seenUrls = new Set();
+    const citations = [];
+    chunks.forEach((chunk, index) => {
+        const web = chunk && chunk.web;
+        const sourceUrl = normalizeAnswerText(web?.uri || '').trim();
+        if (!sourceUrl || seenUrls.has(sourceUrl)) return;
+        seenUrls.add(sourceUrl);
+        citations.push({
+            lawName: normalizeAnswerText(web?.title || 'Nguồn Google Search Grounding'),
+            dieu: '',
+            khoan: '',
+            quoteSnippet: supportTextByChunk.get(index) || '',
+            sourceUrl
+        });
+    });
+    return citations;
+}
+
+function normalizeGeminiResponse(responseDetails, expectsStructuredJson = true) {
+    const details = typeof responseDetails === 'string'
+        ? { text: responseDetails, grounded: false, groundingMetadata: null }
+        : (responseDetails || {});
+    const mode = details.grounded ? 'grounded-text' : (expectsStructuredJson ? 'structured-json' : 'plain-text');
+    let normalized;
+
+    if (details.grounded) {
+        normalized = {
+            answer: normalizeAnswerText(details.text),
+            citations: extractGroundingCitations(details.groundingMetadata)
+        };
+    } else if (expectsStructuredJson) {
+        try {
+            const parsed = JSON.parse(cleanStructuredJsonResponse(details.text));
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                throw new Error('Structured response is not a JSON object');
+            }
+            normalized = {
+                answer: normalizeAnswerText(parsed.answer),
+                citations: sanitizeCitations(parsed.citations)
+            };
+        } catch (error) {
+            console.warn('[RESPONSE NORMALIZATION FAILURE]', {
+                mode,
+                type: 'PARSE',
+                reason: error.message
+            });
+            normalized = {
+                answer: normalizeAnswerText(details.text),
+                citations: []
+            };
+        }
+    } else {
+        normalized = {
+            answer: normalizeAnswerText(details.text),
+            citations: []
+        };
+    }
+
+    console.log('[RESPONSE NORMALIZATION]');
+    console.log({
+        mode,
+        answerLength: normalized.answer.length,
+        citationCount: normalized.citations.length
+    });
+    return normalized;
 }
 
 /**
@@ -1046,47 +1515,42 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
 
 `;
 
-        const responseText = await getActiveModel(prompt, useStructuredCitations, documents, false, false, userQuestion, useStructuredCitations ? CITATION_SCHEMA : null);
+        const responseDetails = await getActiveModel(
+            prompt,
+            useStructuredCitations,
+            documents,
+            false,
+            false,
+            userQuestion,
+            useStructuredCitations ? CITATION_SCHEMA : null,
+            true
+        );
 
-        console.log(responseText);
         await logUsage('CHATBOT');
-        if (useStructuredCitations) {
-            try {
-                const cleanJson = cleanAIJsonString(responseText);
-                const parsed = JSON.parse(cleanJson);
+        const normalizedResponse = normalizeGeminiResponse(responseDetails, useStructuredCitations);
 
-                parsed.citations = sanitizeCitations(parsed.citations);
-                for (const citation of parsed.citations) {
-                    if (citation.sourceUrl) {
-                        await lawSourceService.validateAndCacheResolvedUrl(
-                            citation.lawName,
-                            citation.lawName,
-                            citation.sourceUrl
-                        );
-                    }
+        if (!responseDetails.grounded) {
+            for (const citation of normalizedResponse.citations) {
+                if (citation.sourceUrl) {
+                    const identity = getRequestedLawIdentity(userQuestion);
+                    if (!identity) continue;
+                    await lawSourceService.validateAndCacheResolvedUrl(
+                        identity.lawNumber,
+                        citation.lawName || identity.lawName,
+                        citation.sourceUrl
+                    );
                 }
-                return parsed;
-
-            } catch (err) {
-                console.warn(
-                    "Lỗi Parse Citation JSON, fallback về text:",
-                    err.message
-                );
-
-                return {
-                    answer: responseText,
-                    citations: []
-                };
             }
         }
-        responseText = formatProxyCitations(responseText);
-        return responseText;
+
+        if (!useStructuredCitations) {
+            normalizedResponse.answer = formatProxyCitations(normalizedResponse.answer);
+        }
+        return normalizedResponse;
 
     } catch (error) {
         console.error(" Lỗi toàn bộ hệ thống Gemini:", error.message);
-        return useStructuredCitations
-            ? { answer: "LegAI đang quá tải. Vui lòng thử lại sau.", citations: [] }
-            : "LegAI đang quá tải. Vui lòng thử lại sau.";
+        return { answer: "LegAI đang quá tải. Vui lòng thử lại sau.", citations: [] };
     }
 }
 
@@ -2037,22 +2501,14 @@ LEGAL_DIGEST:
 // ==============================================================================
 // DANH MỤC PHÂN LOẠI & HÀM CLASSIFY 
 // ==============================================================================
-const VALID_CATEGORIES = [
-    "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
-    "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
-    "Thuế - Phí - Lệ phí", "Giao thông - Vận tải", "Lao động - Tiền lương", "Công nghệ thông tin",
-    "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
-    "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
-];
-
 async function classifyCategoryWithAI(title) {
     const prompt = `
     Bạn là một chuyên gia pháp luật Việt Nam cấp cao. 
-    Nhiệm vụ: Phân loại văn bản dựa trên tiêu đề vào MỘT TRONG các nhóm sau: [${VALID_CATEGORIES.join(", ")}].
+    Nhiệm vụ: Phân loại văn bản dựa trên tiêu đề vào MỘT TRONG các nhóm sau: [${CANONICAL_CATEGORIES.join(", ")}].
     
     Quy tắc:
     1. Chỉ trả về đúng tên nhóm trong danh sách trên.
-    2. Nếu tiêu đề mang tính chất chung chung về xử phạt hoặc tổ chức bộ máy, chọn "Bộ máy hành chính".
+    2. Phân loại theo lĩnh vực điều chỉnh chính, không phân loại theo loại chế tài như "xử phạt".
     3. Nếu không chắc chắn, chọn "Lĩnh vực khác".
     
     Tiêu đề văn bản: "${title}"
@@ -2062,7 +2518,7 @@ async function classifyCategoryWithAI(title) {
 
         const rawResponse = await getActiveModel(prompt, false, [], false, false, "");
         const category = rawResponse.trim().replace(/[".*]/g, "");
-        return VALID_CATEGORIES.includes(category) ? category : "Lĩnh vực khác";
+        return normalizeLegalCategory(category) || "Lĩnh vực khác";
     } catch (error) {
         return "Lĩnh vực khác";
     }

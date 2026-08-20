@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
@@ -12,11 +12,13 @@ import {
 
 const API_BASE = 'http://localhost:8000/api/admin/legal-documents';
 const VALID_CATEGORIES = [
-    "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
-    "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
-    "Thuế - Phí - Lệ phí", "Giao thông - Vận tải", "Lao động - Tiền lương", "Công nghệ thông tin",
-    "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
-    "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
+    "Bộ máy hành chính", "Cán bộ - Công chức", "Tài chính nhà nước", "Thuế - Phí - Lệ phí",
+    "Kế toán - Kiểm toán", "Tiền tệ - Ngân hàng", "Chứng khoán", "Bảo hiểm", "Doanh nghiệp",
+    "Đầu tư", "Thương mại", "Đấu thầu", "Xuất nhập khẩu", "Dân sự", "Hình sự", "Tố tụng",
+    "Tư pháp", "Quốc phòng - An ninh", "Ngoại giao", "Lao động - Tiền lương", "Giáo dục", "Y tế",
+    "Văn hóa - Thể thao - Du lịch", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
+    "Nông nghiệp - Nông thôn", "Bất động sản", "Xây dựng - Đô thị", "Giao thông - Vận tải",
+    "Công nghệ thông tin", "Khoa học - Công nghệ", "Sở hữu trí tuệ", "Hiến pháp", "Lĩnh vực khác"
 ];
 
 // Hàm làm sạch nội dung bằng cách loại bỏ phần header dư thừa
@@ -49,6 +51,56 @@ const parseLegalContentToHTML = (content) => {
         </div>
     );
 };
+
+const normalizeForSearch = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLocaleLowerCase('vi-VN');
+
+const highlightTitleMatch = (title, searchTerm) => {
+    const normalizedSearch = normalizeForSearch(searchTerm.replace(/\s+/g, ' ').trim());
+    if (!normalizedSearch) return title;
+
+    const normalizedCharacters = [];
+    const sourceRanges = [];
+    let sourceOffset = 0;
+
+    for (const character of String(title || '')) {
+        const normalizedCharacter = normalizeForSearch(character);
+        for (const normalizedPart of normalizedCharacter) {
+            normalizedCharacters.push(normalizedPart);
+            sourceRanges.push([sourceOffset, sourceOffset + character.length]);
+        }
+        sourceOffset += character.length;
+    }
+
+    const normalizedTitle = normalizedCharacters.join('');
+    const parts = [];
+    let normalizedOffset = 0;
+    let sourceCursor = 0;
+    let matchIndex = normalizedTitle.indexOf(normalizedSearch, normalizedOffset);
+
+    while (matchIndex !== -1) {
+        const sourceStart = sourceRanges[matchIndex][0];
+        const sourceEnd = sourceRanges[matchIndex + normalizedSearch.length - 1][1];
+        if (sourceStart > sourceCursor) parts.push(title.slice(sourceCursor, sourceStart));
+        parts.push(
+            <mark key={`${sourceStart}-${sourceEnd}`} className="bg-amber-200/70 text-inherit rounded-sm px-0.5">
+                {title.slice(sourceStart, sourceEnd)}
+            </mark>
+        );
+        sourceCursor = sourceEnd;
+        normalizedOffset = matchIndex + normalizedSearch.length;
+        matchIndex = normalizedTitle.indexOf(normalizedSearch, normalizedOffset);
+    }
+
+    if (sourceCursor === 0) return title;
+    if (sourceCursor < title.length) parts.push(title.slice(sourceCursor));
+    return parts;
+};
+
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -57,9 +109,11 @@ export default function LegalDataManager() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [activeMenuId, setActiveMenuId] = useState(null);
+    const latestRequestId = useRef(0);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -97,48 +151,58 @@ export default function LegalDataManager() {
         fetchCategories();
     }, []);
 
-    const fetchLawData = async () => {
+    const fetchLawData = async ({ signal, requestId } = {}) => {
         try {
             setLoading(true);
             const token = localStorage.getItem('accessToken');
             const params = {
                 page: currentPage,
                 limit: 10,
-                search: searchQuery,
+                search: debouncedSearchQuery,
                 category: filterCategory,
                 status: filterStatus
             };
 
             const response = await axios.get(API_BASE, {
                 headers: { Authorization: `Bearer ${token}` },
-                params
+                params,
+                signal
             });
 
-            if (response.data.success) {
+            if (response.data.success && (!requestId || requestId === latestRequestId.current)) {
                 setLawData(response.data.data || []);
                 setCurrentPage(response.data.currentPage || 1);
                 setTotalPages(response.data.totalPages || 1);
                 setTotalItems(response.data.totalItems || 0);
             }
         } catch (error) {
+            if (axios.isCancel(error)) return;
             console.error('Lỗi khi tải dữ liệu:', error);
             if (error.response?.status === 401) {
                 console.error('Phiên đăng nhập hết hạn!');
             }
         } finally {
-            setLoading(false);
+            if (!requestId || requestId === latestRequestId.current) setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (currentPage !== 1) {
+        const timeoutId = window.setTimeout(() => {
             setCurrentPage(1);
-        }
-    }, [searchQuery, filterCategory, filterStatus]);
+            setDebouncedSearchQuery(searchQuery.replace(/\s+/g, ' ').trim());
+        }, 350);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [searchQuery]);
 
     useEffect(() => {
-        fetchLawData();
-    }, [currentPage, searchQuery, filterCategory, filterStatus]);
+        const controller = new AbortController();
+        const requestId = latestRequestId.current + 1;
+        latestRequestId.current = requestId;
+        fetchLawData({ signal: controller.signal, requestId });
+
+        return () => controller.abort();
+    }, [currentPage, debouncedSearchQuery, filterCategory, filterStatus]);
 
     const handleFormChange = (e) => {
         const { name, value } = e.target;
@@ -339,7 +403,10 @@ export default function LegalDataManager() {
                     </div>
                     <select
                         value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
+                        onChange={(e) => {
+                            setFilterCategory(e.target.value);
+                            setCurrentPage(1);
+                        }}
                         className="bg-white border border-gray-200 text-gray-900 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-amber-500 cursor-pointer"
                     >
                         <option value="">Tất cả phân loại</option>
@@ -349,7 +416,10 @@ export default function LegalDataManager() {
                     </select>
                     <select
                         value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
+                        onChange={(e) => {
+                            setFilterStatus(e.target.value);
+                            setCurrentPage(1);
+                        }}
                         className="bg-white border border-gray-200 text-gray-900 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-amber-500 cursor-pointer"
                     >
                         <option value="" className="bg-white text-gray-900 font-bold py-2">
@@ -381,7 +451,7 @@ export default function LegalDataManager() {
                                 </tr>
                             </thead>
                             <tbody className="text-sm text-gray-700">
-                                {loading ? (
+                                {loading && lawData.length === 0 ? (
                                     <tr>
                                         <td colSpan="5" className="py-20 text-center">
                                             <Loader2 className="animate-spin mx-auto mb-2 text-amber-600" size={32} />
@@ -391,7 +461,7 @@ export default function LegalDataManager() {
                                 ) : lawData.length === 0 ? (
                                     <tr>
                                         <td colSpan="5" className="py-20 text-center text-gray-500 uppercase text-[10px] tracking-widest">
-                                            Không tìm thấy dữ liệu phù hợp
+                                            Không tìm thấy văn bản phù hợp.
                                         </td>
                                     </tr>
                                 ) : (
@@ -399,7 +469,7 @@ export default function LegalDataManager() {
                                         <tr key={item.Id} className="border-b border-gray-100 hover:bg-gray-50 transition-all group">
                                             <td className="px-6 py-4 overflow-hidden">
                                                 <div className="font-bold text-gray-900 truncate w-full group-hover:text-amber-600 transition-colors" title={item.Title}>
-                                                    {item.Title}
+                                                    {highlightTitleMatch(item.Title, debouncedSearchQuery)}
                                                 </div>
                                                 <div className="text-[11px] text-gray-500 truncate w-full italic mt-0.5 opacity-60">
                                                     {item.ContentPreview || 'Bản xem trước không khả dụng'}

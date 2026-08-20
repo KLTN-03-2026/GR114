@@ -8,6 +8,7 @@ const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
+const queryDecompositionService = require('../services/queryDecompositionService');
 
 // hàm này sẽ được gọi trong aiRoutes.js khi có request POST /api/ai/ask
 // ==========================================
@@ -23,6 +24,8 @@ exports.ask = async (req, res) => {
         }
 
         console.log(`\n [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
+
+        await queryDecompositionService.analyzeQuery(userQuery);
 
         // TRUY XUẤT RAG
         let relatedDocs = [];

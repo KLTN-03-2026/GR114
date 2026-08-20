@@ -62,7 +62,15 @@ const query = async (queryText, k = 5) => {
 
         // Tại ragService.js - chỗ trả về kết quả
         if (searchResults.matches && searchResults.matches.length > 0) {
-            return searchResults.matches.map(match => {
+            console.log('[PINECONE TOP-K SCORES] Raw similarity scores returned by Pinecone:');
+            console.table(searchResults.matches.slice(0, 5).map((match, index) => ({
+                rank: index + 1,
+                id: match.id,
+                score: match.score,
+                title: match.metadata?.title || match.metadata?.law_name || '(no title)'
+            })));
+
+            const relatedDocs = searchResults.matches.map(match => {
                 const meta = match.metadata || {};
                 const fullTitle = meta.title || meta.law_name || "Văn bản pháp luật";
 
@@ -77,6 +85,7 @@ const query = async (queryText, k = 5) => {
 
                 return {
                     id: match.id,
+                    doc_id: meta.doc_id || "",
                     title: fullTitle,
                     law_name: fullTitle,
                     content: meta.text || "Nội dung không khả dụng",
@@ -87,6 +96,16 @@ const query = async (queryText, k = 5) => {
                     score: match.score
                 };
             });
+
+            console.log('[PINECONE -> GEMINI] Score is preserved on relatedDocs.score:');
+            console.table(relatedDocs.slice(0, 5).map((doc, index) => ({
+                rank: index + 1,
+                id: doc.id,
+                score: doc.score,
+                title: doc.title
+            })));
+
+            return relatedDocs;
         }
         return [];
     } catch (error) {

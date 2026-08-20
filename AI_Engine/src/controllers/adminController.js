@@ -543,8 +543,10 @@ const toggleSaveLaw = async (req, res) => {
             ELSE
             BEGIN
                 -- Thêm đầy đủ thông tin để bảng SavedLaws không bị rỗng các cột quan trọng
-                INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear) 
-                VALUES (@UserId, @DocumentId, @DocumentTitle, @DocumentNumber, @IssueYear);
+                INSERT INTO UserSavedLaws (UserId, DocumentId, DocumentTitle, DocumentNumber, IssueYear)
+                SELECT @UserId, @DocumentId, Title, DocumentNumber, IssueYear
+                FROM LegalDocuments
+                WHERE Id = @DocumentId;
                 SELECT 'Added' AS Action;
             END
         `;

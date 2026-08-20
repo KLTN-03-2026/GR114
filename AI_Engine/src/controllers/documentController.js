@@ -1,4 +1,5 @@
 const { sql, pool, poolConnect } = require('../config/db');
+const { CANONICAL_CATEGORIES } = require('../constants/legalCategories');
 
 /**
  * GET /api/documents
@@ -90,9 +91,17 @@ exports.getDocumentStats = async (req, res) => {
     // Lấy tổng số lượng
     const totalResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments`);
 
+    const countsByCategory = new Map(
+      statsResult.recordset.map(({ Category, Count }) => [Category, Count])
+    );
+    const canonicalStats = CANONICAL_CATEGORIES.map(Category => ({
+      Category,
+      Count: countsByCategory.get(Category) || 0
+    }));
+
     return res.json({
       success: true,
-      stats: statsResult.recordset,
+      stats: canonicalStats,
       total: totalResult.recordset[0].Total
     });
   } catch (err) {

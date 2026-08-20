@@ -171,6 +171,94 @@ class LawSourceService {
     }
 
     /**
+     * Persists the actual web page cited by Google Search Grounding.  Grounding
+     * chunks are the authority here; a URL emitted by the model itself is not.
+     */
+    async validateAndCacheGroundingSource(lawNumber, lawName, groundingChunk) {
+        const web = groundingChunk && groundingChunk.web;
+        const sourceUrl = web && web.uri;
+        const sourceTitle = web && web.title;
+
+        if (!lawNumber || !this.isHttpUrl(sourceUrl)) {
+            return null;
+        }
+
+        const resolvedUrl = await this.resolveGoogleRedirect(sourceUrl);
+        if (!this.isValidLegalSourceUrl(resolvedUrl) ||
+            !this.matchesRequestedLaw(lawNumber, lawName, resolvedUrl, sourceTitle)) {
+            return null;
+        }
+
+        const normalizedUrl = this.normalizeUrl(resolvedUrl);
+        await poolConnect;
+        await this.cacheResolvedUrl(
+            String(lawNumber).trim(),
+            lawName ? String(lawName).trim() : '',
+            normalizedUrl
+        );
+
+        return normalizedUrl;
+    }
+
+    async resolveGoogleRedirect(sourceUrl) {
+        try {
+            const hostname = new URL(sourceUrl).hostname.toLowerCase();
+            if (!hostname.endsWith('google.com') && !hostname.endsWith('googleusercontent.com')) {
+                return sourceUrl;
+            }
+
+            const response = await axios.get(sourceUrl, {
+                maxRedirects: 5,
+                timeout: 6000,
+                validateStatus: () => true,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+
+            return response.request?.res?.responseUrl || sourceUrl;
+        } catch (error) {
+            console.warn('[LawSourceService] Could not resolve Grounding redirect:', error.message);
+            return sourceUrl;
+        }
+    }
+
+    isHttpUrl(sourceUrl) {
+        try {
+            const url = new URL(sourceUrl);
+            return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
+    matchesRequestedLaw(lawNumber, lawName, sourceUrl, sourceTitle = '') {
+        const normalize = (value) => String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+
+        const sourceText = normalize(`${sourceTitle} ${sourceUrl}`);
+        const normalizedNumber = normalize(lawNumber);
+        if (!normalizedNumber || !sourceText.includes(normalizedNumber)) {
+            return false;
+        }
+
+        // Require a meaningful word from the requested name as an additional
+        // guard against same-number-but-different-document search results.
+        const genericWords = new Set(['luat', 'bo', 'nghi', 'dinh', 'thong', 'tu', 'quyet', 'dinh', 'van', 'ban', 'so']);
+        const meaningfulWords = (String(lawName || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .toLowerCase()
+            .match(/[a-z0-9]{3,}/g) || [])
+            .filter(word => !genericWords.has(word));
+
+        return meaningfulWords.length === 0 || meaningfulWords.some(word => sourceText.includes(word));
+    }
+
+    /**
      * Performs a direct lookup against VBPL and extracts
      * a specific legal document detail URL.
      */

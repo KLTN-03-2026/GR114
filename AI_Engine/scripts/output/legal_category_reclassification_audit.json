@@ -1,0 +1,2050 @@
+[
+  {
+    "id": "DOC-1775795876056-730",
+    "documentNumber": "227/KH-UBND",
+    "title": "Kế hoạch 227/KH-UBND 2022 Chiến lược phát triển và ứng dụng khoa học Bắc Kạn đến 2030",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về kế hoạch triển khai chiến lược phát triển và ứng dụng khoa học và công nghệ vũ trụ, thuộc lĩnh vực khoa học công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 844,
+      "outputTokens": 63,
+      "totalTokens": 907
+    }
+  },
+  {
+    "id": "2186-qđ-bkhcn-2026",
+    "documentNumber": "2186/QĐ-BKHCN",
+    "title": "KẾ HOẠCH TRIỂN KHAI THI HÀNH NGHỊ ĐỊNH SỐ 71/2026/NĐ-CP",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Văn bản ban hành kế hoạch triển khai thi hành Nghị định về xử phạt vi phạm hành chính trong lĩnh vực năng lượng nguyên tử, thuộc phạm vi quản lý nhà nước của Bộ Khoa học và Công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 908,
+      "outputTokens": 74,
+      "totalTokens": 982
+    }
+  },
+  {
+    "id": "126-2025-qh15",
+    "documentNumber": "126/2025/QH15",
+    "title": "Luật Báo chí số 126/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Báo chí điều chỉnh các hoạt động liên quan đến thông tin, truyền thông và quyền tự do báo chí, thuộc phạm vi quản lý nhà nước về văn hóa và xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 770,
+      "outputTokens": 70,
+      "totalTokens": 840
+    }
+  },
+  {
+    "id": "117-2025-qh15",
+    "documentNumber": "117/2025/QH15",
+    "title": "LUẬT BẢO VỆ BÍ MẬT NHÀ NƯỚC SỐ 117/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về bảo vệ bí mật nhà nước, đây là nội dung cốt lõi liên quan đến an ninh quốc gia và bảo vệ thông tin mật của nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 789,
+      "outputTokens": 67,
+      "totalTokens": 856
+    }
+  },
+  {
+    "id": "29-2018-qh14",
+    "documentNumber": "29/2018/QH14",
+    "title": "Luật Bảo vệ bí mật nhà nước số 29/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Luật Bảo vệ bí mật nhà nước liên quan trực tiếp đến an ninh quốc gia và bảo vệ thông tin mật của nhà nước, thuộc phạm vi quản lý của lĩnh vực Quốc phòng - An ninh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 71,
+      "totalTokens": 829
+    }
+  },
+  {
+    "id": "19-2023-qh15",
+    "documentNumber": "19/2023/QH15",
+    "title": "Luật Bảo vệ quyền lợi người tiêu dùng số 19/2023/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Thương mại",
+    "confidence": "HIGH",
+    "reason": "Luật Bảo vệ quyền lợi người tiêu dùng điều chỉnh các quan hệ giữa người tiêu dùng và tổ chức, cá nhân kinh doanh, thuộc phạm vi điều chỉnh của pháp luật thương mại.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 745,
+      "outputTokens": 65,
+      "totalTokens": 810
+    }
+  },
+  {
+    "id": "41-2013-qh13",
+    "documentNumber": "41/2013/QH13",
+    "title": "Luật Bảo vệ và kiểm dịch thực vật số 41/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Nông nghiệp - Nông thôn",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động bảo vệ và kiểm dịch thực vật, quản lý thuốc bảo vệ thực vật, thuộc phạm vi quản lý nhà nước về nông nghiệp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 66,
+      "totalTokens": 824
+    }
+  },
+  {
+    "id": "85-2015-qh13",
+    "documentNumber": "85/2015/QH13",
+    "title": "Luật Bầu cử đại biểu Quốc hội và đại biểu Hội đồng nhân dân số 85/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về bầu cử đại biểu Quốc hội và Hội đồng nhân dân, đây là các cơ quan quyền lực nhà nước, thuộc phạm vi tổ chức bộ máy hành chính và chính trị của nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 780,
+      "outputTokens": 72,
+      "totalTokens": 852
+    }
+  },
+  {
+    "id": "06-2003-qh11",
+    "documentNumber": "06/2003/QH11",
+    "title": "Luật Biên giới quốc gia số 06/2003/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về biên giới quốc gia, quản lý và bảo vệ chủ quyền lãnh thổ, thuộc phạm vi điều chỉnh của lĩnh vực quốc phòng và an ninh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 754,
+      "outputTokens": 65,
+      "totalTokens": 819
+    }
+  },
+  {
+    "id": "66-2020-qh14",
+    "documentNumber": "66/2020/QH14",
+    "title": "Luật Biên phòng Việt Nam số 66/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về chính sách, nhiệm vụ, hoạt động và lực lượng biên phòng nhằm bảo vệ chủ quyền, an ninh quốc gia tại khu vực biên giới, thuộc phạm vi quản lý của lĩnh vực quốc phòng và an ninh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 752,
+      "outputTokens": 79,
+      "totalTokens": 831
+    }
+  },
+  {
+    "id": "18-2012-qh13",
+    "documentNumber": "18/2012/QH13",
+    "title": "Luật Biển Việt Nam số 18/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Luật Biển Việt Nam quy định về chủ quyền, quyền chủ quyền, quyền tài phán quốc gia, quản lý và bảo vệ biển đảo, thuộc phạm vi quản lý nhà nước về quốc phòng và an ninh quốc gia.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 764,
+      "outputTokens": 77,
+      "totalTokens": 841
+    }
+  },
+  {
+    "id": "73-2006-qh11",
+    "documentNumber": "73/2006/QH11",
+    "title": "Luật Bình đẳng giới số 73/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Bình đẳng giới quy định về các vấn đề xã hội, quyền con người và bình đẳng trong đời sống xã hội, thuộc phạm vi điều chỉnh của lĩnh vực Văn hóa - Xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 812,
+      "outputTokens": 72,
+      "totalTokens": 884
+    }
+  },
+  {
+    "id": "49-2010-qh12",
+    "documentNumber": "49/2010/QH12",
+    "title": "Luật Bưu chính số 49/2010/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lĩnh vực khác",
+    "confidence": "HIGH",
+    "reason": "Luật Bưu chính điều chỉnh hoạt động bưu chính, không thuộc các nhóm chuyên ngành cụ thể trong danh mục đã cho, nên được xếp vào Lĩnh vực khác.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 769,
+      "outputTokens": 64,
+      "totalTokens": 833
+    }
+  },
+  {
+    "id": "49-2005-qh11",
+    "documentNumber": "49/2005/QH11",
+    "title": "Luật Các công cụ chuyển nhượng số 49/2005/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tiền tệ - Ngân hàng",
+    "confidence": "HIGH",
+    "reason": "Luật Các công cụ chuyển nhượng điều chỉnh các hoạt động liên quan đến hối phiếu, kỳ phiếu, séc, là các công cụ thanh toán và tín dụng thuộc lĩnh vực tiền tệ, ngân hàng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 818,
+      "outputTokens": 75,
+      "totalTokens": 893
+    }
+  },
+  {
+    "id": "26-2023-qh15",
+    "documentNumber": "26/2023/QH15",
+    "title": "Luật Căn cước số 26/2023/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Căn cước quy định về quản lý dân cư, căn cước công dân và các giấy tờ tùy thân, thuộc nhóm quản lý nhà nước về hộ tịch và tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 747,
+      "outputTokens": 66,
+      "totalTokens": 813
+    }
+  },
+  {
+    "id": "33-2018-qh14",
+    "documentNumber": "33/2018/QH14",
+    "title": "Luật Cảnh sát biển Việt Nam số 33/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức, chức năng, nhiệm vụ và hoạt động của Cảnh sát biển Việt Nam, đây là lực lượng vũ trang nhân dân thuộc lĩnh vực quốc phòng và an ninh quốc gia.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 755,
+      "outputTokens": 74,
+      "totalTokens": 829
+    }
+  },
+  {
+    "id": "04-2022-qh15",
+    "documentNumber": "04/2022/QH15",
+    "title": "Luật Cảnh sát cơ động số 04/2022/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức, chức năng, nhiệm vụ và hoạt động của lực lượng Cảnh sát cơ động, thuộc lĩnh vực an ninh quốc gia.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 766,
+      "outputTokens": 64,
+      "totalTokens": 830
+    }
+  },
+  {
+    "id": "13-2017-qh14",
+    "documentNumber": "13/2017/QH14",
+    "title": "Luật Cảnh vệ số 13/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Luật Cảnh vệ quy định về công tác bảo vệ các đối tượng quan trọng, thuộc lĩnh vực an ninh quốc gia và bảo vệ trật tự an toàn xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 756,
+      "outputTokens": 66,
+      "totalTokens": 822
+    }
+  },
+  {
+    "id": "32-2018-qh14",
+    "documentNumber": "32/2018/QH14",
+    "title": "Luật Chăn nuôi số 32/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Nông nghiệp - Nông thôn",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Chăn nuôi, điều chỉnh trực tiếp các hoạt động liên quan đến giống vật nuôi, thức ăn chăn nuôi và quản lý nhà nước trong lĩnh vực chăn nuôi, thuộc phạm vi điều chỉnh của ngành nông nghiệp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 751,
+      "outputTokens": 81,
+      "totalTokens": 832
+    }
+  },
+  {
+    "id": "05-2007-qh12",
+    "documentNumber": "05/2007/QH12",
+    "title": "Luật Chất lượng sản phẩm, hàng hoá số 05/2007/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Luật Chất lượng sản phẩm, hàng hóa quy định về quản lý chất lượng, tiêu chuẩn và quy chuẩn kỹ thuật, thuộc phạm vi quản lý nhà nước về khoa học và công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 791,
+      "outputTokens": 69,
+      "totalTokens": 860
+    }
+  },
+  {
+    "id": "101-2025-qh15",
+    "documentNumber": "101/2025/QH15",
+    "title": "LUẬT CHUYỂN GIAO NGƯỜI ĐANG CHẤP HÀNH ÁN PHẠT TÙ SỐ 101/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về thủ tục chuyển giao người đang chấp hành án phạt tù giữa Việt Nam và nước ngoài, thuộc hoạt động tương trợ tư pháp trong lĩnh vực hình sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 788,
+      "outputTokens": 64,
+      "totalTokens": 852
+    }
+  },
+  {
+    "id": "46-2024-qh15",
+    "documentNumber": "46/2024/QH15",
+    "title": "Luật Công chứng số 46/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Công chứng, thuộc nhóm hoạt động tư pháp theo quy định phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 741,
+      "outputTokens": 49,
+      "totalTokens": 790
+    }
+  },
+  {
+    "id": "50-2024-qh15",
+    "documentNumber": "50/2024/QH15",
+    "title": "Luật Công đoàn số 50/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lao động - Tiền lương",
+    "confidence": "HIGH",
+    "reason": "Luật Công đoàn quy định về tổ chức và hoạt động của Công đoàn, đại diện và bảo vệ quyền lợi cho người lao động, thuộc phạm vi điều chỉnh của lĩnh vực lao động.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 736,
+      "outputTokens": 70,
+      "totalTokens": 806
+    }
+  },
+  {
+    "id": "21-2008-qh12",
+    "documentNumber": "21/2008/QH12",
+    "title": "Luật Công nghệ cao số 21/2008/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Công nghệ cao, quy định trực tiếp về hoạt động công nghệ cao, chính sách và biện pháp thúc đẩy phát triển công nghệ cao, thuộc phạm vi điều chỉnh của lĩnh vực Khoa học - Công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 763,
+      "outputTokens": 78,
+      "totalTokens": 841
+    }
+  },
+  {
+    "id": "68-2020-qh14",
+    "documentNumber": "68/2020/QH14",
+    "title": "Luật Cư trú số 68/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Cư trú quy định về đăng ký, quản lý cư trú và quyền tự do cư trú, thuộc nhóm quản lý hành chính về hộ tịch và cư trú, phù hợp với phạm vi lĩnh vực Tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 747,
+      "outputTokens": 72,
+      "totalTokens": 819
+    }
+  },
+  {
+    "id": "20-2008-qh12",
+    "documentNumber": "20/2008/QH12",
+    "title": "Luật Đa dạng sinh học số 20/2008/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Đa dạng sinh học quy định về bảo tồn và phát triển bền vững đa dạng sinh học, thuộc phạm vi quản lý nhà nước về tài nguyên thiên nhiên và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 761,
+      "outputTokens": 69,
+      "totalTokens": 830
+    }
+  },
+  {
+    "id": "30-2018-qh14",
+    "documentNumber": "30/2018/QH14",
+    "title": "Luật Đặc xá số 30/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Hình sự",
+    "confidence": "HIGH",
+    "reason": "Luật Đặc xá quy định về việc miễn chấp hành hình phạt tù cho người bị kết án, liên quan trực tiếp đến thi hành án hình sự và chính sách hình sự của Nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 748,
+      "outputTokens": 66,
+      "totalTokens": 814
+    }
+  },
+  {
+    "id": "100-2025-qh15",
+    "documentNumber": "100/2025/QH15",
+    "title": "LUẬT DẪN ĐỘ SỐ 100/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Dẫn độ quy định về trình tự, thủ tục và thẩm quyền thực hiện dẫn độ, đây là hoạt động thuộc lĩnh vực tư pháp quốc tế và tương trợ tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 774,
+      "outputTokens": 65,
+      "totalTokens": 839
+    }
+  },
+  {
+    "id": "48-2019-qh14",
+    "documentNumber": "48/2019/QH14",
+    "title": "Luật Dân quân tự vệ số 48/2019/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Dân quân tự vệ, quy định về lực lượng vũ trang quần chúng, thuộc lĩnh vực quốc phòng và an ninh quốc gia.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 765,
+      "outputTokens": 62,
+      "totalTokens": 827
+    }
+  },
+  {
+    "id": "01-2016-qh14",
+    "documentNumber": "01/2016/QH14",
+    "title": "Luật Đấu giá tài sản số 01/2016/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Đấu giá tài sản thuộc nhóm hoạt động bổ trợ tư pháp, phù hợp với quy tắc ưu tiên phân loại vào lĩnh vực Tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 770,
+      "outputTokens": 58,
+      "totalTokens": 828
+    }
+  },
+  {
+    "id": "12-2022-qh15",
+    "documentNumber": "12/2022/QH15",
+    "title": "Luật Dầu khí số 12/2022/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Dầu khí điều chỉnh các hoạt động điều tra cơ bản và khai thác tài nguyên dầu khí, thuộc phạm vi quản lý tài nguyên thiên nhiên.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 746,
+      "outputTokens": 63,
+      "totalTokens": 809
+    }
+  },
+  {
+    "id": "79-2006-qh11",
+    "documentNumber": "79/2006/QH11",
+    "title": "Luật Đê điều số 79/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Đê điều quy định về quản lý, bảo vệ đê điều và phòng chống lũ, thuộc phạm vi quản lý tài nguyên nước và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 826,
+      "outputTokens": 64,
+      "totalTokens": 890
+    }
+  },
+  {
+    "id": "54-2024-qh15",
+    "documentNumber": "54/2024/QH15",
+    "title": "Luật Địa chất và Khoáng sản số 54/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về quản lý, điều tra, khai thác và bảo vệ tài nguyên địa chất, khoáng sản, thuộc phạm vi điều chỉnh của lĩnh vực tài nguyên và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 765,
+      "outputTokens": 71,
+      "totalTokens": 836
+    }
+  },
+  {
+    "id": "27-2018-qh14",
+    "documentNumber": "27/2018/QH14",
+    "title": "Luật Đo đạc và bản đồ số 27/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Đo đạc và bản đồ thuộc phạm vi quản lý nhà nước về tài nguyên và môi trường, liên quan trực tiếp đến hạ tầng dữ liệu không gian địa lý và quản lý đất đai.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 770,
+      "outputTokens": 73,
+      "totalTokens": 843
+    }
+  },
+  {
+    "id": "04-2011-qh13",
+    "documentNumber": "04/2011/QH13",
+    "title": "Luật Đo lường số 04/2011/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Luật Đo lường quy định về hoạt động đo lường, đơn vị đo, chuẩn đo lường, đây là các nội dung thuộc lĩnh vực quản lý nhà nước về khoa học và công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 773,
+      "outputTokens": 72,
+      "totalTokens": 845
+    }
+  },
+  {
+    "id": "22-2012-qh13",
+    "documentNumber": "22/2012/QH13",
+    "title": "Luật Dự trữ quốc gia số 22/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Dự trữ quốc gia quy định về việc quản lý, sử dụng nguồn lực dự trữ của Nhà nước, đây là một bộ phận quan trọng trong quản lý tài chính công và ngân sách nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 768,
+      "outputTokens": 71,
+      "totalTokens": 839
+    }
+  },
+  {
+    "id": "105-2016-qh13",
+    "documentNumber": "105/2016/QH13",
+    "title": "Luật Dược số 105/2016/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Luật Dược quy định về các hoạt động liên quan đến thuốc, hành nghề dược và quản lý dược phẩm, thuộc phạm vi quản lý nhà nước về y tế.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 742,
+      "outputTokens": 61,
+      "totalTokens": 803
+    }
+  },
+  {
+    "id": "35-2024-qh15",
+    "documentNumber": "35/2024/QH15",
+    "title": "Luật Đường bộ số 35/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Giao thông - Vận tải",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Đường bộ, quy định trực tiếp về kết cấu hạ tầng, quản lý và vận tải đường bộ, thuộc lĩnh vực Giao thông - Vận tải.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 764,
+      "outputTokens": 68,
+      "totalTokens": 832
+    }
+  },
+  {
+    "id": "16-2023-qh15",
+    "documentNumber": "16/2023/QH15",
+    "title": "Luật Giá số 16/2023/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Giá quy định về quản lý, điều tiết giá và thẩm định giá, thuộc phạm vi quản lý tài chính nhà nước và điều tiết thị trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 736,
+      "outputTokens": 61,
+      "totalTokens": 797
+    }
+  },
+  {
+    "id": "105-2025-qh15",
+    "documentNumber": "105/2025/QH15",
+    "title": "Luật Giám định tư pháp số 105/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Giám định tư pháp, thuộc nhóm hoạt động tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 504,
+      "outputTokens": 52,
+      "totalTokens": 556
+    }
+  },
+  {
+    "id": "20-2023-qh15",
+    "documentNumber": "20/2023/QH15",
+    "title": "Luật Giao dịch điện tử số 20/2023/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Công nghệ thông tin",
+    "confidence": "HIGH",
+    "reason": "Luật Giao dịch điện tử quy định về các hoạt động giao dịch bằng phương tiện điện tử, chữ ký số, chứng thực điện tử, thuộc phạm vi điều chỉnh của lĩnh vực công nghệ thông tin.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 740,
+      "outputTokens": 71,
+      "totalTokens": 811
+    }
+  },
+  {
+    "id": "66-2006-qh11",
+    "documentNumber": "66/2006/QH11",
+    "title": "Luật Hàng không dân dụng Việt Nam số 66/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Giao thông - Vận tải",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Hàng không dân dụng, điều chỉnh trực tiếp các hoạt động liên quan đến tàu bay, cảng hàng không, vận chuyển hàng không, thuộc lĩnh vực Giao thông - Vận tải.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 770,
+      "outputTokens": 76,
+      "totalTokens": 846
+    }
+  },
+  {
+    "id": "75-2006-qh11",
+    "documentNumber": "75/2006/QH11",
+    "title": "Luật Hiến, lấy, ghép mô, bộ phận cơ thể người và hiến, lấy xác số 75/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động hiến, lấy, ghép mô, bộ phận cơ thể người và hiến, lấy xác, đây là các hoạt động chuyên môn thuộc lĩnh vực y tế.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 837,
+      "outputTokens": 67,
+      "totalTokens": 904
+    }
+  },
+  {
+    "id": "69-2025-qh15",
+    "documentNumber": "69/2025/QH15",
+    "title": "Luật Hóa chất số 69/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lĩnh vực khác",
+    "confidence": "HIGH",
+    "reason": "Luật Hóa chất điều chỉnh về quản lý hoạt động hóa chất, an toàn hóa chất và phát triển công nghiệp hóa chất, không thuộc các nhóm chuyên ngành cụ thể đã liệt kê trong danh mục.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 743,
+      "outputTokens": 70,
+      "totalTokens": 813
+    }
+  },
+  {
+    "id": "35-2013-qh13",
+    "documentNumber": "35/2013/QH13",
+    "title": "Luật Hòa giải ở cơ sở số 35/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Hòa giải ở cơ sở thuộc nhóm các hoạt động bổ trợ tư pháp và giải quyết tranh chấp tại cơ sở, thuộc phạm vi quản lý nhà nước của ngành Tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 769,
+      "outputTokens": 64,
+      "totalTokens": 833
+    }
+  },
+  {
+    "id": "11-2008-qh12",
+    "documentNumber": "11/2008/QH12",
+    "title": "Luật Hoạt động chữ thập đỏ số 11/2008/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Hoạt động chữ thập đỏ điều chỉnh các hoạt động nhân đạo, từ thiện và tổ chức Hội Chữ thập đỏ, thuộc phạm vi quản lý nhà nước về các vấn đề xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 771,
+      "outputTokens": 72,
+      "totalTokens": 843
+    }
+  },
+  {
+    "id": "87-2015-qh13",
+    "documentNumber": "87/2015/QH13",
+    "title": "Luật Hoạt động giám sát của Quốc hội và Hội đồng nhân dân số 87/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động giám sát của các cơ quan dân cử (Quốc hội, Hội đồng nhân dân), thuộc phạm vi tổ chức và hoạt động của bộ máy nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 790,
+      "outputTokens": 68,
+      "totalTokens": 858
+    }
+  },
+  {
+    "id": "52-2014-qh13",
+    "documentNumber": "52/2014/QH13",
+    "title": "Luật Hôn nhân và gia đình số 52/2014/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Dân sự",
+    "confidence": "HIGH",
+    "reason": "Luật Hôn nhân và gia đình điều chỉnh các quan hệ nhân thân và tài sản trong gia đình, thuộc phạm vi điều chỉnh của pháp luật dân sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 751,
+      "outputTokens": 60,
+      "totalTokens": 811
+    }
+  },
+  {
+    "id": "17-2023-qh15",
+    "documentNumber": "17/2023/QH15",
+    "title": "Luật Hợp tác xã số 17/2023/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Doanh nghiệp",
+    "confidence": "HIGH",
+    "reason": "Luật Hợp tác xã quy định về thành lập, tổ chức quản lý và hoạt động của các tổ chức kinh tế tập thể, tương đồng với các quy định về quản lý doanh nghiệp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 768,
+      "outputTokens": 67,
+      "totalTokens": 835
+    }
+  },
+  {
+    "id": "90-2015-qh13",
+    "documentNumber": "90/2015/QH13",
+    "title": "Luật Khí tượng thủy văn số 90/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Khí tượng thủy văn điều chỉnh các hoạt động liên quan đến quản lý tài nguyên khí tượng, thủy văn và giám sát biến đổi khí hậu, thuộc phạm vi quản lý nhà nước về tài nguyên và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 749,
+      "outputTokens": 77,
+      "totalTokens": 826
+    }
+  },
+  {
+    "id": "40-2019-qh14",
+    "documentNumber": "40/2019/QH14",
+    "title": "Luật Kiến trúc số 40/2019/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Xây dựng - Đô thị",
+    "confidence": "HIGH",
+    "reason": "Luật Kiến trúc quy định về quản lý kiến trúc, hành nghề kiến trúc và hoạt động kiến trúc, đây là các nội dung thuộc lĩnh vực quản lý nhà nước về xây dựng và phát triển đô thị.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 745,
+      "outputTokens": 74,
+      "totalTokens": 819
+    }
+  },
+  {
+    "id": "16-2017-qh14",
+    "documentNumber": "16/2017/QH14",
+    "title": "Luật Lâm nghiệp số 16/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Nông nghiệp - Nông thôn",
+    "confidence": "HIGH",
+    "reason": "Luật Lâm nghiệp quy định về quản lý, bảo vệ, phát triển và sử dụng rừng, thuộc phạm vi quản lý nhà nước về nông nghiệp và phát triển nông thôn.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 755,
+      "outputTokens": 67,
+      "totalTokens": 822
+    }
+  },
+  {
+    "id": "53-2019-qh14",
+    "documentNumber": "53/2019/QH14",
+    "title": "Luật Lực lượng dự bị động viên số 53/2019/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về lực lượng dự bị động viên, quân nhân dự bị và phương tiện kỹ thuật dự bị nhằm bổ sung cho Quân đội nhân dân, thuộc lĩnh vực quốc phòng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 69,
+      "totalTokens": 827
+    }
+  },
+  {
+    "id": "33-2024-qh15",
+    "documentNumber": "33/2024/QH15",
+    "title": "Luật Lưu trữ số 33/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Lưu trữ quy định về quản lý tài liệu, nghiệp vụ lưu trữ và quản lý nhà nước về lưu trữ, đây là các hoạt động thuộc phạm vi quản lý hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 754,
+      "outputTokens": 68,
+      "totalTokens": 822
+    }
+  },
+  {
+    "id": "75-2015-qh13",
+    "documentNumber": "75/2015/QH13",
+    "title": "Luật Mặt trận Tổ quốc Việt Nam số 75/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Mặt trận Tổ quốc Việt Nam quy định về vị trí, vai trò, tổ chức và hoạt động của Mặt trận trong hệ thống chính trị, thuộc phạm vi điều chỉnh của lĩnh vực bộ máy hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 749,
+      "outputTokens": 74,
+      "totalTokens": 823
+    }
+  },
+  {
+    "id": "94-2025-qh15",
+    "documentNumber": "94/2025/QH15",
+    "title": "Luật Năng lượng nguyên tử số 94/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về năng lượng nguyên tử, an toàn bức xạ và hạt nhân, thuộc phạm vi quản lý và phát triển khoa học công nghệ chuyên ngành.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 762,
+      "outputTokens": 64,
+      "totalTokens": 826
+    }
+  },
+  {
+    "id": "78-2015-qh13",
+    "documentNumber": "78/2015/QH13",
+    "title": "Luật Nghĩa vụ quân sự số 78/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Nghĩa vụ quân sự, quy định trực tiếp về hoạt động quân sự và nghĩa vụ của công dân đối với quốc phòng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 760,
+      "outputTokens": 61,
+      "totalTokens": 821
+    }
+  },
+  {
+    "id": "51-2010-qh12",
+    "documentNumber": "51/2010/QH12",
+    "title": "Luật Người khuyết tật số 51/2010/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Người khuyết tật quy định về quyền, nghĩa vụ của người khuyết tật và các chính sách an sinh xã hội, chăm sóc sức khỏe, giáo dục, dạy nghề cho người khuyết tật, thuộc phạm vi quản lý nhà nước về các vấn đề xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 761,
+      "outputTokens": 88,
+      "totalTokens": 849
+    }
+  },
+  {
+    "id": "47-2014-qh13",
+    "documentNumber": "47/2014/QH13",
+    "title": "Luật Nhập cảnh, xuất cảnh, quá cảnh, cư trú của người nước ngoài tại Việt Nam số 47/2014/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Xuất nhập khẩu",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động nhập cảnh, xuất cảnh, quá cảnh và cư trú của người nước ngoài, thuộc phạm vi quản lý nhà nước về xuất nhập cảnh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 782,
+      "outputTokens": 64,
+      "totalTokens": 846
+    }
+  },
+  {
+    "id": "97-2015-qh13",
+    "documentNumber": "97/2015/QH13",
+    "title": "Luật Phí và lệ phí số 97/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Thuế - Phí - Lệ phí",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Phí và lệ phí, quy định trực tiếp về danh mục, quản lý và sử dụng phí, lệ phí.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 772,
+      "outputTokens": 62,
+      "totalTokens": 834
+    }
+  },
+  {
+    "id": "49-2024-qh15",
+    "documentNumber": "49/2024/QH15",
+    "title": "Luật Phòng không nhân dân số 49/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động phòng không nhân dân, lực lượng nòng cốt là bộ đội địa phương, dân quân tự vệ và quân nhân dự bị, thuộc lĩnh vực quốc phòng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 742,
+      "outputTokens": 70,
+      "totalTokens": 812
+    }
+  },
+  {
+    "id": "13-2022-qh15",
+    "documentNumber": "13/2022/QH15",
+    "title": "Luật Phòng, chống bạo lực gia đình số 13/2022/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống bạo lực gia đình điều chỉnh các quan hệ xã hội liên quan đến đời sống gia đình, bảo vệ quyền con người trong gia đình, thuộc nhóm lĩnh vực Văn hóa - Xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 771,
+      "outputTokens": 76,
+      "totalTokens": 847
+    }
+  },
+  {
+    "id": "03-2007-qh12",
+    "documentNumber": "03/2007/QH12",
+    "title": "Luật Phòng, chống bệnh truyền nhiễm số 03/2007/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về phòng, chống bệnh truyền nhiễm và kiểm dịch y tế, thuộc lĩnh vực quản lý nhà nước về y tế.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 754,
+      "outputTokens": 55,
+      "totalTokens": 809
+    }
+  },
+  {
+    "id": "28-2013-qh13",
+    "documentNumber": "28/2013/QH13",
+    "title": "Luật Phòng, chống khủng bố số 28/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về phòng, chống khủng bố, đây là vấn đề liên quan trực tiếp đến an ninh quốc gia và trật tự an toàn xã hội.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 64,
+      "totalTokens": 822
+    }
+  },
+  {
+    "id": "53-2024-qh15",
+    "documentNumber": "53/2024/QH15",
+    "title": "LUẬT PHÒNG, CHỐNG MUA BÁN NGƯỜI SỐ 53/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Hình sự",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống mua bán người quy định về việc phòng ngừa, phát hiện và xử lý hành vi mua bán người, đây là các hành vi vi phạm pháp luật hình sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 770,
+      "outputTokens": 64,
+      "totalTokens": 834
+    }
+  },
+  {
+    "id": "64-2006-qh11",
+    "documentNumber": "64/2006/QH11",
+    "title": "Luật Phòng, chống nhiễm vi rút gây ra hội chứng suy giảm miễn dịch mắc phải ở người (HIV/AIDS) số 64/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về phòng, chống HIV/AIDS, chăm sóc và điều trị người nhiễm HIV, thuộc phạm vi quản lý nhà nước về y tế.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 854,
+      "outputTokens": 59,
+      "totalTokens": 913
+    }
+  },
+  {
+    "id": "44-2019-qh14",
+    "documentNumber": "44/2019/QH14",
+    "title": "Luật phòng, chống tác hại của rượu, bia số 44/2019/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống tác hại của rượu, bia tập trung vào các biện pháp bảo vệ sức khỏe cộng đồng, quản lý tiêu thụ đồ uống có cồn để giảm thiểu tác hại đối với sức khỏe con người, thuộc phạm vi quản lý nhà nước về y tế.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 774,
+      "outputTokens": 82,
+      "totalTokens": 856
+    }
+  },
+  {
+    "id": "36-2018-qh14",
+    "documentNumber": "36/2018/QH14",
+    "title": "Luật Phòng, chống tham nhũng số 36/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Cán bộ - Công chức",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống tham nhũng tập trung chủ yếu vào việc kiểm soát quyền lực, minh bạch tài sản và xử lý vi phạm của người có chức vụ, quyền hạn trong cơ quan nhà nước, thuộc phạm vi điều chỉnh của lĩnh vực Cán bộ - Công chức.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 769,
+      "outputTokens": 87,
+      "totalTokens": 856
+    }
+  },
+  {
+    "id": "33-2013-qh13",
+    "documentNumber": "33/2013/QH13",
+    "title": "Luật Phòng, chống thiên tai số 33/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống thiên tai điều chỉnh các hoạt động liên quan đến ứng phó với các hiện tượng tự nhiên, thuộc phạm vi quản lý nhà nước về tài nguyên và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 767,
+      "outputTokens": 70,
+      "totalTokens": 837
+    }
+  },
+  {
+    "id": "142-2025-qh15",
+    "documentNumber": "142/2025/QH15",
+    "title": "Luật Phục hồi, phá sản số 142/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Doanh nghiệp",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về trình tự, thủ tục phục hồi và phá sản đối với doanh nghiệp và hợp tác xã, thuộc phạm vi điều chỉnh của pháp luật về doanh nghiệp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 774,
+      "outputTokens": 64,
+      "totalTokens": 838
+    }
+  },
+  {
+    "id": "20-2017-qh14",
+    "documentNumber": "20/2017/QH14",
+    "title": "Luật Quản lý nợ công số 20/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Quản lý nợ công quy định về các hoạt động vay, sử dụng vốn vay và trả nợ của Chính phủ, chính quyền địa phương, thuộc phạm vi quản lý tài chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 776,
+      "outputTokens": 72,
+      "totalTokens": 848
+    }
+  },
+  {
+    "id": "15-2017-qh14",
+    "documentNumber": "15/2017/QH14",
+    "title": "Luật Quản lý, sử dụng tài sản công số 15/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Quản lý, sử dụng tài sản công quy định về quản lý và sử dụng tài sản thuộc sở hữu toàn dân do Nhà nước đại diện chủ sở hữu, đây là một nội dung cốt lõi thuộc lĩnh vực tài chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 768,
+      "outputTokens": 80,
+      "totalTokens": 848
+    }
+  },
+  {
+    "id": "42-2024-qh15",
+    "documentNumber": "42/2024/QH15",
+    "title": "Luật Quản lý, sử dụng vũ khí, vật liệu nổ và công cụ hỗ trợ số 42/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về quản lý, sử dụng vũ khí, vật liệu nổ và công cụ hỗ trợ nhằm bảo vệ an ninh quốc gia và trật tự an toàn xã hội, thuộc phạm vi điều chỉnh của lĩnh vực Quốc phòng - An ninh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 783,
+      "outputTokens": 83,
+      "totalTokens": 866
+    }
+  },
+  {
+    "id": "16-2012-qh13",
+    "documentNumber": "16/2012/QH13",
+    "title": "Luật Quảng cáo số 16/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Thể thao - Du lịch",
+    "confidence": "HIGH",
+    "reason": "Luật Quảng cáo điều chỉnh các hoạt động liên quan đến văn hóa, thông tin và truyền thông, thuộc phạm vi quản lý nhà nước về văn hóa.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 761,
+      "outputTokens": 66,
+      "totalTokens": 827
+    }
+  },
+  {
+    "id": "24-2008-qh12",
+    "documentNumber": "24/2008/QH12",
+    "title": "Luật Quốc tịch Việt Nam số 24/2008/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Quốc tịch Việt Nam quy định về quốc tịch, quyền và nghĩa vụ của công dân, thuộc phạm vi quản lý nhà nước về tư pháp liên quan đến hộ tịch và địa vị pháp lý của cá nhân.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 755,
+      "outputTokens": 71,
+      "totalTokens": 826
+    }
+  },
+  {
+    "id": "21-2017-qh14",
+    "documentNumber": "21/2017/QH14",
+    "title": "Luật quy hoạch số 21/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Xây dựng - Đô thị",
+    "confidence": "MEDIUM",
+    "reason": "Luật Quy hoạch điều chỉnh hoạt động lập, thẩm định và phê duyệt quy hoạch quốc gia, có mối liên hệ mật thiết với quản lý phát triển đô thị và hạ tầng, mặc dù đây là văn bản mang tính chất quản lý nhà nước tổng quát.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 751,
+      "outputTokens": 84,
+      "totalTokens": 835
+    }
+  },
+  {
+    "id": "50-2010-qh12",
+    "documentNumber": "50/2010/QH12",
+    "title": "Luật Sử dụng năng lượng tiết kiệm và hiệu quả số 50/2010/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Luật Sử dụng năng lượng tiết kiệm và hiệu quả điều chỉnh các hoạt động liên quan đến quản lý, khai thác và sử dụng tài nguyên năng lượng, thuộc phạm vi quản lý nhà nước về tài nguyên.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 759,
+      "outputTokens": 74,
+      "totalTokens": 833
+    }
+  },
+  {
+    "id": "65-2006-qh11",
+    "documentNumber": "65/2006/QH11",
+    "title": "Luật sư số 65/2006/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về luật sư và hành nghề luật sư, thuộc nhóm hoạt động tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 797,
+      "outputTokens": 55,
+      "totalTokens": 852
+    }
+  },
+  {
+    "id": "28-2018-qh14",
+    "documentNumber": "28/2018/QH14",
+    "title": "Luật sửa đổi, bổ sung một số điều của 11 luật có liên quan đến quy hoạch số 28/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Đầu tư",
+    "confidence": "HIGH",
+    "reason": "Văn bản này sửa đổi, bổ sung nhiều luật liên quan đến quy hoạch, trong đó Luật Đầu tư và Luật Đầu tư công là các văn bản trọng tâm được liệt kê, phản ánh nội dung điều chỉnh chính về môi trường đầu tư và quy hoạch phát triển.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 864,
+      "outputTokens": 82,
+      "totalTokens": 946
+    }
+  },
+  {
+    "id": "35-2018-qh14",
+    "documentNumber": "35/2018/QH14",
+    "title": "Luật Sửa đổi, bổ sung một số điều của 37 luật có liên quan đến quy hoạch số 35/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Xây dựng - Đô thị",
+    "confidence": "MEDIUM",
+    "reason": "Văn bản sửa đổi các luật liên quan đến quy hoạch, trong đó tập trung chủ yếu vào các lĩnh vực hạ tầng, đất đai và tài nguyên môi trường, thuộc phạm vi quản lý nhà nước về xây dựng và phát triển đô thị.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 873,
+      "outputTokens": 82,
+      "totalTokens": 955
+    }
+  },
+  {
+    "id": "87-2025-qh15",
+    "documentNumber": "87/2025/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của luật ban hành văn bản quy phạm pháp luật số 87/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về quy trình, hệ thống và thẩm quyền ban hành văn bản quy phạm pháp luật, thuộc phạm vi quản lý nhà nước và tổ chức bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 817,
+      "outputTokens": 66,
+      "totalTokens": 883
+    }
+  },
+  {
+    "id": "83-2025-qh15",
+    "documentNumber": "83/2025/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Bầu cử đại biểu Quốc hội và đại biểu Hội đồng nhân dân số 83/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về bầu cử đại biểu Quốc hội và Hội đồng nhân dân, liên quan trực tiếp đến tổ chức và hoạt động của bộ máy nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 839,
+      "outputTokens": 62,
+      "totalTokens": 901
+    }
+  },
+  {
+    "id": "40-2024-qh15",
+    "documentNumber": "40/2024/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Cảnh vệ số 40/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Quốc phòng - An ninh",
+    "confidence": "HIGH",
+    "reason": "Luật Cảnh vệ liên quan trực tiếp đến công tác bảo vệ an ninh quốc gia và các đối tượng lãnh đạo, thuộc lĩnh vực Quốc phòng - An ninh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 784,
+      "outputTokens": 64,
+      "totalTokens": 848
+    }
+  },
+  {
+    "id": "78-2025-qh15",
+    "documentNumber": "78/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Chất lượng sản phẩm, hàng hóa số 78/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Khoa học - Công nghệ",
+    "confidence": "HIGH",
+    "reason": "Luật Chất lượng sản phẩm, hàng hóa thuộc lĩnh vực quản lý nhà nước về tiêu chuẩn, đo lường và chất lượng, nằm trong phạm vi quản lý của Bộ Khoa học và Công nghệ.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 831,
+      "outputTokens": 72,
+      "totalTokens": 903
+    }
+  },
+  {
+    "id": "36-2013-qh13",
+    "documentNumber": "36/2013/QH13",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Cư trú số 36/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Cư trú quy định về quản lý hành chính nhà nước đối với việc đăng ký, quản lý cư trú của công dân, thuộc phạm vi quản lý của cơ quan hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 810,
+      "outputTokens": 67,
+      "totalTokens": 877
+    }
+  },
+  {
+    "id": "37-2024-qh15",
+    "documentNumber": "37/2024/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Đấu giá tài sản số 37/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật sửa đổi, bổ sung Luật Đấu giá tài sản, thuộc nhóm hoạt động tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 792,
+      "outputTokens": 58,
+      "totalTokens": 850
+    }
+  },
+  {
+    "id": "147-2025-qh15",
+    "documentNumber": "147/2025/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Địa chất và khoáng sản số 147/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về địa chất và khoáng sản, thuộc lĩnh vực quản lý tài nguyên thiên nhiên.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 814,
+      "outputTokens": 54,
+      "totalTokens": 868
+    }
+  },
+  {
+    "id": "140-2025-qh15",
+    "documentNumber": "140/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Giá số 140/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Giá là văn bản quy phạm pháp luật điều chỉnh về quản lý giá, thuộc phạm vi quản lý tài chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 854,
+      "outputTokens": 56,
+      "totalTokens": 910
+    }
+  },
+  {
+    "id": "56-2020-qh14",
+    "documentNumber": "56/2020/QH14",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Giám định tư pháp số 56/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động giám định tư pháp, thuộc phạm vi điều chỉnh của lĩnh vực Tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 797,
+      "outputTokens": 58,
+      "totalTokens": 855
+    }
+  },
+  {
+    "id": "20-2012-qh13",
+    "documentNumber": "20/2012/QH13",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Luật sư số 20/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về hoạt động của luật sư, thuộc nhóm các hoạt động bổ trợ tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 788,
+      "outputTokens": 56,
+      "totalTokens": 844
+    }
+  },
+  {
+    "id": "97-2025-qh15",
+    "documentNumber": "97/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Mặt trận Tổ quốc Việt Nam, Luật Công đoàn, Luật Thanh niên và Luật Thực hiện dân chủ ở cơ sở số 97/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản sửa đổi các luật liên quan đến tổ chức chính trị - xã hội, quyền dân chủ và cơ cấu hoạt động của các tổ chức trong hệ thống chính trị, thuộc phạm vi quản lý của bộ máy hành chính và tổ chức nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 876,
+      "outputTokens": 80,
+      "totalTokens": 956
+    }
+  },
+  {
+    "id": "51-2019-qh14",
+    "documentNumber": "51/2019/QH14",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật nhập cảnh, xuất cảnh, quá cảnh, cư trú của người nước ngoài tại Việt Nam số 51/2019/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Xuất nhập khẩu",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về quản lý hoạt động nhập cảnh, xuất cảnh, quá cảnh và cư trú của người nước ngoài, thuộc phạm vi điều chỉnh của lĩnh vực xuất nhập cảnh.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 831,
+      "outputTokens": 66,
+      "totalTokens": 897
+    }
+  },
+  {
+    "id": "71-2020-qh14",
+    "documentNumber": "71/2020/QH14",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Phòng, chống nhiễm vi rút gây ra hội chứng suy giảm miễn dịch mắc phải ở người (HIV/AIDS) số 71/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Y tế",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật sửa đổi, bổ sung Luật Phòng, chống nhiễm HIV/AIDS, thuộc lĩnh vực quản lý nhà nước về y tế và chăm sóc sức khỏe cộng đồng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 831,
+      "outputTokens": 63,
+      "totalTokens": 894
+    }
+  },
+  {
+    "id": "27-2012-qh13",
+    "documentNumber": "27/2012/QH13",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Phòng, chống tham nhũng số 27/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Cán bộ - Công chức",
+    "confidence": "HIGH",
+    "reason": "Luật Phòng, chống tham nhũng tập trung chủ yếu vào việc quản lý, kiểm soát quyền lực và trách nhiệm của người có chức vụ, quyền hạn trong cơ quan, tổ chức, đơn vị, thuộc phạm vi điều chỉnh của lĩnh vực Cán bộ - Công chức.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 789,
+      "outputTokens": 87,
+      "totalTokens": 876
+    }
+  },
+  {
+    "id": "132-2025-qh15",
+    "documentNumber": "132/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Phòng, chống tham nhũng, tiêu cực số 132/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản sửa đổi các luật về tiếp công dân, khiếu nại, tố cáo, thuộc phạm vi điều chỉnh của lĩnh vực tư pháp và quản lý nhà nước về quyền khiếu nại, tố cáo của công dân.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 890,
+      "outputTokens": 75,
+      "totalTokens": 965
+    }
+  },
+  {
+    "id": "60-2020-qh14",
+    "documentNumber": "60/2020/QH14",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật phòng, chống thiên tai và Luật đê điều số 60/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài nguyên - Môi trường",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về phòng chống thiên tai và quản lý đê điều, thuộc phạm vi quản lý nhà nước về tài nguyên và môi trường.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 855,
+      "outputTokens": 62,
+      "totalTokens": 917
+    }
+  },
+  {
+    "id": "01-2007-qh12",
+    "documentNumber": "01/2007/QH12",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật phòng,chống tham nhũng số 01/2007/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật phòng, chống tham nhũng liên quan đến quản lý nhà nước và tổ chức bộ máy trong việc thực thi công vụ, thuộc phạm vi điều chỉnh của lĩnh vực Bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 774,
+      "outputTokens": 68,
+      "totalTokens": 842
+    }
+  },
+  {
+    "id": "75-2025-qh15",
+    "documentNumber": "75/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Quảng cáo số 75/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Thể thao - Du lịch",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật sửa đổi, bổ sung Luật Quảng cáo, thuộc lĩnh vực quản lý nhà nước về văn hóa và thông tin quảng cáo.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 825,
+      "outputTokens": 64,
+      "totalTokens": 889
+    }
+  },
+  {
+    "id": "56-2014-qh13",
+    "documentNumber": "56/2014/QH13",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Quốc tịch Việt Nam số 56/2014/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Quốc tịch Việt Nam điều chỉnh các vấn đề về quốc tịch, thuộc nhóm quản lý nhà nước về tư pháp và hộ tịch.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 784,
+      "outputTokens": 55,
+      "totalTokens": 839
+    }
+  },
+  {
+    "id": "79-2025-qh15",
+    "documentNumber": "79/2025/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Quốc tịch Việt Nam số 79/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Quốc tịch Việt Nam thuộc nhóm các quy định về tư pháp liên quan đến quyền công dân, hộ tịch và các vấn đề pháp lý về quốc tịch.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 823,
+      "outputTokens": 60,
+      "totalTokens": 883
+    }
+  },
+  {
+    "id": "136-2025-qh15",
+    "documentNumber": "136/2025/QH15",
+    "title": "Luật sửa đổi, bổ sung một số điều của Luật Tiếp công dân, Luật Khiếu nại, Luật Tố cáo số 136/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản sửa đổi các luật liên quan đến quyền tiếp công dân, khiếu nại và tố cáo, đây là các hoạt động thuộc quản lý hành chính nhà nước và cơ chế giải quyết khiếu nại, tố cáo trong bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 523,
+      "outputTokens": 81,
+      "totalTokens": 604
+    }
+  },
+  {
+    "id": "65-2020-qh14",
+    "documentNumber": "65/2020/QH14",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật Tổ chức Quốc hội số 65/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức và hoạt động của Quốc hội, thuộc nhóm cơ quan quyền lực nhà nước và bộ máy hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 830,
+      "outputTokens": 59,
+      "totalTokens": 889
+    }
+  },
+  {
+    "id": "83-2007-qh11",
+    "documentNumber": "83/2007/QH11",
+    "title": "Luật Sửa đổi, bổ sung một số điều của Luật tổ chức Quốc hội số 83/2007/QH11",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức và hoạt động của Quốc hội, thuộc nhóm cơ quan nhà nước và bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 818,
+      "outputTokens": 55,
+      "totalTokens": 873
+    }
+  },
+  {
+    "id": "01-2021-qh15",
+    "documentNumber": "01/2021/QH15",
+    "title": "Luật Sửa đổi, bổ sung một số điều và Phụ lục Danh mục chỉ tiêu thống kê quốc gia của Luật Thống kê số 01/2021/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lĩnh vực khác",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về Luật Thống kê, không thuộc các lĩnh vực chuyên ngành cụ thể đã liệt kê trong danh mục, do đó được phân loại vào Lĩnh vực khác.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 808,
+      "outputTokens": 66,
+      "totalTokens": 874
+    }
+  },
+  {
+    "id": "57-2020-qh14",
+    "documentNumber": "57/2020/QH14",
+    "title": "Luật Thanh niên số 57/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Thanh niên quy định về quyền, nghĩa vụ, trách nhiệm và chính sách của Nhà nước đối với thanh niên, thuộc phạm vi quản lý nhà nước về các vấn đề xã hội và phát triển con người.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 759,
+      "outputTokens": 75,
+      "totalTokens": 834
+    }
+  },
+  {
+    "id": "06-2022-qh15",
+    "documentNumber": "06/2022/QH15",
+    "title": "Luật Thi đua, Khen thưởng số 06/2022/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Xã hội",
+    "confidence": "HIGH",
+    "reason": "Luật Thi đua, Khen thưởng quy định về các danh hiệu, hình thức khen thưởng và phong trào thi đua, thuộc phạm vi quản lý nhà nước về các vấn đề xã hội và thi đua khen thưởng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 769,
+      "outputTokens": 76,
+      "totalTokens": 845
+    }
+  },
+  {
+    "id": "94-2015-qh13",
+    "documentNumber": "94/2015/QH13",
+    "title": "Luật Thi hành tạm giữ, tạm giam số 94/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Hình sự",
+    "confidence": "HIGH",
+    "reason": "Luật Thi hành tạm giữ, tạm giam liên quan trực tiếp đến các biện pháp ngăn chặn trong tố tụng hình sự và quản lý người bị tạm giữ, tạm giam trong hệ thống tư pháp hình sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 767,
+      "outputTokens": 71,
+      "totalTokens": 838
+    }
+  },
+  {
+    "id": "128-2025-qh15",
+    "documentNumber": "128/2025/QH15",
+    "title": "LUẬT THI HÀNH TẠM GIỮ, TẠM GIAM VÀ CẤM ĐI KHỎI NƠI CƯ TRÚ SỐ 128/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tố tụng",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về các biện pháp ngăn chặn trong tố tụng hình sự như tạm giữ, tạm giam và cấm đi khỏi nơi cư trú, thuộc phạm vi điều chỉnh của pháp luật tố tụng.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 816,
+      "outputTokens": 73,
+      "totalTokens": 889
+    }
+  },
+  {
+    "id": "70-2020-qh14",
+    "documentNumber": "70/2020/QH14",
+    "title": "Luật Thỏa thuận quốc tế số 70/2020/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Ngoại giao",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về trình tự, thủ tục ký kết và thực hiện các thỏa thuận quốc tế, thuộc phạm vi điều chỉnh của lĩnh vực ngoại giao.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 747,
+      "outputTokens": 61,
+      "totalTokens": 808
+    }
+  },
+  {
+    "id": "89-2015-qh13",
+    "documentNumber": "89/2015/QH13",
+    "title": "Luật Thống kê số 89/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lĩnh vực khác",
+    "confidence": "HIGH",
+    "reason": "Luật Thống kê quy định về hoạt động thống kê nhà nước, không thuộc các nhóm chuyên ngành cụ thể đã liệt kê trong danh mục.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 745,
+      "outputTokens": 58,
+      "totalTokens": 803
+    }
+  },
+  {
+    "id": "39-2024-qh15",
+    "documentNumber": "39/2024/QH15",
+    "title": "Luật Thủ đô số 39/2024/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Thủ đô quy định về vị trí, vai trò, chính sách, trách nhiệm xây dựng, phát triển và quản lý Thủ đô, liên quan trực tiếp đến tổ chức và hoạt động của bộ máy hành chính nhà nước tại địa phương đặc thù.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 756,
+      "outputTokens": 81,
+      "totalTokens": 837
+    }
+  },
+  {
+    "id": "79-2015-qh13",
+    "documentNumber": "79/2015/QH13",
+    "title": "Luật Thú y số 79/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Nông nghiệp - Nông thôn",
+    "confidence": "HIGH",
+    "reason": "Luật Thú y điều chỉnh các hoạt động liên quan đến phòng chống dịch bệnh động vật, kiểm dịch và quản lý thú y, thuộc phạm vi quản lý nhà nước về nông nghiệp và phát triển nông thôn.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 764,
+      "outputTokens": 75,
+      "totalTokens": 839
+    }
+  },
+  {
+    "id": "44-2013-qh13",
+    "documentNumber": "44/2013/QH13",
+    "title": "Luật Thực hành tiết kiệm, chống lãng phí số 44/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật tập trung chủ yếu vào việc quản lý, sử dụng ngân sách nhà nước, vốn nhà nước và tài sản nhà nước, đây là các nội dung cốt lõi thuộc lĩnh vực tài chính công.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 71,
+      "totalTokens": 829
+    }
+  },
+  {
+    "id": "10-2022-qh15",
+    "documentNumber": "10/2022/QH15",
+    "title": "Luật thực hiện dân chủ ở cơ sở số 10/2022/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Thực hiện dân chủ ở cơ sở quy định về cách thức thực hiện quyền dân chủ tại các cơ quan nhà nước, đơn vị sự nghiệp công lập và chính quyền cấp xã, thuộc phạm vi quản lý của bộ máy hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 776,
+      "outputTokens": 79,
+      "totalTokens": 855
+    }
+  },
+  {
+    "id": "08-2017-qh14",
+    "documentNumber": "08/2017/QH14",
+    "title": "Luật Thủy lợi số 08/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Nông nghiệp - Nông thôn",
+    "confidence": "HIGH",
+    "reason": "Luật Thủy lợi điều chỉnh các hoạt động liên quan đến công trình thủy lợi, phục vụ trực tiếp cho sản xuất nông nghiệp và phát triển nông thôn.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 752,
+      "outputTokens": 64,
+      "totalTokens": 816
+    }
+  },
+  {
+    "id": "42-2013-qh13",
+    "documentNumber": "42/2013/QH13",
+    "title": "Luật Tiếp công dân số 42/2013/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Tiếp công dân quy định về trách nhiệm, tổ chức và hoạt động tiếp công dân của các cơ quan nhà nước, thuộc phạm vi quản lý hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 748,
+      "outputTokens": 64,
+      "totalTokens": 812
+    }
+  },
+  {
+    "id": "110-2025-qh15",
+    "documentNumber": "110/2025/QH15",
+    "title": "Luật TIẾT KIỆM, CHỐNG LÃNG PHÍ số 110/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tài chính nhà nước",
+    "confidence": "HIGH",
+    "reason": "Luật Tiết kiệm, chống lãng phí tập trung chủ yếu vào việc quản lý, sử dụng tài chính công và tài sản công, đây là các nội dung cốt lõi thuộc lĩnh vực tài chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 752,
+      "outputTokens": 74,
+      "totalTokens": 826
+    }
+  },
+  {
+    "id": "25-2018-qh14",
+    "documentNumber": "25/2018/QH14",
+    "title": "Luật Tố cáo số 25/2018/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Luật Tố cáo quy định về trình tự, thủ tục giải quyết tố cáo, thuộc nhóm hoạt động tư pháp và quản lý nhà nước về tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 751,
+      "outputTokens": 60,
+      "totalTokens": 811
+    }
+  },
+  {
+    "id": "63-2025-qh15",
+    "documentNumber": "63/2025/QH15",
+    "title": "Luật Tổ chức chính phủ số 63/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về vị trí, chức năng, cơ cấu tổ chức và hoạt động của Chính phủ, thuộc phạm vi điều chỉnh của lĩnh vực Bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 753,
+      "outputTokens": 64,
+      "totalTokens": 817
+    }
+  },
+  {
+    "id": "72-2025-qh15",
+    "documentNumber": "72/2025/QH15",
+    "title": "Luật Tổ chức chính quyền địa phương số 72/2025/QH15",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức, cơ cấu và hoạt động của chính quyền địa phương, thuộc phạm vi điều chỉnh của lĩnh vực Bộ máy hành chính.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 775,
+      "outputTokens": 61,
+      "totalTokens": 836
+    }
+  },
+  {
+    "id": "57-2014-qh13",
+    "documentNumber": "57/2014/QH13",
+    "title": "Luật Tổ chức Quốc hội số 57/2014/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về tổ chức, chức năng, nhiệm vụ và quyền hạn của Quốc hội, là cơ quan quyền lực nhà nước cao nhất, thuộc phạm vi điều chỉnh của lĩnh vực bộ máy hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 799,
+      "outputTokens": 74,
+      "totalTokens": 873
+    }
+  },
+  {
+    "id": "102-2016-qh13",
+    "documentNumber": "102/2016/QH13",
+    "title": "Luật Trẻ em số 102/2016/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Hình sự",
+    "confidence": "HIGH",
+    "reason": "Văn bản quy định về đặc xá tha tù trước thời hạn cho người bị kết án phạt tù, thuộc lĩnh vực thi hành án hình sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 753,
+      "outputTokens": 57,
+      "totalTokens": 810
+    }
+  },
+  {
+    "id": "11-2017-qh14",
+    "documentNumber": "11/2017/QH14",
+    "title": "Luật Trợ giúp pháp lý số 11/2017/QH14",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Trợ giúp pháp lý, thuộc nhóm hoạt động tư pháp theo quy tắc phân loại đã nêu.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 745,
+      "outputTokens": 52,
+      "totalTokens": 797
+    }
+  },
+  {
+    "id": "96-2015-qh13",
+    "documentNumber": "96/2015/QH13",
+    "title": "Luật Trưng cầu ý dân số 96/2015/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Bộ máy hành chính",
+    "confidence": "HIGH",
+    "reason": "Luật Trưng cầu ý dân quy định về quyền lực nhà nước, tổ chức và hoạt động của các cơ quan nhà nước trong việc thực hiện trưng cầu ý dân, thuộc phạm vi quản lý của bộ máy hành chính nhà nước.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 756,
+      "outputTokens": 76,
+      "totalTokens": 832
+    }
+  },
+  {
+    "id": "15-2008-qh12",
+    "documentNumber": "15/2008/QH12",
+    "title": "Luật Trưng mua, trưng dụng tài sản số 15/2008/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Dân sự",
+    "confidence": "HIGH",
+    "reason": "Luật Trưng mua, trưng dụng tài sản điều chỉnh quyền sở hữu và các giao dịch liên quan đến tài sản giữa nhà nước và cá nhân, tổ chức, thuộc phạm vi điều chỉnh của pháp luật dân sự.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 758,
+      "outputTokens": 72,
+      "totalTokens": 830
+    }
+  },
+  {
+    "id": "08-2007-qh12",
+    "documentNumber": "08/2007/QH12",
+    "title": "Luật Tương trợ tư pháp số 08/2007/QH12",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Tư pháp",
+    "confidence": "HIGH",
+    "reason": "Văn bản là Luật Tương trợ tư pháp, quy định về các hoạt động tương trợ tư pháp trong lĩnh vực dân sự, hình sự, dẫn độ và chuyển giao người chấp hành hình phạt tù, thuộc phạm vi điều chỉnh của lĩnh vực Tư pháp.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 760,
+      "outputTokens": 80,
+      "totalTokens": 840
+    }
+  },
+  {
+    "id": "19-2012-qh13",
+    "documentNumber": "19/2012/QH13",
+    "title": "Luật xuất bản số 19/2012/QH13",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Văn hóa - Thể thao - Du lịch",
+    "confidence": "HIGH",
+    "reason": "Luật Xuất bản điều chỉnh các hoạt động liên quan đến xuất bản, in và phát hành xuất bản phẩm, thuộc lĩnh vực quản lý nhà nước về văn hóa.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 755,
+      "outputTokens": 69,
+      "totalTokens": 824
+    }
+  },
+  {
+    "id": "",
+    "documentNumber": "N/A",
+    "title": "Văn bản pháp luật",
+    "currentCategory": "Lĩnh vực khác",
+    "suggestedCategory": "Lĩnh vực khác",
+    "confidence": "LOW",
+    "reason": "Văn bản không cung cấp tiêu đề, số hiệu hoặc nội dung cụ thể để xác định lĩnh vực pháp lý.",
+    "status": "OK",
+    "modelCalls": 1,
+    "usage": {
+      "promptTokens": 446,
+      "outputTokens": 52,
+      "totalTokens": 498
+    }
+  }
+]

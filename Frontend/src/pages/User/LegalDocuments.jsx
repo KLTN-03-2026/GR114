@@ -13,6 +13,56 @@ import {
 } from "@heroicons/react/24/outline";
 import Swal from 'sweetalert2';
 
+const normalizeForSearch = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLocaleLowerCase('vi-VN');
+
+const highlightTitleMatch = (title, searchTerm) => {
+    const sourceTitle = String(title || '');
+    const normalizedSearch = normalizeForSearch(String(searchTerm || '').replace(/\s+/g, ' ').trim());
+    if (!normalizedSearch) return sourceTitle;
+
+    const normalizedCharacters = [];
+    const sourceRanges = [];
+    let sourceOffset = 0;
+
+    for (const character of sourceTitle) {
+        const normalizedCharacter = normalizeForSearch(character);
+        for (const normalizedPart of normalizedCharacter) {
+            normalizedCharacters.push(normalizedPart);
+            sourceRanges.push([sourceOffset, sourceOffset + character.length]);
+        }
+        sourceOffset += character.length;
+    }
+
+    const normalizedTitle = normalizedCharacters.join('');
+    const parts = [];
+    let normalizedOffset = 0;
+    let sourceCursor = 0;
+    let matchIndex = normalizedTitle.indexOf(normalizedSearch, normalizedOffset);
+
+    while (matchIndex !== -1) {
+        const sourceStart = sourceRanges[matchIndex][0];
+        const sourceEnd = sourceRanges[matchIndex + normalizedSearch.length - 1][1];
+        if (sourceStart > sourceCursor) parts.push(sourceTitle.slice(sourceCursor, sourceStart));
+        parts.push(
+            <mark key={`${sourceStart}-${sourceEnd}`} className="bg-amber-200/70 text-inherit rounded-sm px-0.5">
+                {sourceTitle.slice(sourceStart, sourceEnd)}
+            </mark>
+        );
+        sourceCursor = sourceEnd;
+        normalizedOffset = matchIndex + normalizedSearch.length;
+        matchIndex = normalizedTitle.indexOf(normalizedSearch, normalizedOffset);
+    }
+
+    if (sourceCursor === 0) return sourceTitle;
+    if (sourceCursor < sourceTitle.length) parts.push(sourceTitle.slice(sourceCursor));
+    return parts;
+};
+
 export default function LegalDocuments() {
     const navigate = useNavigate();
     const [filter, setFilter] = useState({
@@ -31,6 +81,7 @@ export default function LegalDocuments() {
     const [documents, setDocuments] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [debouncedKeyword, setDebouncedKeyword] = useState("");
     const [pagination, setPagination] = useState({
         currentPage: 1,
         totalPages: 1,
@@ -38,6 +89,7 @@ export default function LegalDocuments() {
     });
 
     const searchRef = useRef(null);
+    const latestRequestId = useRef(0);
 
     const [myLaws, setMyLaws] = useState([]);
     const [recentDocs, setRecentDocs] = useState([]);
@@ -63,43 +115,37 @@ export default function LegalDocuments() {
             if (res.data.success) {
                 const apiStats = res.data.stats;
 
-                //  gom TẤT CẢ các danh mục có trong DB trả về
-                const dynamicMenu = apiStats
-                    .filter(s => s.Category !== "Lĩnh vực khác" && s.Category) // Lọc bỏ 'Lĩnh vực khác' và NULL để xếp riêng
-                    .map(s => ({
+                // API trả về đủ taxonomy chuẩn, kể cả danh mục hiện có 0 văn bản.
+                const canonicalMenu = apiStats.map(s => ({
                         name: s.Category,
                         count: s.Count
                     }));
 
-                // Sắp xếp danh mục theo bảng chữ cái cho đẹp
-                dynamicMenu.sort((a, b) => a.name.localeCompare(b.name));
-
                 const updated = [
                     { name: "Xem tất cả", count: res.data.total },
-                    ...dynamicMenu, // Chèn tất cả danh mục động vào đây
-                    { name: "Lĩnh vực khác", count: apiStats.find(s => s.Category === "Lĩnh vực khác")?.Count || 0 }
+                    ...canonicalMenu
                 ];
                 setCategories(updated);
             }
         } catch (err) { console.error("Stats error:", err); }
     };
 
-    const fetchDocuments = async (page = 1) => {
+    const fetchDocuments = async (page = 1, { signal, requestId, keyword = debouncedKeyword } = {}) => {
         setLoading(true);
         try {
             let categoryToSend = filter.category === "Tất cả" || filter.category === "Xem tất cả" ? "" : filter.category;
 
-            const normalizedSearch = normalizeSearchInput(filter.keyword);
+            const normalizedSearch = normalizeSearchInput(keyword);
             const res = await axios.get("http://localhost:8000/api/documents", {
                 params: {
                     search: normalizedSearch,
                     category: categoryToSend,
                     page: page,
                     limit: 10
-                }
+                },
+                signal
             });
-            console.log(" Check Data từ API Tra Cứu:", res.data);
-            if (res.data.success) {
+            if (res.data.success && (!requestId || requestId === latestRequestId.current)) {
                 setDocuments(res.data.data);
                 setPagination({
                     currentPage: res.data.currentPage,
@@ -107,8 +153,11 @@ export default function LegalDocuments() {
                     totalDocs: res.data.totalDocs
                 });
             }
-        } catch (err) { console.error("Fetch error:", err); }
-        finally { setLoading(false); }
+        } catch (err) {
+            if (!axios.isCancel(err)) console.error("Fetch error:", err);
+        } finally {
+            if (!requestId || requestId === latestRequestId.current) setLoading(false);
+        }
     };
 
     const fetchMyLawsFromDb = useCallback(async () => {
@@ -162,10 +211,11 @@ export default function LegalDocuments() {
         } else {
             setUserId(null);
         }
-        // Các fetch ban đầu này không phụ thuộc vào userId
+    }, []);
+
+    useEffect(() => {
         fetchStats();
-        fetchDocuments(1);
-    }, [filter.category]); // Giữ dependency này để re-fetch khi category đổi
+    }, []);
 
 
     // useEffect để gọi các fetch liên quan đến user khi userId thay đổi
@@ -203,7 +253,7 @@ export default function LegalDocuments() {
             // Nếu chưa lưu thì thêm vào đầu danh sách state
             setMyLaws(prev => [{
                 DocumentId: doc.Id,
-                DocumentTitle: doc.Title,
+                Title: doc.Title,
                 DocumentNumber: doc.DocumentNumber
             }, ...prev]);
         }
@@ -308,19 +358,32 @@ export default function LegalDocuments() {
 
     useEffect(() => {
         if (searchRef.current) clearTimeout(searchRef.current);
-        searchRef.current = setTimeout(() => fetchDocuments(1), 400);
+        searchRef.current = setTimeout(
+            () => setDebouncedKeyword(normalizeSearchInput(filter.keyword)),
+            400
+        );
         return () => clearTimeout(searchRef.current);
-    }, [filter.keyword]);
+    }, [filter.keyword, normalizeSearchInput]);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const requestId = latestRequestId.current + 1;
+        latestRequestId.current = requestId;
+        fetchDocuments(1, { signal: controller.signal, requestId });
+        return () => controller.abort();
+    }, [filter.category, debouncedKeyword]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= pagination.totalPages) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            fetchDocuments(newPage);
+            const requestId = latestRequestId.current + 1;
+            latestRequestId.current = requestId;
+            fetchDocuments(newPage, { requestId });
         }
     };
 
     const handleClearFilter = () => {
-        setFilter({ keyword: "", fromDate: "", toDate: "", category: "Tất cả" });
+        setFilter(current => ({ ...current, keyword: "" }));
     };
 
     return (
@@ -335,10 +398,10 @@ export default function LegalDocuments() {
                     </h2>
                 </div>
                 <div className="p-4 flex flex-col gap-1">
-                    {categories.map((cat, idx) => (
+                    {categories.map((cat) => (
                         <button
-                            key={idx}
-                            onClick={() => setFilter({ ...filter, category: cat.name })}
+                            key={cat.name}
+                            onClick={() => setFilter(current => ({ ...current, category: cat.name }))}
                             className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all group font-bold ${filter.category === cat.name || (cat.name === "Xem tất cả" && filter.category === "Tất cả")
                                 ? "bg-[#B8985D]/10 text-[#8E6D45] border border-[#B8985D]/20 shadow-sm"
                                 : "text-zinc-600 hover:bg-zinc-50 hover:text-[#1A2530] border border-transparent"
@@ -367,12 +430,12 @@ export default function LegalDocuments() {
                                 type="text"
                                 placeholder="Tìm kiếm theo tiêu đề, số hiệu..."
                                 value={filter.keyword}
-                                onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
+                                onChange={(e) => setFilter(current => ({ ...current, keyword: e.target.value }))}
                                 className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 pl-12 text-[#1A2530] font-medium focus:bg-white focus:border-[#B8985D] focus:ring-1 focus:ring-[#B8985D]/30 transition-all outline-none placeholder:text-zinc-400"
                             />
                             <MagnifyingGlassIcon className="w-5 h-5 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2 stroke-2" />
                         </div>
-                        <button onClick={() => fetchDocuments(1)} className="bg-[#1A2530] hover:bg-[#B8985D] text-white px-8 py-3.5 rounded-xl font-bold transition-colors shadow-md active:scale-95 whitespace-nowrap">
+                        <button onClick={() => setDebouncedKeyword(normalizeSearchInput(filter.keyword))} className="bg-[#1A2530] hover:bg-[#B8985D] text-white px-8 py-3.5 rounded-xl font-bold transition-colors shadow-md active:scale-95 whitespace-nowrap">
                             Tìm kiếm
                         </button>
                     </div>
@@ -386,7 +449,7 @@ export default function LegalDocuments() {
 
                 {/* Documents List */}
                 <div className="space-y-4 mb-10">
-                    {loading ? (
+                    {loading && documents.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-32 opacity-60">
                             <ArrowPathIcon className="w-10 h-10 animate-spin text-[#B8985D] mb-4 stroke-2" />
                             <p className="text-zinc-500 text-sm font-bold tracking-widest uppercase">Đang truy xuất dữ liệu...</p>
@@ -401,7 +464,7 @@ export default function LegalDocuments() {
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between">
-                                            <h4 className="text-[20px] font-bold text-zinc-800 group-hover:text-zinc-900 mb-2 leading-relaxed italic">{item.Title}</h4>
+                                            <h4 className="text-[20px] font-bold text-zinc-800 group-hover:text-zinc-900 mb-2 leading-relaxed italic">{highlightTitleMatch(item.Title, debouncedKeyword)}</h4>
                                             <button onClick={() => toggleStar(item)} className={`ml-4 text-2xl transition-colors ${isStarred ? 'text-yellow-400' : 'text-zinc-500 hover:text-yellow-400'}`} aria-label="Lưu luật">
                                                 {isStarred ? '🌟' : '☆'}
                                             </button>
@@ -475,14 +538,14 @@ export default function LegalDocuments() {
                             Bạn chưa lưu luật nào.
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-72 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:#d4d4d8_transparent]">
                             {myLaws.map(l => (
                                 <div
-                                    key={l.Id}
+                                    key={l.Id || l.DocumentId}
                                     className="flex items-center justify-between p-3 rounded-lg bg-zinc-50 hover:bg-zinc-100 transition-all group border border-zinc-200"
                                 >
                                     <div className="flex-1 mr-3 min-w-0">
-                                        <div className="font-bold text-zinc-800 text-sm truncate group-hover:text-zinc-900 transition-colors">{l.Title}</div>
+                                        <div className="font-bold text-zinc-800 text-sm truncate group-hover:text-zinc-900 transition-colors" title={l.Title}>{l.Title}</div>
                                         <div className="text-xs text-zinc-500 truncate">{l.DocumentNumber}</div>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -517,7 +580,7 @@ export default function LegalDocuments() {
                             Chưa có lịch sử xem.
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-72 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:#d4d4d8_transparent]">
                             {recentDocs.map(r => (
                                 <div
                                     key={r.Id}

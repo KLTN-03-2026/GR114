@@ -1,7 +1,8 @@
-const { pool, poolConnect } = require('../config/db');
+const { sql, pool, poolConnect } = require('../config/db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { chunkText } = require('../utils/chunkingUtils');
+const { normalizeLegalCategory } = require('../constants/legalCategories');
 
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX || 'legai-index';
 let genAI;
@@ -35,6 +36,12 @@ const updateSyncStatus = async (documentId, ssmsStatus, pineconeStatus) => {
 };
 const upsertLegalData = async (data, isUpdate = false) => {
     await poolConnect;
+
+    const requestedCategory = data.category || 'Lĩnh vực khác';
+    const normalizedCategory = normalizeLegalCategory(requestedCategory);
+    if (!normalizedCategory) {
+        throw new Error(`Category requires manual reclassification: ${requestedCategory}`);
+    }
     initCloudServices();
 
     let documentId;
@@ -104,7 +111,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
                 .input('documentNumber', data.documentNumber || null)
                 .input('issueYear', data.issueYear || null)
                 .input('status', data.status || 'Còn hiệu lực')
-                .input('category', data.category || 'Lĩnh vực khác')
+                .input('category', normalizedCategory)
                 .input('content', finalContent)
                 .input('sourceUrl', data.sourceUrl || null)
                 .query(`
@@ -169,7 +176,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
                 .input('documentNumber', data.documentNumber || null)
                 .input('issueYear', data.issueYear || null)
                 .input('status', data.status || 'Còn hiệu lực')
-                .input('category', data.category || 'Lĩnh vực khác')
+                .input('category', normalizedCategory)
                 .input('content', finalContent)
                 .input('sourceUrl', data.sourceUrl || null)
                 .query(`
@@ -203,7 +210,7 @@ const upsertLegalData = async (data, isUpdate = false) => {
                         documentNumber: data.documentNumber || null,
                         issueYear: data.issueYear || null,
                         status: data.status || 'Còn hiệu lực',
-                        category: data.category || 'Lĩnh vực khác',
+                        category: normalizedCategory,
                         text: chunk
                     }
                 });
@@ -274,19 +281,28 @@ const deleteLegalData = async (documentId) => {
 const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category = '', status = '' }) => {
     await poolConnect;
 
-    let whereClauses = [];
-    const request = pool.request();
+    const whereClauses = [];
+    const dataRequest = pool.request();
+    const countRequest = pool.request();
+    const normalizedSearch = String(search).replace(/\s+/g, ' ').trim();
 
-    if (search) {
-        request.input('search', `%${search}%`);
-        whereClauses.push('(Title LIKE @search OR Content LIKE @search)');
+    if (normalizedSearch) {
+        const searchPattern = `%${normalizedSearch.replace(/[\\%_[\]]/g, '\\$&')}%`;
+        dataRequest.input('search', sql.NVarChar, searchPattern);
+        countRequest.input('search', sql.NVarChar, searchPattern);
+        whereClauses.push(`(
+            Title COLLATE Vietnamese_100_CI_AI LIKE @search ESCAPE '\\'
+            OR DocumentNumber COLLATE Vietnamese_100_CI_AI LIKE @search ESCAPE '\\'
+        )`);
     }
     if (category) {
-        request.input('category', category);
+        dataRequest.input('category', sql.NVarChar, category);
+        countRequest.input('category', sql.NVarChar, category);
         whereClauses.push('Category = @category');
     }
     if (status) {
-        request.input('status', status);
+        dataRequest.input('status', sql.NVarChar, status);
+        countRequest.input('status', sql.NVarChar, status);
         whereClauses.push('Status = @status');
     }
 
@@ -305,8 +321,8 @@ const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category =
     const countQuery = `SELECT COUNT(*) AS total FROM LegalDocuments ${whereSql}`;
 
     const [dataResult, countResult] = await Promise.all([
-        request.query(query),
-        request.query(countQuery)
+        dataRequest.query(query),
+        countRequest.query(countQuery)
     ]);
 
     const totalItems = countResult.recordset[0]?.total || 0;

@@ -1,6 +1,5 @@
 const legalDataService = require('../services/legalDataService');
-// Bổ sung require DB để hàm getCategories gọi được SQL
-const { sql, dbConfig } = require('../config/db'); 
+const { CANONICAL_CATEGORIES } = require('../constants/legalCategories');
 
 const getLegalDocuments = async (req, res) => {
     try {
@@ -77,20 +76,7 @@ const getDocumentChunks = async (req, res) => {
 };
 const getCategories = async (req, res) => {
     try {
-        // 1. Gọi đúng những gì  đã export ở db.js
-        const { pool, poolConnect } = require('../config/db');
-
-        // 2. pool đã kết nối thành công trước khi truy vấn
-        await poolConnect;
-
-        // 3. u Query
-        const result = await pool.request().query(
-            "SELECT DISTINCT Category FROM LegalDocuments WHERE Category IS NOT NULL"
-        );
-
-        // 4. Trả kết quả về cho Frontend
-        res.json({ success: true, data: result.recordset.map(r => r.Category) });
-
+        res.json({ success: true, data: [...CANONICAL_CATEGORIES] });
     } catch (error) {
         console.error(' Lỗi  tại getCategories:', error.message);
         res.status(500).json({ success: false, message: error.message });

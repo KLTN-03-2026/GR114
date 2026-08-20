@@ -1,49 +1,54 @@
 // AI_Engine/src/classifyData.js
 const { pool, poolConnect } = require('./config/db');
 const geminiService = require('./services/geminiService');
-
-const VALID_CATEGORIES = [
-    "Bộ máy hành chính", "Tài chính nhà nước", "Văn hóa - Xã hội", "Tài nguyên - Môi trường",
-    "Bất động sản", "Xây dựng - Đô thị", "Thương mại", "Thể thao - Y tế", "Giáo dục",
-    "Thuế - Phí - Lệ phí", "Giao thông - Vận tải", "Lao động - Tiền lương", "Công nghệ thông tin",
-    "Đầu tư", "Doanh nghiệp", "Xuất nhập khẩu", "Sở hữu trí tuệ", "Tiền tệ - Ngân hàng",
-    "Bảo hiểm", "Thủ tục Tố tụng", "Hình sự", "Dân sự", "Chứng khoán", "Lĩnh vực khác"
-];
+const { CANONICAL_CATEGORIES, normalizeLegalCategory } = require('./constants/legalCategories');
 
 
 const CONCURRENCY_LIMIT = 2;
 // AI_Engine/src/classifyData.js
 
+function resolveDeterministicCategory(title) {
+    const normalizedTitle = String(title || '').normalize('NFC').toLocaleLowerCase('vi-VN');
+    const informationTechnologyTerms = ['viễn thông', 'vô tuyến', 'tần số'];
+
+    if (informationTechnologyTerms.some(term => normalizedTitle.includes(term))) {
+        return 'Công nghệ thông tin';
+    }
+
+    return null;
+}
+
 async function classifySingleDoc(doc, index, total) {
     const prompt = `
     Bạn là một chuyên gia pháp luật Việt Nam cấp cao. 
-    Nhiệm vụ: Phân loại văn bản dựa trên tiêu đề vào MỘT TRONG các nhóm sau: [${VALID_CATEGORIES.join(", ")}].
+    Nhiệm vụ: Phân loại văn bản dựa trên tiêu đề vào MỘT TRONG các nhóm sau: [${CANONICAL_CATEGORIES.join(", ")}].
     
     Quy tắc:
     1. Chỉ trả về đúng tên nhóm trong danh sách trên.
-    2. Nếu tiêu đề mang tính chất chung chung về xử phạt hoặc tổ chức bộ máy, chọn "Bộ máy hành chính".
+    2. Phân loại theo lĩnh vực điều chỉnh chính, không phân loại theo loại chế tài như "xử phạt".
     3. Nếu không chắc chắn, chọn "Lĩnh vực khác".
     
     Tiêu đề văn bản: "${doc.Title}"
     Kết quả:`;
 
     try {
-        // 🟢 ĐÃ FIX: Đổi generateText thành generateAnswerWithGemini
+        //  Đổi generateText thành generateAnswerWithGemini
         const rawResponse = await geminiService.generateAnswerWithGemini(prompt);
 
-        // Xử lý chuỗi trả về (trim và xóa các ký tự thừa nếu có)
+        // Xử lý chuỗi trả về
         const category = rawResponse.trim().replace(/[".*]/g, "");
 
-        const finalCategory = VALID_CATEGORIES.includes(category) ? category : "Lĩnh vực khác";
+        const deterministicCategory = resolveDeterministicCategory(doc.Title);
+        const finalCategory = deterministicCategory || normalizeLegalCategory(category) || 'Lĩnh vực khác';
 
         await pool.request()
             .input('Id', doc.Id)
             .input('Category', finalCategory)
             .query(`UPDATE LegalDocuments SET Category = @Category WHERE Id = @Id`);
 
-        console.log(`[${index + 1}/${total}] ✅ ${doc.Title.substring(0, 45)}... -> ${finalCategory}`);
+        console.log(`[${index + 1}/${total}]  ${doc.Title.substring(0, 45)}... -> ${finalCategory}`);
     } catch (error) {
-        console.error(`❌ Lỗi tại ${doc.Id}:`, error.message);
+        console.error(` Lỗi tại ${doc.Id}:`, error.message);
     }
 }
 async function startClassifying() {
@@ -60,14 +65,14 @@ async function startClassifying() {
             const batch = docs.slice(i, i + CONCURRENCY_LIMIT);
             await Promise.all(batch.map((doc, index) => classifySingleDoc(doc, i + index, total)));
 
-            // Với bản Pro, Duy chỉ cần nghỉ 200ms giữa các batch là quá an toàn
+
             await new Promise(r => setTimeout(r, 200));
         }
 
-        console.log("\n✨ HOÀN THÀNH! .");
+        console.log("\n HOÀN THÀNH! .");
         process.exit(0);
     } catch (err) {
-        console.error("🚨 Lỗi hệ thống:", err);
+        console.error(" Lỗi hệ thống:", err);
         process.exit(1);
     }
 }
