@@ -1,0 +1,853 @@
+{
+  "metadata": {
+    "name": "live_case_019_gap_rescue",
+    "mode": "live",
+    "generatedAt": "2026-08-24T08:41:44.190Z",
+    "datasetSize": 40,
+    "executedCases": 1,
+    "categoryDistribution": {
+      "simple_single_issue": 4,
+      "multi_aspect": 5,
+      "messy_long": 3,
+      "conversational": 3,
+      "current_law": 3,
+      "historical_version": 2,
+      "future_law": 2,
+      "old_vs_new": 3,
+      "document_number": 3,
+      "target_law": 3,
+      "rag_sufficient": 2,
+      "rag_insufficient": 3,
+      "partial_effect": 2,
+      "expired_historical": 2
+    },
+    "metricsByCategory": {
+      "old_vs_new": {
+        "scoredCases": 1,
+        "reviewRequiredCases": 0,
+        "complexity": {
+          "accuracy": 1,
+          "falseSimpleCount": 0,
+          "falseComplexCount": 0
+        },
+        "decomposition": {
+          "issueRecall": 0,
+          "issuePrecision": 0,
+          "overDecompositionCount": 2,
+          "missedRequiredIssues": 3
+        },
+        "retrieval": {
+          "expectedDocumentRecallAt5": 1,
+          "expectedEvidenceHitRate": 1,
+          "missingRequiredEvidenceCount": 0
+        },
+        "coverage": {
+          "rawLabeledCount": 1,
+          "scorableCount": 1,
+          "actualCompleteCount": 0,
+          "realFalsePositiveCount": 0,
+          "realFalseMissingCount": 0,
+          "benchmarkArtifactCount": 0,
+          "ambiguousReviewCount": 0,
+          "correctCoverageCount": 1,
+          "accuracy": 1
+        },
+        "grounding": {
+          "decisionAccuracy": 1,
+          "unnecessaryGroundingCount": 0,
+          "missedGroundingCount": 0,
+          "groundingRate": 1,
+          "reasonDistribution": {
+            "coverage": 1,
+            "freshness": 0,
+            "targetMismatch": 1,
+            "irrelevantRag": 0,
+            "emptyRag": 0,
+            "other": 0
+          }
+        },
+        "citation": {
+          "expectedDocumentCitationHitRate": 0.5
+        },
+        "operational": {
+          "cases": 1,
+          "decomposerCalls": 1,
+          "embeddingCalls": 2,
+          "finalGeminiCalls": 1,
+          "groundingDecisions": 1,
+          "actualGroundingCalls": 1,
+          "averageDecomposerCallsPerQuery": 1,
+          "averageEmbeddingCallsPerQuery": 2,
+          "averageGeminiCallsPerQuery": 2,
+          "averageGroundingCallsPerQuery": 1,
+          "averageLatencyMs": 78276,
+          "tokens": {
+            "promptTokenCount": 596,
+            "candidatesTokenCount": 127,
+            "totalTokenCount": 723
+          }
+        }
+      }
+    },
+    "topFailures": [],
+    "productionMutation": false
+  },
+  "metrics": {
+    "scoredCases": 1,
+    "reviewRequiredCases": 0,
+    "complexity": {
+      "accuracy": 1,
+      "falseSimpleCount": 0,
+      "falseComplexCount": 0
+    },
+    "decomposition": {
+      "issueRecall": 0,
+      "issuePrecision": 0,
+      "overDecompositionCount": 2,
+      "missedRequiredIssues": 3
+    },
+    "retrieval": {
+      "expectedDocumentRecallAt5": 1,
+      "expectedEvidenceHitRate": 1,
+      "missingRequiredEvidenceCount": 0
+    },
+    "coverage": {
+      "rawLabeledCount": 1,
+      "scorableCount": 1,
+      "actualCompleteCount": 0,
+      "realFalsePositiveCount": 0,
+      "realFalseMissingCount": 0,
+      "benchmarkArtifactCount": 0,
+      "ambiguousReviewCount": 0,
+      "correctCoverageCount": 1,
+      "accuracy": 1
+    },
+    "grounding": {
+      "decisionAccuracy": 1,
+      "unnecessaryGroundingCount": 0,
+      "missedGroundingCount": 0,
+      "groundingRate": 1,
+      "reasonDistribution": {
+        "coverage": 1,
+        "freshness": 0,
+        "targetMismatch": 1,
+        "irrelevantRag": 0,
+        "emptyRag": 0,
+        "other": 0
+      }
+    },
+    "citation": {
+      "expectedDocumentCitationHitRate": 0.5
+    },
+    "operational": {
+      "cases": 1,
+      "decomposerCalls": 1,
+      "embeddingCalls": 2,
+      "finalGeminiCalls": 1,
+      "groundingDecisions": 1,
+      "actualGroundingCalls": 1,
+      "averageDecomposerCallsPerQuery": 1,
+      "averageEmbeddingCallsPerQuery": 2,
+      "averageGeminiCallsPerQuery": 2,
+      "averageGroundingCallsPerQuery": 1,
+      "averageLatencyMs": 78276,
+      "tokens": {
+        "promptTokenCount": 596,
+        "candidatesTokenCount": 127,
+        "totalTokenCount": 723
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "CASE_019",
+      "category": "old_vs_new",
+      "status": "SCORABLE",
+      "question": "So sánh Luật Chứng khoán 54/2019/QH14 với Luật sửa đổi 62/2010/QH12 về phạm vi điều chỉnh.",
+      "expected": {
+        "complexity": "complex",
+        "issues": [
+          {
+            "label": "phạm vi Luật Chứng khoán 2019",
+            "required": true
+          },
+          {
+            "label": "phạm vi Luật sửa đổi 2010",
+            "required": true
+          },
+          {
+            "label": "so sánh hai văn bản",
+            "required": true
+          }
+        ],
+        "targetLaw": "Luật Chứng khoán",
+        "targetDocumentNumber": null,
+        "targetYear": null,
+        "expectedEvidence": [
+          {
+            "documentNumber": "54/2019/QH14",
+            "article": null,
+            "required": true
+          },
+          {
+            "documentNumber": "62/2010/QH12",
+            "article": null,
+            "required": true
+          }
+        ],
+        "shouldGround": true,
+        "subjectCoverage": {
+          "status": "SCORABLE",
+          "expectedComplete": false,
+          "diagnosticCauses": [
+            "RETRIEVAL_SEMANTIC_ONLY",
+            "SELECTOR_TOO_PERMISSIVE",
+            "COVERAGE_EXISTENCE_ONLY",
+            "MERGE_TAG_PROPAGATION",
+            "TARGET_MISMATCH"
+          ]
+        },
+        "answerPoints": []
+      },
+      "actual": {
+        "complexity": {
+          "candidateComplex": true,
+          "signals": [
+            "explicit_legal_comparison"
+          ],
+          "isComplex": true
+        },
+        "decomposition": {
+          "called": true,
+          "issueCount": 2,
+          "issues": [
+            {
+              "id": "Q1",
+              "query": "Phạm vi điều chỉnh của Luật Chứng khoán số 54/2019/QH14"
+            },
+            {
+              "id": "Q2",
+              "query": "Phạm vi điều chỉnh của Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12"
+            }
+          ]
+        },
+        "retrieval": {
+          "top5ByIssue": [
+            {
+              "issueId": "Q1",
+              "query": "Phạm vi điều chỉnh của Luật Chứng khoán số 54/2019/QH14 54/2019/QH14",
+              "documents": [
+                {
+                  "id": "54-2019-qh14_chunk_0",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Unknown",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.827050447
+                },
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.8113361
+                },
+                {
+                  "id": "70-2006-qh11_chunk_1",
+                  "docId": "70-2006-qh11",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 70/2006/QH11",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-70-2006-qh11--15052",
+                  "score": 0.805764496
+                },
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.775980532
+                },
+                {
+                  "id": "54-2019-qh14_chunk_2",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 2",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.771143675
+                }
+              ]
+            },
+            {
+              "issueId": "Q2",
+              "query": "Phạm vi điều chỉnh của Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12 54/2019/QH14",
+              "documents": [
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.80065912
+                },
+                {
+                  "id": "54-2019-qh14_chunk_0",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Unknown",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.80045861
+                },
+                {
+                  "id": "70-2006-qh11_chunk_1",
+                  "docId": "70-2006-qh11",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 70/2006/QH11",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-70-2006-qh11--15052",
+                  "score": 0.797506273
+                },
+                {
+                  "id": "62-2010-qh12_chunk_0",
+                  "docId": "62-2010-qh12",
+                  "documentNumber": null,
+                  "title": "Luật Sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-sua-doi-bo-sung-mot-so-dieu-cua-luat-chung-khoan-so-62-2010-qh12--26350",
+                  "score": 0.789841235
+                },
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.777649403
+                }
+              ]
+            }
+          ],
+          "selectedIds": [
+            "54-2019-qh14_chunk_1",
+            "54-2019-qh14_chunk_179"
+          ],
+          "count": 2,
+          "selectorTraces": [
+            {
+              "issueId": "Q1",
+              "query": "Phạm vi điều chỉnh của Luật Chứng khoán số 54/2019/QH14",
+              "selectionMode": "clear_separation",
+              "reason": "Clear local relevance separation (finalGap=0.1309, contentGap=0.2127); kept complete sibling group",
+              "ambiguousFallback": false,
+              "selectedEvidence": [
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.8113361,
+                  "issueId": "Q1",
+                  "supportedIssueIds": [
+                    "Q1"
+                  ],
+                  "snippet": "Điều 1. Phạm vi điều chỉnh Luật này quy định các hoạt động về chứng khoán và thị trường chứng khoán; quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán; tổ chức thị trường chứng khoán; quản lý nhà nước về chứng khoán và thị t",
+                  "selector": {
+                    "pineconeScore": 0.8113361,
+                    "contentScore": 0.7137134632218699,
+                    "titleScore": 0.5010014393617278,
+                    "articleScore": 0.08754238282206206,
+                    "finalScore": 0.6217330924329849,
+                    "selectionMode": "clear_separation",
+                    "reason": "Clear local relevance separation (finalGap=0.1309, contentGap=0.2127); kept complete sibling group",
+                    "ambiguousFallback": false
+                  },
+                  "targetLawMatch": true,
+                  "targetVersionMatch": true
+                }
+              ]
+            },
+            {
+              "issueId": "Q2",
+              "query": "Phạm vi điều chỉnh của Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12",
+              "selectionMode": "clear_separation",
+              "reason": "Clear local relevance separation (finalGap=0.1521, contentGap=0.3498); kept complete sibling group",
+              "ambiguousFallback": false,
+              "selectedEvidence": [
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.777649403,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 134. Hiệu lực thi hành 1. Luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. 2. Luật Chứng khoán số 70/2006/QH11 và Luật số 62/2010/QH12 sửa đổi, bổ sung một số điều của Luật Chứng khoán hết hiệu lực kể từ ngày Luật này có hiệ",
+                  "selector": {
+                    "pineconeScore": 0.777649403,
+                    "contentScore": 0.7713935656794982,
+                    "titleScore": 0.18002485701993012,
+                    "articleScore": 0,
+                    "finalScore": 0.5497511046448491,
+                    "selectionMode": "clear_separation",
+                    "reason": "Clear local relevance separation (finalGap=0.1521, contentGap=0.3498); kept complete sibling group",
+                    "ambiguousFallback": false
+                  },
+                  "targetLawMatch": true,
+                  "targetVersionMatch": true
+                }
+              ]
+            }
+          ],
+          "mergedEvidence": [
+            {
+              "id": "54-2019-qh14_chunk_1",
+              "docId": "54-2019-qh14",
+              "documentNumber": null,
+              "title": "Luật Chứng khoán số 54/2019/QH14",
+              "article": "Điều 1",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+              "score": 0.8113361,
+              "supportedIssueIds": [
+                "Q1"
+              ],
+              "snippet": "Điều 1. Phạm vi điều chỉnh Luật này quy định các hoạt động về chứng khoán và thị trường chứng khoán; quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán; tổ chức thị trường chứng khoán; quản lý nhà nước về chứng khoán và thị t",
+              "targetLawMatch": true,
+              "targetVersionMatch": true
+            },
+            {
+              "id": "54-2019-qh14_chunk_179",
+              "docId": "54-2019-qh14",
+              "documentNumber": null,
+              "title": "Luật Chứng khoán số 54/2019/QH14",
+              "article": "Căn cứ/Mở đầu",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+              "score": 0.777649403,
+              "supportedIssueIds": [
+                "Q2"
+              ],
+              "snippet": "Điều 134. Hiệu lực thi hành 1. Luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. 2. Luật Chứng khoán số 70/2006/QH11 và Luật số 62/2010/QH12 sửa đổi, bổ sung một số điều của Luật Chứng khoán hết hiệu lực kể từ ngày Luật này có hiệ",
+              "targetLawMatch": true,
+              "targetVersionMatch": true
+            }
+          ],
+          "perIssue": [
+            {
+              "issueId": "Q1",
+              "issueQuery": "Phạm vi điều chỉnh của Luật Chứng khoán số 54/2019/QH14",
+              "retrievedCandidates": [
+                {
+                  "id": "54-2019-qh14_chunk_0",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Unknown",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.827050447
+                },
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.8113361
+                },
+                {
+                  "id": "70-2006-qh11_chunk_1",
+                  "docId": "70-2006-qh11",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 70/2006/QH11",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-70-2006-qh11--15052",
+                  "score": 0.805764496
+                },
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.775980532
+                },
+                {
+                  "id": "54-2019-qh14_chunk_2",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 2",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.771143675
+                }
+              ],
+              "phase2": {
+                "issueId": "Q1",
+                "query": "Phạm vi điều chỉnh của Luật Chứng khoán số 54/2019/QH14",
+                "selectionMode": "clear_separation",
+                "reason": "Clear local relevance separation (finalGap=0.1309, contentGap=0.2127); kept complete sibling group",
+                "ambiguousFallback": false,
+                "selectedEvidence": [
+                  {
+                    "id": "54-2019-qh14_chunk_1",
+                    "docId": "54-2019-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Chứng khoán số 54/2019/QH14",
+                    "article": "Điều 1",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                    "score": 0.8113361,
+                    "issueId": "Q1",
+                    "supportedIssueIds": [
+                      "Q1"
+                    ],
+                    "snippet": "Điều 1. Phạm vi điều chỉnh Luật này quy định các hoạt động về chứng khoán và thị trường chứng khoán; quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán; tổ chức thị trường chứng khoán; quản lý nhà nước về chứng khoán và thị t",
+                    "selector": {
+                      "pineconeScore": 0.8113361,
+                      "contentScore": 0.7137134632218699,
+                      "titleScore": 0.5010014393617278,
+                      "articleScore": 0.08754238282206206,
+                      "finalScore": 0.6217330924329849,
+                      "selectionMode": "clear_separation",
+                      "reason": "Clear local relevance separation (finalGap=0.1309, contentGap=0.2127); kept complete sibling group",
+                      "ambiguousFallback": false
+                    },
+                    "targetLawMatch": true,
+                    "targetVersionMatch": true
+                  }
+                ]
+              },
+              "finalMergedEvidence": [
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.8113361,
+                  "supportedIssueIds": [
+                    "Q1"
+                  ],
+                  "snippet": "Điều 1. Phạm vi điều chỉnh Luật này quy định các hoạt động về chứng khoán và thị trường chứng khoán; quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán; tổ chức thị trường chứng khoán; quản lý nhà nước về chứng khoán và thị t",
+                  "targetLawMatch": true,
+                  "targetVersionMatch": true
+                }
+              ],
+              "countedAsCovered": true
+            },
+            {
+              "issueId": "Q2",
+              "issueQuery": "Phạm vi điều chỉnh của Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12",
+              "retrievedCandidates": [
+                {
+                  "id": "54-2019-qh14_chunk_1",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.80065912
+                },
+                {
+                  "id": "54-2019-qh14_chunk_0",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Unknown",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.80045861
+                },
+                {
+                  "id": "70-2006-qh11_chunk_1",
+                  "docId": "70-2006-qh11",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 70/2006/QH11",
+                  "article": "Điều 1",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-70-2006-qh11--15052",
+                  "score": 0.797506273
+                },
+                {
+                  "id": "62-2010-qh12_chunk_0",
+                  "docId": "62-2010-qh12",
+                  "documentNumber": null,
+                  "title": "Luật Sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-sua-doi-bo-sung-mot-so-dieu-cua-luat-chung-khoan-so-62-2010-qh12--26350",
+                  "score": 0.789841235
+                },
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.777649403
+                }
+              ],
+              "phase2": {
+                "issueId": "Q2",
+                "query": "Phạm vi điều chỉnh của Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12",
+                "selectionMode": "clear_separation",
+                "reason": "Clear local relevance separation (finalGap=0.1521, contentGap=0.3498); kept complete sibling group",
+                "ambiguousFallback": false,
+                "selectedEvidence": [
+                  {
+                    "id": "54-2019-qh14_chunk_179",
+                    "docId": "54-2019-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Chứng khoán số 54/2019/QH14",
+                    "article": "Căn cứ/Mở đầu",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                    "score": 0.777649403,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 134. Hiệu lực thi hành 1. Luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. 2. Luật Chứng khoán số 70/2006/QH11 và Luật số 62/2010/QH12 sửa đổi, bổ sung một số điều của Luật Chứng khoán hết hiệu lực kể từ ngày Luật này có hiệ",
+                    "selector": {
+                      "pineconeScore": 0.777649403,
+                      "contentScore": 0.7713935656794982,
+                      "titleScore": 0.18002485701993012,
+                      "articleScore": 0,
+                      "finalScore": 0.5497511046448491,
+                      "selectionMode": "clear_separation",
+                      "reason": "Clear local relevance separation (finalGap=0.1521, contentGap=0.3498); kept complete sibling group",
+                      "ambiguousFallback": false
+                    },
+                    "targetLawMatch": true,
+                    "targetVersionMatch": true
+                  }
+                ]
+              },
+              "finalMergedEvidence": [
+                {
+                  "id": "54-2019-qh14_chunk_179",
+                  "docId": "54-2019-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Chứng khoán số 54/2019/QH14",
+                  "article": "Căn cứ/Mở đầu",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+                  "score": 0.777649403,
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 134. Hiệu lực thi hành 1. Luật này có hiệu lực thi hành từ ngày 01 tháng 01 năm 2021. 2. Luật Chứng khoán số 70/2006/QH11 và Luật số 62/2010/QH12 sửa đổi, bổ sung một số điều của Luật Chứng khoán hết hiệu lực kể từ ngày Luật này có hiệ",
+                  "targetLawMatch": true,
+                  "targetVersionMatch": true
+                }
+              ],
+              "countedAsCovered": false
+            }
+          ]
+        },
+        "coverage": {
+          "coverageCounts": {
+            "Q1": 1,
+            "Q2": 0
+          },
+          "coverageComplete": false,
+          "missingIssueIds": [
+            "Q2"
+          ],
+          "targetVersionSatisfied": false,
+          "expectedComplete": false,
+          "verdict": "CORRECT_COVERAGE",
+          "diagnosticCauses": [
+            "RETRIEVAL_SEMANTIC_ONLY",
+            "SELECTOR_TOO_PERMISSIVE",
+            "COVERAGE_EXISTENCE_ONLY",
+            "MERGE_TAG_PROPAGATION",
+            "TARGET_MISMATCH"
+          ]
+        },
+        "grounding": {
+          "decision": true,
+          "executed": true,
+          "mode": "live",
+          "reason": [
+            "coverage_or_target_incomplete"
+          ]
+        },
+        "groundingRescue": {
+          "issueIds": [
+            "Q2"
+          ],
+          "fullQueryMode": false,
+          "preservedIssueIds": [
+            "Q1"
+          ],
+          "rescuedIssueIds": [
+            "Q2"
+          ]
+        },
+        "final": {
+          "answer": "**Kết luận:**\n\nLuật Chứng khoán năm 2019 (Luật số 54/2019/QH14) [1] có phạm vi điều chỉnh mang tính khái quát, hệ thống và toàn diện hơn rất nhiều so với Luật sửa đổi năm 2010 (Luật số 62/2010/QH12). Trong khi Luật sửa đổi năm 2010 tập trung liệt kê các hoạt động nghiệp vụ cụ thể, Luật năm 2019 đã mở rộng để bao quát toàn bộ các khía cạnh về chủ thể (quyền và nghĩa vụ của tổ chức, cá nhân), cấu trúc vận hành (tổ chức thị trường) và vai trò quản lý của cơ quan nhà nước [1]. \n\nVề mặt hiệu lực, Luật Chứng khoán năm 2019 đã chính thức có hiệu lực thi hành từ ngày 01/01/2021, thay thế hoàn toàn Luật Chứng khoán năm 2006 và Luật sửa đổi năm 2010.\n\n---\n\n**Phân tích:**\n\n*   **Về phương thức tiếp cận và tính bao quát:**\n    *   **Luật sửa đổi năm 2010 (Luật số 62/2010/QH12):** Tiếp cận theo phương thức liệt kê các mảng hoạt động nghiệp vụ cụ thể trên thị trường, bao gồm: hoạt động chào bán, niêm yết, giao dịch, kinh doanh, đầu tư chứng khoán, dịch vụ về chứng khoán và thị trường chứng khoán. Cách tiếp cận này dễ dẫn đến việc bỏ sót các sản phẩm tài chính hoặc hoạt động mới phát sinh khi thị trường phát triển.\n    *   **Luật Chứng khoán năm 2019 (Luật số 54/2019/QH14):** Khái quát hóa thành \"các hoạt động về chứng khoán và thị trường chứng khoán\" [1]. Cách quy định này tạo ra một hành lang pháp lý mở, linh hoạt và bao trùm được các mô hình, sản phẩm tài chính mới trong tương lai.\n*   **Về việc bổ sung các yếu tố cốt lõi:**\n    *   **Quyền và nghĩa vụ của các chủ thể:** Luật năm 2019 đã bổ sung trực tiếp nội dung \"quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán\" vào phạm vi điều chỉnh [1]. Đây là điểm mới quan trọng giúp xác lập rõ ràng địa vị pháp lý, trách nhiệm và quyền lợi của các nhà đầu tư cũng như các tổ chức vận hành, trung gian trên thị trường.\n    *   **Tổ chức thị trường và Quản lý nhà nước:** Luật năm 2019 đưa nội dung \"tổ chức thị trường chứng khoán\" và \"quản lý nhà nước về chứng khoán và thị trường chứng khoán\" vào phạm vi điều chỉnh [1], khẳng định mạnh mẽ vai trò giám sát, điều tiết của Nhà nước nhằm bảo đảm thị trường hoạt động công khai, minh bạch, an toàn và hiệu quả.\n\n---\n\n**Cơ sở pháp lý:**\n\n*   Theo [Điều 1 - Luật Chứng khoán số 54/2019/QH14](https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885) quy định về phạm vi điều chỉnh như sau:\n    > \"Luật này quy định các hoạt động về chứng khoán và thị trường chứng khoán; quyền và nghĩa vụ của tổ chức, cá nhân trong lĩnh vực chứng khoán; tổ chức thị trường chứng khoán; quản lý nhà nước về chứng khoán và thị trường chứng khoán.\"\n*   Theo [Khoản 1 Điều 1 - Luật sửa đổi, bổ sung một số điều của Luật Chứng khoán số 62/2010/QH12](), quy định sửa đổi, bổ sung Điều 1 của Luật Chứng khoán số 70/2006/QH11 về phạm vi điều chỉnh như sau:\n    > \"Điều 1. Phạm vi điều chỉnh\n    > Luật này quy định về hoạt động chào bán chứng khoán, niêm yết, giao dịch, kinh doanh, đầu tư chứng khoán, dịch vụ về chứng khoán và thị trường chứng khoán.\"\n\n---\n\n**Lời khuyên:**\n\nKhi nghiên cứu, áp dụng pháp luật hoặc thực hiện các hoạt động đầu tư, phát hành chứng khoán tại thời điểm hiện tại (năm 2026), các tổ chức và cá nhân bắt buộc phải tuân thủ các quy định của Luật Chứng khoán năm 2019 (đang có hiệu lực thi hành). Việc hiểu rõ sự thay đổi trong phạm vi điều chỉnh giúp các chủ thể xác định đúng quyền, nghĩa vụ pháp lý của mình, tránh các rủi ro pháp lý liên quan đến việc vận hành, giao dịch và chịu sự quản lý của cơ quan nhà nước trên thị trường chứng khoán.\n\n*Nội dung do LegAI cung cấp chỉ mang tính chất tham khảo tra cứu, không thay thế tư vấn pháp lý chính thức.*",
+          "citations": [
+            {
+              "lawName": "chinhphu.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "Luật Chứng khoán năm 2019 (Luật số 54/2019/QH14) [1] có phạm vi điều chỉnh mang tính khái quát, hệ thống và toàn diện hơn rất nhiều so với Luật sửa đổi năm 2010 (Luật số 62/2010/QH12)",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEz1_mISSwPD860EL5I1u-PtaepjEznlMAhzQDBacqrDX9jKcpCnlvybInQOHIZN77zhOQi8oZW7dcPyJgn4ZVRjJsGzve4LS0Yw9YgASraUUb-O08IvO-CPr2pm8tL59jhNUhi1Wykdl91eLyNcEWf13eG8Ts=",
+              "supportedIssueIds": [
+                "Q2"
+              ]
+            },
+            {
+              "lawName": "daklak.gov.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "Về mặt hiệu lực, Luật Chứng khoán năm 2019 đã chính thức có hiệu lực thi hành từ ngày 01/01/2021, thay thế hoàn toàn Luật Chứng khoán năm 2006 và Luật sửa đổi năm 2010",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEO32RojbgBp2_8Zp9wIU-fJoUWQQ2C0pkCpTK9Q_SlMh524e21MmTOVEU83PQ8BkxDWdP_8naWacYx4fSopE4YutOHrtCLY3dDSGm_FILgimCFeUFTXp_L7dSL8KUX3uoDxKnUhr4ckqcPJMN4YY60Ysjha_4ZR5FcgMkKKAbDGOwtWYM29s_bLeJAk8FciLOIg4w=",
+              "supportedIssueIds": [
+                "Q2"
+              ]
+            },
+            {
+              "lawName": "Luật Chứng khoán số 54/2019/QH14",
+              "dieu": "Điều 1",
+              "khoan": "",
+              "quoteSnippet": "",
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-chung-khoan-so-54-2019-qh14--139885",
+              "supportedIssueIds": [
+                "Q1"
+              ]
+            }
+          ],
+          "skippedReason": null
+        },
+        "calls": {
+          "decomposer": 1,
+          "embedding": 2,
+          "finalGemini": 1,
+          "grounding": 1,
+          "gemini": 2
+        },
+        "tokens": {
+          "promptTokenCount": 596,
+          "candidatesTokenCount": 127,
+          "totalTokenCount": 723
+        },
+        "latencyMs": {
+          "complexityAndDecomposition": 1275,
+          "retrieval": 2616,
+          "finalGemini": 74380,
+          "total": 78276
+        },
+        "latencyBreakdown": {
+          "complexityMs": 2,
+          "decompositionMs": 1270,
+          "embeddingMs": 888,
+          "pineconeMs": 4319,
+          "statusPolicyMs": 0,
+          "selectorMs": 2,
+          "mergeMs": 0,
+          "targetEvaluationMs": 1,
+          "routerMs": 1,
+          "promptBuildMs": 20,
+          "groundingMs": 74316,
+          "finalModelMs": 74316,
+          "retrievalWallMs": 2612,
+          "retrievalWorkMs": 5215,
+          "normalizationMs": 1,
+          "otherMs": 0,
+          "totalMs": 78276,
+          "embeddingCalls": 2,
+          "pineconeCalls": 2,
+          "perIssue": [
+            {
+              "issueId": "Q1",
+              "embeddingMs": 388,
+              "pineconeMs": 2218,
+              "statusMs": 0,
+              "selectorMs": 1,
+              "totalRetrievalMs": 2611,
+              "totalMs": 2611
+            },
+            {
+              "issueId": "Q2",
+              "embeddingMs": 500,
+              "pineconeMs": 2101,
+              "statusMs": 0,
+              "selectorMs": 2,
+              "totalRetrievalMs": 2604,
+              "totalMs": 2604
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

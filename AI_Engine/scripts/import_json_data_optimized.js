@@ -3,12 +3,13 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const { sql, poolConnect, pool } = require('../src/config/db');
-const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const SystemConfig = require('../src/config/SystemConfig');
+const { getLegalPineconeIndex } = require('../src/services/legalPineconeService');
+const { getLegalDocumentId, buildLegalVectorRecord } = require('../src/services/legalIngestionContract');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 
 /**
  * ============================================================================
@@ -128,15 +129,6 @@ function calculateAdaptiveDelay(tokensAboutToSend) {
 // ============================================================================
 // TEXT CLEANING & CHUNKING
 // ============================================================================
-
-const toAsciiId = (str) => {
-  if (!str) return 'doc';
-  return str
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d").replace(/Đ/g, "D")
-    .replace(/[^a-zA-Z0-9_-]/g, "-");
-};
 
 const cleanLegalContent = (text) => {
   if (!text) return "";
@@ -328,8 +320,9 @@ const importData = async () => {
     const laws = JSON.parse(rawData);
     console.log(`📂 Loaded ${laws.length} documents from clean_data.json\n`);
 
-    const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index-v3';
-    const index = pc.index(indexName);
+    await SystemConfig.loadFromDB();
+    const indexName = SystemConfig.pineconeIndex;
+    const index = getLegalPineconeIndex();
     console.log(`🔷 Using Pinecone index: ${indexName}\n`);
 
     let successCount = 0;
@@ -369,7 +362,11 @@ const importData = async () => {
       console.log(`  📦 Generated ${chunkData.length} chunks`);
 
       const vectors = [];
-      const safeVectorId = toAsciiId(docId);
+      const safeVectorId = getLegalDocumentId({
+        id: docId,
+        documentNumber: law.DocumentNumber || law.documentNumber,
+        title: docTitle
+      });
 
       // ===== DYNAMIC BATCHING =====
       const batcher = new DynamicBatcher(CONFIG.MAX_TOKENS_PER_BATCH);
@@ -401,22 +398,21 @@ const importData = async () => {
               }
 
               const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
-              vectors.push({
-                id: `${safeVectorId}_chunk_${vectors.length}`,
-                values: vector768,
-                metadata: {
-                  doc_id: docId,
+              vectors.push(buildLegalVectorRecord({
+                document: {
+                  doc_id: safeVectorId,
                   title: docTitle,
-                  law_name: docTitle.substring(0, 50),
-                  doc_type: docCategory,
+                  sourceUrl: docSourceUrl,
                   agency: inferAgency(law),
-                  text: fullBatch[m],
-                  chunk_index: vectors.length,
-                  chunk_length: fullBatch[m].length,
-                  text_preview: fullBatch[m].substring(0, 300),
-                  source: docSourceUrl
-                }
-              });
+                  documentNumber: law.DocumentNumber || law.documentNumber,
+                  issueYear: law.IssueYear || law.issueYear,
+                  category: docCategory,
+                  status: law.Status || law.status
+                },
+                chunk: { text: fullBatch[m] },
+                chunkIndex: vectors.length,
+                values: vector768
+              }));
             }
           } catch (error) {
             console.error(`  ✗ Batch embedding failed: ${error.message}`);
@@ -436,22 +432,21 @@ const importData = async () => {
 
           for (let m = 0; m < embeddings.length; m++) {
             const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
-            vectors.push({
-              id: `${safeVectorId}_chunk_${vectors.length}`,
-              values: vector768,
-              metadata: {
-                doc_id: docId,
+            vectors.push(buildLegalVectorRecord({
+              document: {
+                doc_id: safeVectorId,
                 title: docTitle,
-                law_name: docTitle.substring(0, 50),
-                doc_type: docCategory,
+                sourceUrl: docSourceUrl,
                 agency: inferAgency(law),
-                text: remainingBatch[m],
-                chunk_index: vectors.length,
-                chunk_length: remainingBatch[m].length,
-                text_preview: remainingBatch[m].substring(0, 300),
-                source: docSourceUrl
-              }
-            });
+                documentNumber: law.DocumentNumber || law.documentNumber,
+                issueYear: law.IssueYear || law.issueYear,
+                category: docCategory,
+                status: law.Status || law.status
+              },
+              chunk: { text: remainingBatch[m] },
+              chunkIndex: vectors.length,
+              values: vector768
+            }));
           }
         } catch (error) {
           console.error(`  ✗ Final batch embedding failed: ${error.message}`);

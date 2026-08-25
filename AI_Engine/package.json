@@ -6,6 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "test": "node --test test/*.test.js benchmark/chatbot/test/*.test.js",
+    "benchmark:chatbot": "node benchmark/chatbot/cli.js",
+    "benchmark:chatbot:compare": "node benchmark/chatbot/compare.js",
+    "db:backfill-content-hashes": "node scripts/backfillContentHashFromSql.js",
+    "db:backfill-legal-metadata": "node scripts/backfillLegalMetadata.js",
     "db:export": "py -m mssqlscripter -S MSI\\SQLEXPRESS -d LegalBotDB --schema-and-data -f ./data_export/full_db_sync.sql",
     "db:sync": "sqlcmd -S MSI\\SQLEXPRESS -d LegalBotDB -E -i ./data_export/full_db_sync.sql"
   },

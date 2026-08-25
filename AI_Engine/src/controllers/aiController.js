@@ -9,30 +9,88 @@ dns.setDefaultResultOrder('ipv4first');
 const ragService = require('../services/ragService');
 const geminiService = require('../services/geminiService');
 const queryDecompositionService = require('../services/queryDecompositionService');
+const multiQueryRagService = require('../services/multiQueryRagService');
+const { applyRagStatusPolicy } = require('../services/ragStatusPolicy');
+const log = require('../utils/legalAiLogger');
+const { createLatencyTracker, snapshot, enterLatencyContext } = require('../utils/latencyTracker');
+const { createAiProgressReporter } = require('../utils/aiProgressReporter');
+const { classifyChatIntent, getBypassResponse } = require('../services/chatIntentRouter');
 
 // hàm này sẽ được gọi trong aiRoutes.js khi có request POST /api/ai/ask
 // ==========================================
 // 1. TÍNH NĂNG CHATBOT (AI CHAT)
 // ==========================================
 exports.ask = async (req, res) => {
+    const latency = createLatencyTracker();
+    enterLatencyContext(latency);
+    const requestStarted = latency.now();
+    let progress = createAiProgressReporter();
     try {
-        const { question, message } = req.body;
+        const { question, message, requestId, tabId } = req.body;
         const userQuery = question || message;
 
         if (!userQuery) {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập câu hỏi' });
         }
 
+        progress = createAiProgressReporter({ io: global.io, tabId, requestId });
+        progress.started('ANALYZING', 'Đang phân tích yêu cầu…');
+
         console.log(`\n [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
 
-        await queryDecompositionService.analyzeQuery(userQuery);
+        const chatIntent = classifyChatIntent(userQuery);
+        log.line('CHAT INTENT', {
+            intent: chatIntent.intent,
+            bypassLegalRetrieval: chatIntent.bypassLegalRetrieval,
+            reason: chatIntent.reason
+        });
+        if (chatIntent.bypassLegalRetrieval) {
+            const answer = getBypassResponse(chatIntent.intent, userQuery);
+            const citations = [];
+            const sources = [];
+            progress.completed('ANALYZING', 'Đã phân tích yêu cầu');
+            const latencyBreakdown = snapshot(latency, latency.now() - requestStarted);
+            const summary = { ...latencyBreakdown };
+            delete summary.perIssue;
+            log.line('LATENCY', summary);
+            progress.completed('COMPLETE', 'Đã hoàn tất');
+            return res.json({ success: true, answer, citations, sources, retrievalBypassed: true });
+        }
+
+        const queryAnalysis = await queryDecompositionService.analyzeQuery(userQuery, { latency, progress });
+        progress.completed('ANALYZING', 'Đã phân tích yêu cầu');
+        const targetLaw = multiQueryRagService.extractLegalTarget(userQuery);
+        console.log('[TARGET LAW]');
+        console.log({ name: targetLaw?.name || '', year: targetLaw?.year || '', number: targetLaw?.number || '' });
+        console.log(`[MULTI-RAG COMPLEXITY] complex=${queryAnalysis.isComplex} issueCount=${queryAnalysis.issueCount}`);
 
         // TRUY XUẤT RAG
         let relatedDocs = [];
-        try {
-            relatedDocs = await ragService.query(userQuery);
-        } catch (err) {
-            console.error('  Lỗi RAG:', err.message);
+        let isMultiQueryRag = false;
+        let multiRagEvaluation = null;
+        progress.started('RAG_SEARCH', 'Đang tra cứu cơ sở pháp lý…');
+        if (queryAnalysis.isComplex && queryAnalysis.issues.length > 0) {
+            isMultiQueryRag = true;
+            const multiResult = await multiQueryRagService.retrieveForIssues(queryAnalysis.issues, {
+                ragService,
+                selectRagChunks: geminiService.selectRagChunks,
+                target: targetLaw,
+                statusQuery: userQuery,
+                latency
+            });
+            relatedDocs = multiResult.documents;
+            multiRagEvaluation = multiResult;
+        } else {
+            try {
+                const retrievedDocs = await ragService.query(userQuery, 5, latency);
+                relatedDocs = applyRagStatusPolicy(userQuery, retrievedDocs, {
+                    target: targetLaw,
+                    documentMatchesTarget: multiQueryRagService.documentMatchesTarget,
+                    latency
+                });
+            } catch (err) {
+                console.error('  Lỗi RAG:', err.message);
+            }
         }
 
         // LOG GIÁM SÁT NGUỒN DATA CHO CHATBOT
@@ -44,7 +102,62 @@ exports.ask = async (req, res) => {
 
         // ← GỌI AI VỚI CITATIONS STRUCTURED
         // ← GỌI AI VỚI CITATIONS STRUCTURED - ÉP BUỘC DÙNG STRUCTURED CITATIONS
-        const result = await geminiService.generateAnswerWithGemini(userQuery, relatedDocs, [], true);
+        console.log(`[MULTI-RAG GROUNDING] evaluatedMerged=${isMultiQueryRag} (Grounding decision deferred to final Gemini call)`);
+        const groundingAllowed = isMultiQueryRag && (
+            !multiRagEvaluation.coverageComplete || !multiRagEvaluation.targetVersionSatisfied
+        );
+        if (isMultiQueryRag) {
+            console.log('[MULTI-RAG SUFFICIENCY]');
+            console.log({
+                evidenceCount: relatedDocs.length,
+                coverageComplete: multiRagEvaluation.coverageComplete,
+                targetVersionSatisfied: multiRagEvaluation.targetVersionSatisfied,
+                groundingAllowed
+            });
+        }
+        progress.completed('RAG_SEARCH', 'Đã tra cứu cơ sở pháp lý');
+        if (isMultiQueryRag) {
+            progress.completed('RAG_SELECT', 'Đã chọn tài liệu liên quan');
+            progress.completed('COVERAGE_CHECK', 'Đã kiểm tra độ đầy đủ của nguồn');
+        }
+        const targetEvaluationStarted = latency.now();
+        const missingIssueIds = isMultiQueryRag
+            ? queryAnalysis.issues.filter(issue => !multiRagEvaluation.coverageCounts[issue.id]).map(issue => issue.id)
+            : [];
+        const targetMismatchedIssueIds = isMultiQueryRag && targetLaw
+            ? queryAnalysis.issues.filter(issue =>
+                !relatedDocs.some(doc => {
+                    const issueTarget = multiQueryRagService.resolveIssueTarget(issue, targetLaw, userQuery);
+                    return doc.supportedIssueIds?.includes(issue.id) &&
+                        (!issueTarget || multiQueryRagService.documentMatchesCoverageTarget(doc, issueTarget));
+                })
+            ).map(issue => issue.id)
+            : [];
+        latency.add('targetEvaluationMs', latency.now() - targetEvaluationStarted);
+        const result = await geminiService.generateAnswerWithGemini(
+            userQuery,
+            relatedDocs,
+            [],
+            true,
+            isMultiQueryRag ? {
+                ragAlreadySelected: true,
+                allowGrounding: groundingAllowed,
+                targetLaw,
+                groundingContext: {
+                    issues: queryAnalysis.issues.map(issue => ({
+                        ...issue,
+                        target: multiQueryRagService.resolveIssueTarget(issue, targetLaw, userQuery)
+                    })),
+                    coverageCounts: multiRagEvaluation.coverageCounts,
+                    coverageComplete: multiRagEvaluation.coverageComplete,
+                    targetVersionSatisfied: multiRagEvaluation.targetVersionSatisfied,
+                    missingIssueIds,
+                    targetMismatchedIssueIds
+                },
+                latency,
+                progress
+            } : { latency, progress }
+        );
 
         // Trích xuất answer và citations từ result
         const answer = typeof result === 'string' ? result : (result.answer || "");
@@ -57,22 +170,33 @@ exports.ask = async (req, res) => {
             khoan: cite.khoan || "",
             quoteSnippet: cite.quoteSnippet || "",
             sourceUrl: cite.sourceUrl || "",
-            title: cite.lawName
+            title: cite.lawName,
+            supportedIssueIds: cite.supportedIssueIds || []
         }));
 
+        const latencyBreakdown = snapshot(latency, latency.now() - requestStarted);
+        const { perIssue, ...summary } = latencyBreakdown;
+        log.line('LATENCY', summary);
+        if (perIssue.length) log.debug('LATENCY PER-ISSUE', { timings: perIssue.map(item => `${item.issueId}:embedding=${item.embeddingMs},pinecone=${item.pineconeMs},total=${item.totalMs}`).join(' | ') });
+
+        const sources = formattedCitations.map(cite => ({
+            title: cite.lawName,
+            source: cite.sourceUrl || 'Cơ sở dữ liệu nội bộ LegAI',
+            dieu: cite.dieu,
+            khoan: cite.khoan,
+            supportedIssueIds: cite.supportedIssueIds || []
+        }));
+        progress.streamComplete({ answer, citations: formattedCitations, sources });
+        progress.completed('COMPLETE', 'Đã hoàn tất tra cứu');
         return res.json({
             success: true,
             answer,
             citations: formattedCitations,  // ← Trả về citations có structure
-            sources: formattedCitations.map(cite => ({
-                title: cite.lawName,
-                source: cite.sourceUrl || 'Cơ sở dữ liệu nội bộ LegAI',
-                dieu: cite.dieu,
-                khoan: cite.khoan
-            }))
+            sources
         });
     } catch (error) {
         console.error('  Lỗi Chat Controller:', error);
+        progress.error('Không thể hoàn tất yêu cầu. Vui lòng thử lại sau.');
         return res.status(500).json({
             success: false,
             message: 'LegAI đang gặp sự cố, vui lòng thử lại sau.',

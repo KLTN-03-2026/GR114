@@ -4,6 +4,7 @@ const legalDataController = require('../controllers/legalDataController');
 const { isAdmin } = require('../middleware/authMiddleware');
 
 router.get('/', isAdmin, legalDataController.getLegalDocuments);
+router.get('/metadata-options', isAdmin, legalDataController.getMetadataOptions);
 router.post('/', isAdmin, legalDataController.createLegalDocument);
 router.put('/:id', isAdmin, legalDataController.updateLegalDocument);
 router.delete('/:id', isAdmin, legalDataController.deleteLegalDocument);

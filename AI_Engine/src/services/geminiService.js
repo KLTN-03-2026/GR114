@@ -6,6 +6,8 @@ global.Response = fetch.Response;
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const SystemConfig = require('../config/SystemConfig');
+const log = require('../utils/legalAiLogger');
+const { timedSync } = require('../utils/latencyTracker');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { YoutubeTranscript } = require('youtube-transcript');
 const sql = require('mssql');
@@ -13,6 +15,95 @@ const { pool, poolConnect } = require('../config/db');
 const ragService = require('./ragService');
 const lawSourceService = require('./lawSourceService');
 const { CANONICAL_CATEGORIES, normalizeLegalCategory } = require('../constants/legalCategories');
+const { generateContentStreaming } = require('../utils/geminiStreamUtils');
+
+const GEMINI_NORMAL_TIMEOUT_MS = 45000;
+const DEFAULT_GEMINI_GROUNDING_TIMEOUT_MS = 90000;
+
+function getGroundingTimeoutMs() {
+    const configured = Number(process.env.GEMINI_GROUNDING_TIMEOUT_MS);
+    return Number.isInteger(configured) && configured > 0
+        ? configured
+        : DEFAULT_GEMINI_GROUNDING_TIMEOUT_MS;
+}
+
+function getTimeoutSource(error) {
+    if (error?.code === 'CLIENT_TIMEOUT') return 'CLIENT';
+    const status = Number(error?.status || error?.statusCode || error?.response?.status);
+    const value = `${error?.code || ''} ${error?.message || ''}`.toUpperCase();
+    if (status === 504 || value.includes('504') || value.includes('DEADLINE_EXCEEDED') || value.includes('ETIMEDOUT') || value.includes('UPSTREAM TIMEOUT')) {
+        return 'UPSTREAM';
+    }
+    return 'UNKNOWN';
+}
+
+function safeGenerationError(error) {
+    return {
+        status: error?.status || error?.statusCode || error?.response?.status || null,
+        code: error?.code || null,
+        message: String(error?.message || '').replace(/(?:key|token)=?[^\s&]+/gi, '[REDACTED]').slice(0, 300)
+    };
+}
+
+function buildGroundingGapHint(context = {}) {
+    const missing = Array.isArray(context.missingIssueIds) ? context.missingIssueIds : [];
+    const mismatched = Array.isArray(context.targetMismatchedIssueIds) ? context.targetMismatchedIssueIds : [];
+    if (missing.length === 0 && mismatched.length === 0) return '';
+    return `\n[GROUNDING GAP HINT]\nƯu tiên xác minh các vấn đề còn thiếu: ${missing.join(', ') || 'không có'}.\nCác vấn đề chưa khớp đúng phiên bản luật được yêu cầu: ${mismatched.join(', ') || 'không có'}.\nChỉ thực hiện một lần Grounding tổng hợp cho toàn bộ các khoảng trống này.\n`;
+}
+
+function buildGroundingRescuePlan(context = {}, routingReason = '') {
+    const issues = Array.isArray(context.issues) ? context.issues : [];
+    if (issues.length === 0) return null;
+    const orderedIds = issues.map(issue => issue.id);
+    const requested = new Set([
+        ...(Array.isArray(context.missingIssueIds) ? context.missingIssueIds : []),
+        ...(Array.isArray(context.targetMismatchedIssueIds) ? context.targetMismatchedIssueIds : [])
+    ]);
+    if (routingReason === 'rag_irrelevant') orderedIds.forEach(id => requested.add(id));
+    if (routingReason === 'rag_outdated') {
+        const inferredFreshnessIds = issues.filter(issue =>
+            /mới nhất|tuần này|tháng này|năm này|vừa ra|vừa ban hành|cập nhật/iu.test(issue.query || '')
+        ).map(issue => issue.id);
+        const freshnessIds = Array.isArray(context.freshnessIssueIds) && context.freshnessIssueIds.length
+            ? context.freshnessIssueIds
+            : (inferredFreshnessIds.length ? inferredFreshnessIds : orderedIds);
+        freshnessIds.forEach(id => requested.add(id));
+    }
+    const issueIds = orderedIds.filter(id => requested.has(id));
+    if (issueIds.length === 0) return null;
+    const preservedIssueIds = orderedIds.filter(id => !requested.has(id));
+    return {
+        issueIds,
+        fullQueryMode: preservedIssueIds.length === 0,
+        preservedIssueIds,
+        rescuedIssueIds: issueIds,
+        issues: issues.filter(issue => requested.has(issue.id))
+    };
+}
+
+function buildGroundingRescueInstruction(plan) {
+    if (!plan) return '';
+    const definitions = plan.issues.map(issue => {
+        const target = issue.target || null;
+        const targetText = target
+            ? `; văn bản đích=${target.number || target.name || target.year || 'không nêu'}`
+            : '';
+        return `- ${issue.id}: ${issue.query}${targetText}`;
+    }).join('\n');
+    if (plan.fullQueryMode) {
+        return `\n[GROUNDING RESCUE CONTRACT]\nKhông có vấn đề nào được RAG hỗ trợ đáng tin cậy. Dùng Google Search Grounding để trả lời toàn bộ các vấn đề sau trong MỘT yêu cầu:\n${definitions}\n`;
+    }
+    return `\n[GROUNDING RESCUE CONTRACT]\nChỉ dùng Google Search để xác minh các vấn đề cần cứu sau:\n${definitions}\nCác vấn đề đã có RAG và phải được bảo toàn: ${plan.preservedIssueIds.join(', ')}. Với các vấn đề này, chỉ tổng hợp từ RAG CONTEXT; không tìm kiếm lại, không thay thế căn cứ RAG bằng nguồn web. Trả về một câu trả lời cuối cùng theo thứ tự vấn đề gốc, kết hợp phần RAG được bảo toàn và phần được Grounding cứu.\n`;
+}
+
+function filterGroundingContextDocuments(documents, plan) {
+    if (!plan) return documents;
+    if (plan.fullQueryMode) return [];
+    return documents.filter(doc =>
+        doc.supportedIssueIds?.some(issueId => plan.preservedIssueIds.includes(issueId))
+    );
+}
 
 
 // ==============================================================================
@@ -144,6 +235,10 @@ function checkRagRelevance(userQuery, relatedDocs) {
     return relatedDocs.some(doc => (doc.score ? doc.score > 0.72 : true));
 }
 
+function isRagOutdated(relatedDocs, currentYear = new Date().getFullYear()) {
+    return relatedDocs.every(doc => (doc.issueYear || 0) < currentYear);
+}
+
 function getRequestedLawIdentity(userQuestion) {
     const rawQuestion = String(userQuestion || '');
     const match = rawQuestion.match(/\b\d{1,3}\s*[\/_-]\s*\d{4}\s*[\/_-]\s*[a-zA-Z0-9Đđ]+\b/);
@@ -174,6 +269,41 @@ async function cacheGroundedLawSource(userQuestion, groundingMetadata) {
 
     console.warn(`[GROUNDING SOURCE NOT CACHED] No metadata source matched ${identity.lawNumber}.`);
     return null;
+}
+
+function scheduleGroundedSourceCache(userQuestion, groundingMetadata, cacheFn = cacheGroundedLawSource) {
+    const questionSnapshot = String(userQuestion || '');
+    const metadataSnapshot = {
+        groundingChunks: Array.isArray(groundingMetadata?.groundingChunks)
+            ? groundingMetadata.groundingChunks.map(chunk => ({
+                web: chunk?.web
+                    ? { uri: chunk.web.uri, title: chunk.web.title }
+                    : undefined
+            }))
+            : []
+    };
+    const startedAt = Date.now();
+
+    log.line('SOURCE CACHE', { scheduled: true, blocking: false });
+    return Promise.resolve()
+        .then(() => cacheFn(questionSnapshot, metadataSnapshot))
+        .then(cachedUrl => {
+            log.line('SOURCE CACHE', {
+                success: Boolean(cachedUrl),
+                latencyMs: Date.now() - startedAt,
+                reason: cachedUrl ? undefined : 'not_cached'
+            });
+            return cachedUrl;
+        })
+        .catch(error => {
+            const message = String(error?.message || 'unknown_error').toLowerCase();
+            log.line('SOURCE CACHE', {
+                success: false,
+                latencyMs: Date.now() - startedAt,
+                reason: message.includes('timeout') ? 'redirect_timeout' : 'cache_error'
+            });
+            return null;
+        });
 }
 
 
@@ -585,7 +715,7 @@ Nếu cả RAG nội bộ và Search grounding đều không có kết quả:
 // =============================================================================
 // GET MODEL 
 // =============================================================================
-async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null, returnResponseDetails = false) {
+async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null, returnResponseDetails = false, ragAlreadySelected = false, groundingContext = {}, latency = null, progress = null) {
     const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
     const preferredModel = SystemConfig?.geminiModel;
     const temp = SystemConfig?.temperature || 0.1;
@@ -597,16 +727,15 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
     // 1. Enable GOOGLE SEARCH 
     let enableGoogleSearch = false;
     let ragContext = "";
+    let groundingRescue = null;
+    const routerStarted = latency?.now();
 
     if (relatedDocs && relatedDocs.length > 0) {
-        console.log('[GEMINI RAG INPUT] relatedDocs received from Pinecone:');
-        console.table(relatedDocs.slice(0, 5).map((doc, index) => ({
-            rank: index + 1,
-            id: doc.id,
-            score: doc.score,
-            hasScore: typeof doc.score === 'number',
-            title: doc.title || doc.law_name || '(no title)'
-        })));
+        log.debug('GEMINI RAG INPUT', {
+            documents: relatedDocs.slice(0, 5).map((doc, index) =>
+                `${index + 1}:${doc.id}:${Number(doc.score || 0).toFixed(3)}:${doc.title || doc.law_name || '(no title)'}`
+            ).join(' | ')
+        });
         const checkText = (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion.toLowerCase() : userPrompt.toLowerCase();
         const isRagRelevant = checkRagRelevance(checkText, relatedDocs);
 
@@ -624,48 +753,68 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
 
         const currentYear = new Date().getFullYear();
         const isSeekingNewInfo = /mới nhất|tuần này|tháng này|năm này| vừa ra |vừa ban hành|cập nhật/i.test(checkText);
-        const isRagOutdated = relatedDocs.every(doc => (doc.IssueYear || 0) < currentYear);
+        const ragIsOutdated = isRagOutdated(relatedDocs, currentYear);
         //   (forceSearch = true)
-        if (forceSearch || !isRagRelevant || (isSeekingNewInfo && isRagOutdated)) {
-            console.log(`[LEG_AI ROUTER]: Kích hoạt Search (Lý do: ${isSeekingNewInfo ? 'Tin mới/RAG cũ' : 'Chi tiết/RAG hụt'}).`);
+        if (forceSearch || !isRagRelevant || (isSeekingNewInfo && ragIsOutdated)) {
             enableGoogleSearch = true;
         } else {
-            console.log(`[LEG_AI ROUTER]: RAG nội bộ đáp ứng tốt (${relatedDocs.length} Chunks). KHÓA Google Search để tối ưu Rate Limit.`);
             enableGoogleSearch = false;
         }
+        const routingReason = forceSearch ? 'forced' : !isRagRelevant ? 'rag_irrelevant' : (isSeekingNewInfo && ragIsOutdated) ? 'rag_outdated' : 'rag_sufficient';
+        if (enableGoogleSearch) {
+            groundingRescue = buildGroundingRescuePlan(groundingContext, routingReason);
+            if (groundingRescue) {
+                log.line('GROUNDING RESCUE', {
+                    missingIssues: groundingRescue.issueIds.length,
+                    issueIds: groundingRescue.issueIds.join(','),
+                    fullQueryMode: groundingRescue.fullQueryMode,
+                    ragIssuesPreserved: groundingRescue.preservedIssueIds.length
+                });
+            }
+        }
+        log.line('ROUTER', {
+            grounding: enableGoogleSearch,
+            reason: routingReason
+        });
+        if (latency) latency.add('routerMs', latency.now() - routerStarted);
+        if (ragAlreadySelected) {
+            log.debug('MULTI-RAG GROUNDING', { invokedAfterMergedEvaluation: enableGoogleSearch });
+        }
 
-        const selectorResult = selectRagChunks(
-            (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion : userPrompt,
-            relatedDocs
-        );
-        const selectedDocs = selectorResult.selectedDocs;
-        console.log('[RAG SELECTOR]');
-        console.log({
+        const selectorResult = ragAlreadySelected
+            ? {
+                selectedDocs: relatedDocs,
+                scores: [],
+                fallbackAll: false,
+                reason: "Pre-selected per decomposed issue"
+            }
+            : timedSync(latency, 'selectorMs', () => selectRagChunks(
+                (rawUserQuestion && rawUserQuestion.trim()) ? rawUserQuestion : userPrompt,
+                relatedDocs
+            ));
+        const selectedDocs = filterGroundingContextDocuments(selectorResult.selectedDocs, groundingRescue);
+        if (!ragAlreadySelected) {
+            progress?.completed('RAG_SELECT', 'Đã chọn tài liệu liên quan');
+        }
+        log.debug('RAG SELECTOR', {
             rawChunks: relatedDocs.length,
             selectedChunks: selectedDocs.length,
-            selectedIds: selectedDocs.map(doc => doc.id),
-            scores: selectorResult.scores.map(score => ({
-                id: score.id,
-                pineconeScore: score.pineconeScore,
-                contentScore: Number(score.contentScore.toFixed(4)),
-                titleScore: Number(score.titleScore.toFixed(4)),
-                articleScore: Number(score.articleScore.toFixed(4)),
-                finalScore: Number(score.finalScore.toFixed(4))
-            })),
+            selectedIds: selectedDocs.map(doc => doc.id).join(',') || 'none',
             fallbackAll: selectorResult.fallbackAll,
             reason: selectorResult.reason
         });
 
+        const ragPromptStarted = latency?.now();
         const rawContext = buildRawContextText(relatedDocs);
         const documentGroups = groupContextDocuments(selectedDocs);
         ragContext = buildStrictContextText(selectedDocs);
+        if (latency) latency.add('promptBuildMs', latency.now() - ragPromptStarted);
         const articleGroups = documentGroups.reduce((total, documentGroup) => total + documentGroup.articles.size, 0);
         const savedChars = rawContext.length - ragContext.length;
         const savedPercent = rawContext.length > 0
             ? Number(((savedChars / rawContext.length) * 100).toFixed(2))
             : 0;
-        console.log('[RAG COMPACT METRICS]');
-        console.log({
+        log.verbose('RAG COMPACT METRICS', {
             rawChunks: relatedDocs.length,
             documentCount: documentGroups.length,
             articleGroups,
@@ -674,25 +823,37 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
             savedChars,
             savedPercent
         });
-        console.log("=== RAG CONTEXT  VÀO AI ===");
-        console.log(ragContext);
-        console.log("=========================================");
     } else {
 
-        // Nếu forceSearch = false
+        // Empty context only enables Search when this caller explicitly grants
+        // permission. The final chatbot call does so below; unrelated model
+        // calls with no RAG context retain their existing Search-off behavior.
         enableGoogleSearch = forceSearch;
 
         if (enableGoogleSearch) {
-            console.log("[LEG_AI ROUTER]: RAG nội bộ trống + forceSearch = Google Search ");
+            groundingRescue = buildGroundingRescuePlan(groundingContext, 'rag_irrelevant');
+            if (groundingRescue) {
+                log.line('GROUNDING RESCUE', {
+                    missingIssues: groundingRescue.issueIds.length,
+                    issueIds: groundingRescue.issueIds.join(','),
+                    fullQueryMode: groundingRescue.fullQueryMode,
+                    ragIssuesPreserved: groundingRescue.preservedIssueIds.length
+                });
+            }
+            log.line('ROUTER', { grounding: true, reason: 'rag_empty' });
         } else {
-            console.log("[LEG_AI ROUTER]: RAG nội bộ trống nhưng forceSearch KHÓA  Google Search ");
+            log.line('ROUTER', { grounding: false, reason: 'grounding_not_allowed' });
         }
+        if (latency) latency.add('routerMs', latency.now() - routerStarted);
     }
-    console.log('[GEMINI RESPONSE MODE]');
-    console.log({
+    log.debug('GEMINI RESPONSE MODE', {
         grounded: enableGoogleSearch,
         expectedFormat: enableGoogleSearch ? 'text' : (isJson ? 'json' : 'text')
     });
+    if (enableGoogleSearch) {
+        progress?.started('GROUNDING', 'Đang kiểm tra nguồn pháp lý bổ sung…');
+    }
+    const promptStarted = latency?.now();
     const today = new Date().toLocaleDateString('vi-VN');
     const timeContext = `[THÔNG TIN THỜI GIAN THỰC TẾ CHO AI: Hôm nay là ngày ${today}.
      Bất kỳ tham chiếu nào về "tuần này", "tháng này", "năm này" trong câu hỏi của người dùng đều phải được hiểu là thời điểm hiện tại (${today}).
@@ -708,92 +869,28 @@ Bất kỳ tham chiếu nào về "tuần này", "tháng này", "năm này" đ�
 [RAG CONTEXT - VÙNG DỮ LIỆU XÁC THỰC NỘI BỘ LEGALBOT]
 ====================================================================
 ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nội bộ."}
+${enableGoogleSearch ? buildGroundingGapHint(groundingContext) : ''}
+${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
 
-====================================================================
-[STRICT RULES - QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ]
-====================================================================
-[QUY TẮC PHÁP LÝ BẮT BUỘC - ZERO HALLUCINATION]:
+    ====================================================================
+    [GOOGLE SEARCH GROUNDING - QUY TẮC NGUỒN TÌM KIẾM]
+    ====================================================================
+    Với nguồn được Google Search Grounding bổ sung, chỉ chấp nhận URL văn bản
+    đã được xác minh từ các domain sau, đúng thứ tự ưu tiên hiện hành:
+    1. vbpl.vn
+    2. thuvienphapluat.vn
+    3. xaydungchinhsach.chinhphu.vn, chỉ khi trang chính thức chứa TOÀN VĂN
+       đúng tên, số hiệu và nội dung văn bản cần trích dẫn.
 
-1. TUYỆT ĐỐI BẢO TOÀN SỐ ĐIỀU VÀ SỐ KHOẢN:
-   Khi thông tin được lấy từ RAG, phải giữ nguyên số Điều/Khoản/Điểm
-   theo dữ liệu RAG. CẤM tự ý đánh lại hoặc bổ sung số Khoản/Điểm.
-
-2. QUY TẮC NGUỒN URL:
-
-   ƯU TIÊN URL THEO THỨ TỰ:
-
-   PRIORITY 1:
-   Nếu RAG cung cấp <protected_url> là URL chi tiết hợp lệ,
-   BẮT BUỘC sử dụng chính xác URL đó.
-
-   PRIORITY 2:
-   Nếu RAG không cung cấp URL chi tiết, nhưng Google Search Grounding
-   tìm được trang chi tiết chính thức của văn bản trên:
-
-   - https://vbpl.vn/
-
-   thì sử dụng URL đó.
-
-   PRIORITY 3:
-   Nếu không tìm được URL chi tiết trên vbpl.vn, được phép sử dụng
-   URL văn bản pháp luật đã được xác minh từ:
-
-   - https://thuvienphapluat.vn/
-
-   PRIORITY 4:
-   Nếu không tìm được các nguồn trên, nhưng Google Search Grounding
-   tìm được TOÀN VĂN văn bản pháp luật trên website chính thức của
-   Cổng Thông tin điện tử Chính phủ:
-
-   - https://xaydungchinhsach.chinhphu.vn/
-
-   thì được phép sử dụng URL đó làm sourceUrl.
-
-   Đặc biệt chấp nhận các trang có tiêu đề hoặc nội dung dạng:
-   "Toàn văn [Tên văn bản] [Số hiệu]".
-
-   Ví dụ:
-   https://xaydungchinhsach.chinhphu.vn/toan-van-luat-thu-do-so-02-2026-qh16-11926052309491329.htm
-
-   URL này được xem là nguồn pháp lý hợp lệ nếu Google Search Grounding
-   xác minh rằng trang chứa toàn văn chính xác của văn bản được trích dẫn.
-
-3. NGHIÊM CẤM:
-   - Tự tạo URL.
-   - Tự suy đoán UUID hoặc ID.
-   - Tự sửa đổi URL tìm được.
-   - Dùng homepage làm sourceUrl.
-   - Dùng trang tìm kiếm làm sourceUrl.
-   - Dùng URL không được Google Search Grounding xác minh.
-   - Dùng website tin tức/blog cá nhân làm nguồn pháp luật.
-
-4. QUY TẮC SOURCE URL:
-
-   sourceUrl chỉ được phép thuộc một trong các domain:
-
-   - vbpl.vn
-   - thuvienphapluat.vn
-   - xaydungchinhsach.chinhphu.vn
-
-   Trong đó:
-
-   vbpl.vn được ưu tiên cao nhất.
-
-   thuvienphapluat.vn là fallback thứ hai.
-
-   xaydungchinhsach.chinhphu.vn là fallback cho trường hợp
-   tìm được TOÀN VĂN văn bản chính thức nhưng không có URL detail
-   phù hợp trên các nguồn ưu tiên cao hơn.
-
-5. Nếu không có URL chi tiết/toàn văn đã được Google Search Grounding
-   xác minh:
-   sourceUrl phải là chuỗi rỗng.
+    Nếu không có URL chi tiết/toàn văn hợp lệ từ các domain trên đã được
+    Google Search Grounding xác minh, sourceUrl phải là chuỗi rỗng.
 
 ====================================================================
 [CÂU HỎI CỦA NGƯỜI DÙNG - USER QUESTION]
 ====================================================================
 "${userPrompt}"
     `;
+    if (latency) latency.add('promptBuildMs', latency.now() - promptStarted);
 
     const normalizeModelName = (modelName) => {
         if (!modelName) return null;
@@ -838,10 +935,17 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
         )
     ];
 
+    progress?.started('SYNTHESIZING', 'Đang tổng hợp câu trả lời…');
+
     for (const modelName of fastQueue) {
         let timeoutId = null;
+        let generationAbortController = null;
+        let modelCallStarted = null;
+        let modelTimingRecorded = false;
+        const startedAt = new Date();
+        const timeoutLimitMs = enableGoogleSearch ? getGroundingTimeoutMs() : GEMINI_NORMAL_TIMEOUT_MS;
         try {
-            console.log(`  Đang gọi: ${modelName} | Grounding (Search): ${enableGoogleSearch}`);
+            log.debug('GEMINI REQUEST', { model: modelName, grounding: enableGoogleSearch });
 
             const modelConfig = {
                 model: modelName,
@@ -857,7 +961,12 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
             const model = genAI.getGenerativeModel(modelConfig);
 
             const timeoutPromise = new Promise((_, reject) => {
-                timeoutId = setTimeout(() => reject(new Error("TIMEOUT_EXCEEDED")), 45000);
+                timeoutId = setTimeout(() => {
+                    generationAbortController?.abort();
+                    const timeoutError = new Error("TIMEOUT_EXCEEDED");
+                    timeoutError.code = 'CLIENT_TIMEOUT';
+                    reject(timeoutError);
+                }, timeoutLimitMs);
             });
 
             const generationConfig = { temperature: temp, topP: 0.8 };
@@ -870,16 +979,29 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
                 }
             }
 
-            const apiPromise = model.generateContent({
+            generationAbortController = new AbortController();
+            const apiPromise = generateContentStreaming(model, {
                 contents: [{ role: "user", parts: [{ text: compiledPrompt }] }],
                 generationConfig
+            }, {
+                grounded: enableGoogleSearch,
+                requestOptions: { signal: generationAbortController.signal },
+                onStart: () => progress?.streamStart(),
+                onDelta: delta => progress?.streamChunk(delta),
+                onError: () => progress?.streamError('STREAM_INTERRUPTED', 'Mất kết nối truyền trực tiếp; vẫn đang xử lý…', true)
             });
 
+            const modelStarted = latency?.now();
+            modelCallStarted = modelStarted;
             const result = await Promise.race([apiPromise, timeoutPromise]);
+            const modelElapsed = latency ? latency.now() - modelStarted : 0;
+            if (latency) {
+                latency.add('finalModelMs', modelElapsed);
+                if (enableGoogleSearch) latency.add('groundingMs', modelElapsed);
+                modelTimingRecorded = true;
+            }
             if (timeoutId) clearTimeout(timeoutId);
-
             if (result && result.response) {
-                console.log(`[GEMINI PROMPT TOKENS] ${result.response.usageMetadata?.promptTokenCount ?? 'N/A'}`);
                 const finishReason = result.response.candidates?.[0]?.finishReason;
                 if (finishReason === 'RECITATION') {
                     const recitationError = new Error('RECITATION');
@@ -894,35 +1016,57 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
                 // groundingMetadata, not in the generated text. Cache only a
                 // metadata chunk that matches the requested document.
                 if (enableGoogleSearch && groundingMetadata) {
-                    try {
-                        await cacheGroundedLawSource(rawUserQuestion, groundingMetadata);
-                    } catch (cacheError) {
-                        console.warn('[GROUNDING SOURCE CACHE ERROR]:', cacheError.message);
-                    }
+                    scheduleGroundedSourceCache(rawUserQuestion, groundingMetadata);
                 }
 
-                console.log(
-                    "=== FULL GEMINI RESPONSE ===",
-                    JSON.stringify(result.response, null, 2)
-                );
-
-
                 if (text) {
-                    console.log(`  ${modelName} phản hồi thành công!`);
+                    if (enableGoogleSearch) {
+                        progress?.completed('GROUNDING', 'Đã kiểm tra nguồn pháp lý bổ sung');
+                    }
+                    progress?.completed('SYNTHESIZING', 'Đã tổng hợp câu trả lời');
+                    const usage = result.response.usageMetadata || {};
+                    if (enableGoogleSearch) {
+                        const sourceDomains = (groundingMetadata?.groundingChunks || []).map(chunk => {
+                            const uri = chunk?.web?.uri;
+                            try { return uri ? new URL(uri).hostname : null; } catch (_) { return null; }
+                        }).filter(Boolean);
+                        log.line('GROUNDING', {
+                            model: modelName,
+                            success: true,
+                            latencyMs: Date.now() - startedAt.getTime(),
+                            promptTokens: usage.promptTokenCount ?? 0,
+                            outputTokens: usage.candidatesTokenCount ?? 0,
+                            thoughtTokens: usage.thoughtsTokenCount ?? 0,
+                            totalTokens: usage.totalTokenCount ?? 0,
+                            citations: groundingMetadata?.groundingChunks?.length ?? 0
+                        });
+                        log.debug('GROUNDING SOURCES', { sources: [...new Set(sourceDomains)].join(',') || 'none' });
+                    }
                     return returnResponseDetails
                         ? {
                             text,
                             grounded: enableGoogleSearch,
                             groundingMetadata: groundingMetadata || null,
-                            model: modelName
+                            model: modelName,
+                            groundingRescue
                         }
                         : text;
                 }
             }
         } catch (error) {
             if (timeoutId) clearTimeout(timeoutId);
+            if (latency && modelCallStarted != null && !modelTimingRecorded) {
+                const elapsed = latency.now() - modelCallStarted;
+                latency.add('finalModelMs', elapsed);
+                if (enableGoogleSearch) latency.add('groundingMs', elapsed);
+            }
             const msg = (error.message || "").toString();
+            const timeoutSource = getTimeoutSource(error);
             console.warn(`  ${modelName} thất bại:`, msg.split('\n')[0]);
+            if (enableGoogleSearch) {
+                const safeError = safeGenerationError(error);
+                log.error('GROUNDING ERROR', { type: safeError.type || classifyGenerationFailure(error), source: timeoutSource, elapsedMs: Date.now() - startedAt.getTime(), limitMs: timeoutLimitMs });
+            }
             console.log('[GEMINI GENERATION FAILURE]');
             console.log({
                 model: modelName,
@@ -930,16 +1074,14 @@ ${ragContext || "Không có dữ liệu RAG phù hợp trong kho lưu trữ nộ
                 type: classifyGenerationFailure(error)
             });
 
-            if (msg === "TIMEOUT_EXCEEDED") continue;
-            if (
-                enableGoogleSearch &&
-                (msg.includes("503") ||
-                    msg.includes("429") ||
-                    msg.includes("demand"))
-            ) {
+            // A Grounding request gets exactly one attempt. Only after that
+            // attempt fails (quota, API error, or timeout) may internal model
+            // knowledge be used by the existing controlled fallback.
+            if (enableGoogleSearch) {
+                progress?.degraded('GROUNDING', 'Không thể kiểm tra nguồn trực tuyến, đang tiếp tục với dữ liệu hiện có…');
                 try {
                     console.warn(
-                        "Google Search Grounding gặp lỗi 503/429. " +
+                        "Google Search Grounding gặp lỗi API/quota/timeout. " +
                         "Chuyển sang LLM fallback..."
                     );
 
@@ -984,10 +1126,20 @@ TUYỆT ĐỐI KHÔNG:
 Nếu không có URL chi tiết/toàn văn đã được xác minh từ RAG
 hoặc Google Search Grounding, sourceUrl phải là chuỗi rỗng.
 
+[YÊU CẦU BẢO TOÀN RAG KHI FALLBACK]
+- Câu hỏi gốc: ${rawUserQuestion || '(không có)'}
+- Trạng thái bao phủ: ${JSON.stringify(groundingContext)}
+- Trả lời đầy đủ mọi vấn đề có thể xác minh từ RAG bên dưới.
+- Không rút gọn thành câu trả lời chung chung chỉ vì Grounding thất bại.
+- Vấn đề chưa có bằng chứng hoặc chưa khớp đúng phiên bản phải được ghi rõ là chưa thể xác minh từ nguồn hiện có.
+- Không dùng phiên bản luật cũ làm căn cứ chính thay cho phiên bản người dùng yêu cầu.
+${buildGroundingGapHint(groundingContext)}
+
 ${compiledPrompt}
 `;
 
-                    const fallbackResult = await fallbackModel.generateContent({
+                    progress?.started('SYNTHESIZING', 'Đang tiếp tục tổng hợp câu trả lời…');
+                    const fallbackResult = await generateContentStreaming(fallbackModel, {
                         contents: [
                             {
                                 role: "user",
@@ -995,6 +1147,11 @@ ${compiledPrompt}
                             }
                         ],
                         generationConfig: fallbackGenerationConfig
+                    }, {
+                        grounded: false,
+                        onStart: () => progress?.streamStart(),
+                        onDelta: delta => progress?.streamChunk(delta),
+                        onError: () => progress?.streamError('STREAM_INTERRUPTED', 'Mất kết nối truyền trực tiếp; vẫn đang xử lý…', true)
                     });
                     const fallbackFinishReason = fallbackResult.response.candidates?.[0]?.finishReason;
                     if (fallbackFinishReason === 'RECITATION') {
@@ -1003,6 +1160,7 @@ ${compiledPrompt}
                         throw recitationError;
                     }
                     const fallbackText = fallbackResult.response.text();
+                    progress?.completed('SYNTHESIZING', 'Đã tổng hợp câu trả lời');
                     console.log('[GEMINI RESPONSE MODE]');
                     console.log({
                         grounded: false,
@@ -1013,7 +1171,8 @@ ${compiledPrompt}
                             text: fallbackText,
                             grounded: false,
                             groundingMetadata: null,
-                            model: 'gemini-2.5-flash'
+                            model: 'gemini-2.5-flash',
+                            groundingRescue: groundingRescue ? { ...groundingRescue, rescuedIssueIds: [] } : null
                         }
                         : fallbackText;
 
@@ -1153,19 +1312,24 @@ function sanitizeCitations(citations = []) {
         return [];
     }
 
+    const seen = new Set();
     return citations.map(citation => {
         if (!citation || typeof citation !== "object") {
             return citation;
         }
 
-        if (!isAllowedLegalSourceUrl(citation.sourceUrl)) {
-            return {
-                ...citation,
-                sourceUrl: ""
-            };
-        }
-
-        return citation;
+        return {
+            ...citation,
+            sourceUrl: isAllowedLegalSourceUrl(citation.sourceUrl) ? citation.sourceUrl : ""
+        };
+    }).filter(citation => {
+        if (!citation || typeof citation !== 'object') return true;
+        const key = [citation.lawName, citation.dieu, citation.khoan, citation.sourceUrl]
+            .map(value => normalizeAnswerText(value).toLocaleLowerCase('vi-VN').trim())
+            .join('\u0000');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
     });
 }
 
@@ -1239,7 +1403,10 @@ function normalizeGeminiResponse(responseDetails, expectsStructuredJson = true) 
     if (details.grounded) {
         normalized = {
             answer: normalizeAnswerText(details.text),
-            citations: extractGroundingCitations(details.groundingMetadata)
+            citations: extractGroundingCitations(details.groundingMetadata).map(citation => ({
+                ...citation,
+                supportedIssueIds: details.groundingRescue?.issueIds || []
+            }))
         };
     } else if (expectsStructuredJson) {
         try {
@@ -1310,9 +1477,11 @@ function formatProxyCitations(responseText) {
 // ==============================================================================
 //  1.CHAT BOT AI
 // ==============================================================================
-async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = [], useStructuredCitations = true) {
-    console.log(">>> V4.1");
+async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = [], useStructuredCitations = true, options = {}) {
     try {
+        const targetLawInstruction = options.targetLaw
+            ? `\n# VĂN BẢN ĐƯỢC NGƯỜI DÙNG CHỈ ĐỊNH\nTên: ${options.targetLaw.name || '(không nêu)'}\nNăm/phiên bản: ${options.targetLaw.year || '(không nêu)'}\nSố hiệu: ${options.targetLaw.number || '(không nêu)'}\nPhải trả lời chủ yếu theo đúng văn bản này. Văn bản phiên bản khác chỉ được nhắc như so sánh lịch sử và phải ghi rõ. Nếu Search cũng không xác minh được văn bản được chỉ định, phải nói rõ chưa thể xác minh; không được âm thầm thay bằng phiên bản cũ.\n`
+            : '';
         const historyText = chatHistory.length > 0
             ? chatHistory.map(msg => `${msg.role === 'user' ? 'NGƯỜI DÙNG' : 'LEGAI'}: ${msg.content}`).join("\n\n")
             : "Chưa có lịch sử trò chuyện.";
@@ -1342,6 +1511,7 @@ mà RAG hoặc Grounding không cung cấp.
 ${historyText}
 
 # YÊU CẦU TRẢ LỜI CÂU HỎI MỚI NHẤT: "${userQuestion}"
+${targetLawInstruction}
 
 # QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ (Áp dụng NGHIÊM NGẶT theo thứ tự sau):
 
@@ -1500,6 +1670,17 @@ Nếu sau khi đã tìm kiếm ở cả RAG và Google mà vẫn không có thô
 - Phản hồi: Chào và nhả DUY NHẤT mã code: [CONTACT_LAWYER]
 # ĐỊNH DẠNG ĐẦU RA
 
+# CHÍNH SÁCH CÂU TRẢ LỜI CUỐI CÙNG — NGẮN GỌN NHƯNG ĐẦY ĐỦ
+1. Chỉ trả lời đúng nội dung người dùng hỏi.
+2. Với câu hỏi nhiều vấn đề: chia theo từng vấn đề, tối đa 3–5 gạch đầu dòng ngắn cho mỗi vấn đề; không lặp cùng một quy tắc pháp lý ở nhiều phần.
+3. Chỉ trích dẫn các quy định mạnh nhất và liên quan trực tiếp; ưu tiên Điều/Khoản chính xác thay vì trích dẫn dài.
+4. Không lặp trích dẫn cùng luật, Điều/Khoản và sourceUrl.
+5. Không so sánh lịch sử trừ khi người dùng yêu cầu hoặc cần thiết để giải thích phạm vi áp dụng.
+6. Không thêm lời khuyên tuân thủ chung chung nếu không thực sự hữu ích cho câu hỏi.
+7. Không tự tạo thành một “quyền” riêng nếu điều luật được dẫn chỉ quy định nghĩa vụ.
+8. Nếu một vấn đề chưa được xác minh đầy đủ, nêu ngắn gọn điều đó; không mở rộng bằng kiến thức nội tại.
+9. Độ dài mục tiêu: câu hỏi đơn giản 800–1.800 ký tự; câu hỏi phức tạp 2–3 vấn đề 2.500–4.000 ký tự. Chỉ vượt khi người dùng yêu cầu phân tích chi tiết.
+
 NẾU hệ thống yêu cầu Structured Citation:
 - Chỉ trả về JSON hợp lệ theo response schema.
 - Không bọc JSON trong Markdown hoặc code fence.
@@ -1519,15 +1700,45 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
             prompt,
             useStructuredCitations,
             documents,
-            false,
+            documents.length === 0 || options.allowGrounding === true,
             false,
             userQuestion,
             useStructuredCitations ? CITATION_SCHEMA : null,
-            true
+            true,
+            options.ragAlreadySelected === true,
+            options.groundingContext || {},
+            options.latency || null,
+            options.progress || null
         );
 
         await logUsage('CHATBOT');
-        const normalizedResponse = normalizeGeminiResponse(responseDetails, useStructuredCitations);
+        const normalizedResponse = timedSync(options.latency, 'normalizationMs', () => normalizeGeminiResponse(responseDetails, useStructuredCitations));
+        if (responseDetails.groundingRescue) normalizedResponse.groundingRescue = responseDetails.groundingRescue;
+        if (responseDetails.grounded && responseDetails.groundingRescue && !responseDetails.groundingRescue.fullQueryMode) {
+            const preservedCitations = documents.filter(doc =>
+                doc.supportedIssueIds?.some(issueId => responseDetails.groundingRescue.preservedIssueIds.includes(issueId))
+            ).map(doc => {
+                const sourceUrl = doc.sourceUrl || doc.source || '';
+                return {
+                    lawName: doc.title || doc.law_name || 'Văn bản pháp luật',
+                    dieu: doc.dieu || '',
+                    khoan: '',
+                    quoteSnippet: '',
+                    sourceUrl: isAllowedLegalSourceUrl(sourceUrl) ? sourceUrl : '',
+                    supportedIssueIds: doc.supportedIssueIds.filter(issueId => responseDetails.groundingRescue.preservedIssueIds.includes(issueId))
+                };
+            });
+            const seenCitationKeys = new Set(normalizedResponse.citations.map(citation =>
+                [citation.lawName, citation.dieu, citation.sourceUrl].join('\u0000')
+            ));
+            for (const citation of preservedCitations) {
+                const key = [citation.lawName, citation.dieu, citation.sourceUrl].join('\u0000');
+                if (!seenCitationKeys.has(key)) {
+                    normalizedResponse.citations.push(citation);
+                    seenCitationKeys.add(key);
+                }
+            }
+        }
 
         if (!responseDetails.grounded) {
             for (const citation of normalizedResponse.citations) {
@@ -1546,10 +1757,12 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
         if (!useStructuredCitations) {
             normalizedResponse.answer = formatProxyCitations(normalizedResponse.answer);
         }
+        log.line('FINAL', { answerChars: normalizedResponse.answer?.length || 0 });
         return normalizedResponse;
 
     } catch (error) {
         console.error(" Lỗi toàn bộ hệ thống Gemini:", error.message);
+        options.progress?.error('Không thể hoàn tất yêu cầu. Vui lòng thử lại sau.');
         return { answer: "LegAI đang quá tải. Vui lòng thử lại sau.", citations: [] };
     }
 }
@@ -2526,6 +2739,17 @@ async function classifyCategoryWithAI(title) {
 module.exports = {
     getActiveModel,
     generateAnswerWithGemini,
+    selectRagChunks,
+    getGroundingTimeoutMs,
+    getTimeoutSource,
+    buildGroundingGapHint,
+    buildGroundingRescuePlan,
+    buildGroundingRescueInstruction,
+    filterGroundingContextDocuments,
+    cacheGroundedLawSource,
+    scheduleGroundedSourceCache,
+    normalizeGeminiResponse,
+    isRagOutdated,
 
     analyzeContract,
     generateForm,

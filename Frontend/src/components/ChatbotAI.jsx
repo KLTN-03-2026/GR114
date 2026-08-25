@@ -15,6 +15,29 @@ import {
 import aiClient from '../api/aiClient';
 import LawyerCard from './LawyerCard';
 import Swal from 'sweetalert2';
+import { chatSocket, connectChatSocket, disconnectChatSocket, ensureChatSocketRegistered, getChatTabId } from '../api/chatSocket';
+import {
+    applyProgressEvent, applyStreamChunk, applyStreamComplete, applyStreamError, applyStreamStart,
+    finalizeProgressMessage, PROGRESS_LABELS, setProgressConnectionState
+} from '../utils/chatProgressState';
+import { DEFAULT_NEAR_BOTTOM_PX, updateAutoFollowFromScroll } from '../utils/chatScrollState';
+
+const ChatProgress = ({ message }) => (
+    <div className="min-w-[230px] space-y-2" aria-live="polite">
+        <p className="text-[11px] font-black uppercase tracking-wider text-[#8E6D45]">Đang xử lý yêu cầu</p>
+        {(message.progress || []).filter(item => item.stage !== 'COMPLETE' && item.stage !== 'ERROR').map(item => (
+            <div key={item.stage} className={`flex items-start gap-2 text-xs ${item.status === 'degraded' ? 'text-amber-700' : 'text-zinc-600'}`}>
+                <span className={`mt-0.5 shrink-0 ${item.status === 'started' ? 'animate-pulse text-[#B8985D]' : ''}`}>
+                    {item.status === 'completed' ? '✓' : item.status === 'degraded' ? '!' : '●'}
+                </span>
+                <span>{item.message || PROGRESS_LABELS[item.stage]}</span>
+            </div>
+        ))}
+        {message.connectionDegraded && (
+            <p className="text-xs text-amber-700">Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…</p>
+        )}
+    </div>
+);
 
 export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     const navigate = useNavigate();
@@ -28,8 +51,48 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     const [guestCount, setGuestCount] = useState(
         parseInt(localStorage.getItem("legai_guest_count") || "0")
     );
-    const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
+    const progressListenerAttachedRef = useRef(false);
+    const chatScrollRef = useRef(null);
+    const autoFollowRef = useRef(true);
+    const scrollFrameRef = useRef(null);
+    const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        const handleProgress = event => setMessages(previous => applyProgressEvent(previous, event));
+        const handleStreamStart = event => setMessages(previous => applyStreamStart(previous, event));
+        const handleStreamChunk = event => setMessages(previous => applyStreamChunk(previous, event));
+        const handleStreamComplete = event => setMessages(previous => applyStreamComplete(previous, event));
+        const handleStreamError = event => setMessages(previous => applyStreamError(previous, event));
+        const handleDisconnect = () => setMessages(previous => setProgressConnectionState(previous, true));
+        const handleConnect = async () => {
+            const registration = await ensureChatSocketRegistered();
+            if (active && registration.ok) setMessages(previous => setProgressConnectionState(previous, false));
+        };
+
+        chatSocket.on('ai_progress', handleProgress);
+        chatSocket.on('ai_stream_start', handleStreamStart);
+        chatSocket.on('ai_stream_chunk', handleStreamChunk);
+        chatSocket.on('ai_stream_complete', handleStreamComplete);
+        chatSocket.on('ai_stream_error', handleStreamError);
+        chatSocket.on('disconnect', handleDisconnect);
+        chatSocket.on('connect', handleConnect);
+        progressListenerAttachedRef.current = true;
+        const registrationDisconnectHandler = connectChatSocket();
+        return () => {
+            active = false;
+            progressListenerAttachedRef.current = false;
+            chatSocket.off('ai_progress', handleProgress);
+            chatSocket.off('ai_stream_start', handleStreamStart);
+            chatSocket.off('ai_stream_chunk', handleStreamChunk);
+            chatSocket.off('ai_stream_complete', handleStreamComplete);
+            chatSocket.off('ai_stream_error', handleStreamError);
+            chatSocket.off('disconnect', handleDisconnect);
+            chatSocket.off('connect', handleConnect);
+            disconnectChatSocket(registrationDisconnectHandler);
+        };
+    }, []);
 
     // Khởi tạo tin nhắn chào mừng (Chỉ còn AI)
     useEffect(() => {
@@ -39,10 +102,41 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
         ]);
     }, []);
 
-    // Tự động cuộn
+    // Một scroll container ổn định: chỉ auto-follow khi người dùng đang ở gần cuối.
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, isLoading]);
+        if (!isOpen) return undefined;
+        const container = chatScrollRef.current;
+        if (!container) return undefined;
+        const handleScroll = () => {
+            const scrollState = updateAutoFollowFromScroll(container, DEFAULT_NEAR_BOTTOM_PX);
+            autoFollowRef.current = scrollState.autoFollow;
+            setShowScrollToBottom(previous => previous === scrollState.showScrollToBottom ? previous : scrollState.showScrollToBottom);
+        };
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || !autoFollowRef.current) return undefined;
+        if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = requestAnimationFrame(() => {
+            const container = chatScrollRef.current;
+            if (container && autoFollowRef.current) container.scrollTop = container.scrollHeight;
+            scrollFrameRef.current = null;
+        });
+        return () => {
+            if (scrollFrameRef.current) cancelAnimationFrame(scrollFrameRef.current);
+            scrollFrameRef.current = null;
+        };
+    }, [messages, isOpen]);
+
+    const scrollToBottom = () => {
+        autoFollowRef.current = true;
+        setShowScrollToBottom(false);
+        const container = chatScrollRef.current;
+        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    };
 
     // Tự động giãn Textarea
     useEffect(() => {
@@ -126,20 +220,33 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
 
         if (!input.trim() || isLoading) return;
 
-        const userMsg = { id: Date.now(), text: input, isBot: false };
-        setMessages(prev => [...prev, userMsg]);
         const question = input;
-        setInput("");
         setIsLoading(true);
+        const registration = progressListenerAttachedRef.current
+            ? await ensureChatSocketRegistered()
+            : { ok: false, tabId: getChatTabId(), code: 'LISTENER_NOT_READY' };
+        const requestId = crypto.randomUUID();
+        const userMsg = { id: Date.now(), text: input, isBot: false };
+        const pendingMessage = {
+            id: `ai-${requestId}`,
+            requestId,
+            isBot: true,
+            state: 'progress',
+            text: '',
+            progress: [],
+            lastSeq: 0,
+            progressTerminal: false,
+            receivedChunkIds: [],
+            connectionDegraded: !registration.ok
+        };
+        setMessages(prev => [...prev, userMsg, pendingMessage]);
+        setInput("");
         setIsSaved(false);
 
         try {
-            const res = await aiClient.ask(question);
-            setMessages(prev => [...prev, {
-                id: Date.now() + 1,
-                text: res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?",
-                isBot: true
-            }]);
+            const res = await aiClient.ask(question, undefined, { requestId, tabId: registration.tabId });
+            const answer = res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?";
+            setMessages(prev => finalizeProgressMessage(prev, requestId, { ...res, answer }));
 
             // 2. Tăng lượt đếm sau khi AI trả lời thành công (chỉ áp dụng cho khách)
             if (!isLoggedIn) {
@@ -148,7 +255,14 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                 localStorage.setItem("legai_guest_count", newCount.toString());
             }
         } catch (error) {
-            setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.", isBot: true }]);
+            setMessages(prev => prev.map(message => message.requestId === requestId ? {
+                ...message,
+                state: 'error',
+                text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.",
+                progress: [],
+                progressTerminal: true,
+                connectionDegraded: false
+            } : message));
         } finally {
             setIsLoading(false);
         }
@@ -283,7 +397,8 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                 </div>
 
                 {/* CHAT BODY */}
-                <div className="flex-1 p-5 overflow-y-auto space-y-5 custom-scrollbar bg-zinc-50/50 overscroll-contain">
+                <div className="relative flex-1 min-h-0 bg-zinc-50/50">
+                <div ref={chatScrollRef} className="h-full p-5 overflow-y-auto space-y-5 custom-scrollbar overscroll-contain">
                     <AnimatePresence mode='popLayout'>
                         {messages.map((msg) => (
                             <motion.div
@@ -298,10 +413,14 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                                     }`}>
 
                                     {msg.isBot ? (
+                                        msg.state === 'progress' ? (
+                                            <ChatProgress message={msg} />
+                                        ) :
                                         msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
                                             <LawyerCard />
                                         ) : (
                                             <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
+                                                {msg.connectionDegraded && <p className="not-prose mb-2 text-xs text-amber-700">{msg.realtimeMessage || 'Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…'}</p>}
                                                 <ReactMarkdown
                                                     components={{
                                                         // đường link trích dẫn pháp lý
@@ -328,17 +447,17 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
                         ))}
                     </AnimatePresence>
 
-                    {/* HIỆU ỨNG LOADING  */}
-                    {isLoading && (
-                        <div className="flex justify-start">
-                            <div className="bg-white border border-zinc-200 rounded-2xl rounded-tl-none p-4 flex gap-1.5 shadow-sm">
-                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce"></div>
-                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                <div className="w-1.5 h-1.5 bg-[#B8985D] rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                            </div>
-                        </div>
-                    )}
-                    <div ref={messagesEndRef} />
+                </div>
+                {showScrollToBottom && (
+                    <button
+                        type="button"
+                        onClick={scrollToBottom}
+                        aria-label="Về cuối cuộc trò chuyện"
+                        className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-bold text-zinc-600 shadow-md backdrop-blur hover:text-[#8E6D45]"
+                    >
+                        ↓ Về cuối
+                    </button>
+                )}
                 </div>
 
 

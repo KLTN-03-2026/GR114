@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import AdminSidebar from '../../components/AdminSidebar';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import LegalDocumentContent from '../../components/LegalDocumentContent';
 import {
     Plus, Edit2, Trash2, Eye, Search, Filter,
     AlertTriangle, CheckCircle2, XCircle, Loader2,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000/api/admin/legal-documents';
+const DEFAULT_STATUSES = ['Chưa có hiệu lực', 'Còn hiệu lực', 'Còn hiệu lực một phần', 'Hết hiệu lực một phần', 'Hết hiệu lực', 'Không xác định'];
 const VALID_CATEGORIES = [
     "Bộ máy hành chính", "Cán bộ - Công chức", "Tài chính nhà nước", "Thuế - Phí - Lệ phí",
     "Kế toán - Kiểm toán", "Tiền tệ - Ngân hàng", "Chứng khoán", "Bảo hiểm", "Doanh nghiệp",
@@ -20,37 +20,6 @@ const VALID_CATEGORIES = [
     "Nông nghiệp - Nông thôn", "Bất động sản", "Xây dựng - Đô thị", "Giao thông - Vận tải",
     "Công nghệ thông tin", "Khoa học - Công nghệ", "Sở hữu trí tuệ", "Hiến pháp", "Lĩnh vực khác"
 ];
-
-// Hàm làm sạch nội dung bằng cách loại bỏ phần header dư thừa
-const getCleanContent = (content) => {
-    if (!content) return '';
-
-    const lines = content.split('\n');
-    const keywords = ['QUYẾT ĐỊNH:', 'Điều 1.', 'CHƯƠNG', 'Lệnh:'];
-
-    // Tìm dòng đầu tiên chứa các từ khóa
-    const startIndex = lines.findIndex(line =>
-        keywords.some(keyword => new RegExp(keyword, 'i').test(line))
-    );
-
-    // Nếu tìm thấy, cắt bỏ phần trước đó; nếu không, giữ nguyên
-    if (startIndex > 0) {
-        return lines.slice(startIndex).join('\n').trim();
-    }
-
-    return content.trim();
-};
-
-const parseLegalContentToHTML = (content) => {
-    if (!content) return null;
-
-
-    return (
-        <div className="whitespace-pre-wrap text-[14.5px] leading-relaxed text-justify font-serif text-gray-900">
-            {content}
-        </div>
-    );
-};
 
 const normalizeForSearch = (value) => String(value || '')
     .normalize('NFD')
@@ -101,9 +70,25 @@ const highlightTitleMatch = (title, searchTerm) => {
     return parts;
 };
 
+const formatAdminDate = (value) => {
+    if (!value) return '—';
+    const match = String(value).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[3]}/${match[2]}/${match[1]}` : '—';
+};
+
+const getStatusTextClass = (status) => {
+    if (!status || status === 'Không xác định') return 'text-gray-500';
+    if (status.includes('Còn hiệu lực')) return 'text-green-600';
+    if (status.includes('Hết hiệu lực')) return 'text-red-600';
+    if (status === 'Chưa có hiệu lực') return 'text-amber-600';
+    return 'text-gray-500';
+};
+
 export default function LegalDataManager() {
     const [lawData, setLawData] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [documentTypes, setDocumentTypes] = useState([]);
+    const [statuses, setStatuses] = useState(DEFAULT_STATUSES);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -112,6 +97,7 @@ export default function LegalDataManager() {
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
+    const [filterDocumentType, setFilterDocumentType] = useState('');
     const [activeMenuId, setActiveMenuId] = useState(null);
     const latestRequestId = useRef(0);
 
@@ -130,9 +116,12 @@ export default function LegalDataManager() {
         title: '',
         documentNumber: '',
         issueYear: '',
+        documentType: 'Chưa xác định',
+        issueDate: '',
+        effectiveDate: '',
         category: '',
         content: '',
-        status: 'Còn hiệu lực',
+        status: 'Không xác định',
         sourceUrl: ''
     });
 
@@ -149,6 +138,17 @@ export default function LegalDataManager() {
             }
         };
         fetchCategories();
+        const fetchMetadataOptions = async () => {
+            try {
+                const token = localStorage.getItem('accessToken');
+                const res = await axios.get(`${API_BASE}/metadata-options`, { headers: { Authorization: `Bearer ${token}` } });
+                if (res.data.success) {
+                    setDocumentTypes(res.data.data.documentTypes || []);
+                    setStatuses(res.data.data.statuses || DEFAULT_STATUSES);
+                }
+            } catch (error) { console.error('Không lấy được taxonomy metadata:', error); }
+        };
+        fetchMetadataOptions();
     }, []);
 
     const fetchLawData = async ({ signal, requestId } = {}) => {
@@ -160,7 +160,8 @@ export default function LegalDataManager() {
                 limit: 10,
                 search: debouncedSearchQuery,
                 category: filterCategory,
-                status: filterStatus
+                status: filterStatus,
+                documentType: filterDocumentType
             };
 
             const response = await axios.get(API_BASE, {
@@ -202,7 +203,7 @@ export default function LegalDataManager() {
         fetchLawData({ signal: controller.signal, requestId });
 
         return () => controller.abort();
-    }, [currentPage, debouncedSearchQuery, filterCategory, filterStatus]);
+    }, [currentPage, debouncedSearchQuery, filterCategory, filterStatus, filterDocumentType]);
 
     const handleFormChange = (e) => {
         const { name, value } = e.target;
@@ -245,9 +246,12 @@ export default function LegalDataManager() {
             title: doc.Title || '',
             documentNumber: doc.DocumentNumber || '',
             issueYear: doc.IssueYear || '',
+            documentType: doc.DocumentType || 'Chưa xác định',
+            issueDate: doc.IssueDate ? String(doc.IssueDate).slice(0, 10) : '',
+            effectiveDate: doc.EffectiveDate ? String(doc.EffectiveDate).slice(0, 10) : '',
             category: doc.Category || '',
             content: doc.Content || '',
-            status: doc.Status || 'Còn hiệu lực',
+            status: doc.Status || 'Không xác định',
             sourceUrl: doc.SourceUrl || ''
         });
         setShowEditModal(true);
@@ -269,6 +273,9 @@ export default function LegalDataManager() {
                 title: formData.title,
                 documentNumber: formData.documentNumber,
                 issueYear: formData.issueYear,
+                documentType: formData.documentType,
+                issueDate: formData.issueDate || null,
+                effectiveDate: formData.effectiveDate || null,
                 category: formData.category || 'Lĩnh vực khác',
                 status: formData.status,
                 sourceUrl: formData.sourceUrl,
@@ -351,9 +358,12 @@ export default function LegalDataManager() {
             title: '',
             documentNumber: '',
             issueYear: '',
+            documentType: 'Chưa xác định',
+            issueDate: '',
+            effectiveDate: '',
             category: '',
             content: '',
-            status: 'Còn hiệu lực',
+            status: 'Không xác định',
             sourceUrl: ''
         });
         setSelectedDoc(null);
@@ -435,77 +445,71 @@ export default function LegalDataManager() {
                             Chưa có hiệu lực
                         </option>
                     </select>
+                    <select
+                        value={filterDocumentType}
+                        onChange={(e) => { setFilterDocumentType(e.target.value); setCurrentPage(1); }}
+                        className="bg-white border border-gray-200 text-gray-900 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                        <option value="">Tất cả loại văn bản</option>
+                        {documentTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
                 </div>
 
                 {/* Table Section */}
                 <section className={`${glassClass} rounded-[2.5rem] p-6 overflow-visible`}>
-                    <div className="overflow-x-visible">
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse table-fixed">
                             <thead>
                                 <tr className="text-[11px] uppercase tracking-[0.2em] text-gray-900 font-black border-b border-gray-200">
-                                    <th className="px-6 py-4 w-[30%]">Điều Luật </th>
-                                    <th className="px-6 py-4 w-[30%]">Phân loại</th>
-                                    <th className="px-6 py-4 w-[20%]">Hiệu Lực</th>
-                                    <th className="px-6 py-4 w-[25%]">Trạng thái DATA</th>
-                                    <th className="px-6 py-4 w-[10%] text-right"></th>
+                                    <th className="px-4 py-4 w-[52%]">Văn bản</th>
+                                    <th className="px-4 py-4 w-[29%]">Thông tin pháp lý</th>
+                                    <th className="px-4 py-4 w-[14%]">Trạng thái DATA</th>
+                                    <th className="px-3 py-4 w-[5%] text-right"></th>
                                 </tr>
                             </thead>
                             <tbody className="text-sm text-gray-700">
                                 {loading && lawData.length === 0 ? (
                                     <tr>
-                                        <td colSpan="5" className="py-20 text-center">
+                                        <td colSpan="4" className="py-20 text-center">
                                             <Loader2 className="animate-spin mx-auto mb-2 text-amber-600" size={32} />
                                             <span className="text-[10px] uppercase tracking-widest text-gray-500">Đang đồng bộ dữ liệu...</span>
                                         </td>
                                     </tr>
                                 ) : lawData.length === 0 ? (
                                     <tr>
-                                        <td colSpan="5" className="py-20 text-center text-gray-500 uppercase text-[10px] tracking-widest">
+                                        <td colSpan="4" className="py-20 text-center text-gray-500 uppercase text-[10px] tracking-widest">
                                             Không tìm thấy văn bản phù hợp.
                                         </td>
                                     </tr>
                                 ) : (
                                     lawData.map((item) => (
                                         <tr key={item.Id} className="border-b border-gray-100 hover:bg-gray-50 transition-all group">
-                                            <td className="px-6 py-4 overflow-hidden">
-                                                <div className="font-bold text-gray-900 truncate w-full group-hover:text-amber-600 transition-colors" title={item.Title}>
+                                            <td className="px-4 py-4 overflow-hidden align-top">
+                                                <div className="font-bold text-[14px] leading-5 text-gray-900 w-full group-hover:text-amber-600 transition-colors overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={item.Title}>
                                                     {highlightTitleMatch(item.Title, debouncedSearchQuery)}
                                                 </div>
-                                                <div className="text-[11px] text-gray-500 truncate w-full italic mt-0.5 opacity-60">
-                                                    {item.ContentPreview || 'Bản xem trước không khả dụng'}
+                                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+                                                    <span>Trạng thái: <b className={getStatusTextClass(item.Status)}>{item.Status || '—'}</b></span>
+                                                    {item.SourceUrl && <a href={item.SourceUrl} target="_blank" rel="noreferrer" className="max-w-[240px] truncate text-amber-600 hover:underline" title={item.SourceUrl}>Nguồn văn bản</a>}
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase truncate max-w-full">
-                                                    {item.Category || 'Chưa phân loại'}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${item.Status === 'Còn hiệu lực' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                                    <span className="text-[11px] font-bold whitespace-nowrap text-gray-900">{item.Status}</span>
+                                            <td className="px-4 py-4 align-top">
+                                                <div className="text-[11px] leading-5 text-gray-600">
+                                                    <div>Ngày ban hành: <b className="font-semibold text-gray-800">{formatAdminDate(item.IssueDate)}</b></div>
+                                                    <div>Ngày hiệu lực: <b className="font-semibold text-gray-800">{formatAdminDate(item.EffectiveDate)}</b></div>
+                                                    <div>Ngày hết hiệu lực: <b className="font-semibold text-gray-800">—</b></div>
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-1.5" title="SQL Server Storage">
-                                                        <div className={`w-1 h-1 rounded-full ${item.SyncStatusSsms === 'success' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">DB</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5" title="Pinecone Vectorized">
-                                                        <div className={`w-1 h-1 rounded-full ${item.SyncStatusPinecone === 'success' ? 'bg-purple-500' : 'bg-red-500'}`}></div>
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter font-mono">PINE</span>
-                                                    </div>
-                                                    {item.SyncStatusPinecone === 'success' && (
-                                                        <span className="text-[8px] font-black bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded border border-amber-500/20">VECTORED</span>
-                                                    )}
+                                            <td className="px-4 py-4 align-top">
+                                                <div className="flex flex-col items-start gap-1.5">
+                                                    {item.SyncStatusSsms === 'success' && <div className="flex items-center gap-1.5" title="SQL Server Storage"><div className="w-1 h-1 rounded-full bg-amber-500"></div><span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">DB</span></div>}
+                                                    {item.SyncStatusPinecone === 'success' && <div className="flex items-center gap-1.5" title="Pinecone Vectorized"><div className="w-1 h-1 rounded-full bg-purple-500"></div><span className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter font-mono">PINE</span></div>}
                                                 </div>
                                             </td>
 
-                                            <td className="px-6 py-4 text-right relative">
+                                            <td className="px-3 py-4 text-right align-top relative">
                                                 <button
                                                     onClick={() => setActiveMenuId(activeMenuId === item.Id ? null : item.Id)}
                                                     className={`p-2 rounded-xl transition-all ${activeMenuId === item.Id ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'hover:bg-gray-100 text-gray-600'}`}
@@ -661,11 +665,15 @@ export default function LegalDataManager() {
                                             onChange={handleFormChange}
                                             className="w-full bg-white border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                                         >
-                                            <option className="bg-white text-gray-900" value="Còn hiệu lực">Còn hiệu lực</option>
-                                            <option className="bg-white text-gray-900" value="Hết hiệu lực">Hết hiệu lực</option>
-                                            <option className="bg-white text-gray-900" value="Chưa có hiệu lực">Chưa có hiệu lực</option>
+                                            {statuses.map(status => <option className="bg-white text-gray-900" key={status} value={status}>{status}</option>)}
                                         </select>
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Loại văn bản</label><select name="documentType" value={formData.documentType} onChange={handleFormChange} className="w-full bg-white border border-gray-200 px-3 py-2 rounded-xl">{documentTypes.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Ngày ban hành</label><input type="date" name="issueDate" value={formData.issueDate} onChange={handleFormChange} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl" /></div>
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Ngày hiệu lực</label><input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleFormChange} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl" /></div>
                                 </div>
 
                                 <div>
@@ -788,11 +796,15 @@ export default function LegalDataManager() {
                                             onChange={handleFormChange}
                                             className="w-full bg-white border border-gray-200 text-gray-900 px-3 py-2 rounded-xl outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
                                         >
-                                            <option className="bg-white text-gray-900" value="Còn hiệu lực">Còn hiệu lực</option>
-                                            <option className="bg-white text-gray-900" value="Hết hiệu lực">Hết hiệu lực</option>
-                                            <option className="bg-white text-gray-900" value="Chưa có hiệu lực">Chưa có hiệu lực</option>
+                                            {statuses.map(status => <option className="bg-white text-gray-900" key={status} value={status}>{status}</option>)}
                                         </select>
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Loại văn bản</label><select name="documentType" value={formData.documentType} onChange={handleFormChange} className="w-full bg-white border border-gray-200 px-3 py-2 rounded-xl">{documentTypes.map(type => <option key={type} value={type}>{type}</option>)}</select></div>
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Ngày ban hành</label><input type="date" name="issueDate" value={formData.issueDate} onChange={handleFormChange} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl" /></div>
+                                    <div><label className="block text-xs font-bold uppercase tracking-widest text-gray-600 mb-2">Ngày hiệu lực</label><input type="date" name="effectiveDate" value={formData.effectiveDate} onChange={handleFormChange} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl" /></div>
                                 </div>
 
                                 <div>
@@ -891,20 +903,9 @@ export default function LegalDataManager() {
                                             </div>
                                         </div>
 
-                                        {/* Tiêu đề văn bản luật mới  */}
-                                        <div className="text-center my-6 px-6 flex-shrink-0">
-                                            <h3 className="text-[16px] font-bold uppercase leading-snug text-gray-900 max-w-3xl mx-auto" style={{ fontFamily: "'Times New Roman', Times, serif" }}>
-                                                {selectedDoc?.Title}
-                                            </h3>
+                                        <div className="mt-4 flex-1 text-gray-900 w-full">
+                                            <LegalDocumentContent content={selectedDoc?.Content} title={selectedDoc?.Title} />
                                         </div>
-                                        {/* VÙNG ĐỌC LUẬT */}
-                                        <div className="mt-4 flex-1 font-serif text-[14.5px] text-gray-900 leading-[1.6] text-justify w-full whitespace-pre-wrap"
-                                         style={{
-                                            fontFamily: "'Times New Roman', Times, serif", 
-                                            color: '#000'
-                                        }}>      
-                                        {selectedDoc?.Content}
-                                    </div>
                                     </div>
                                 )}
                         </div>

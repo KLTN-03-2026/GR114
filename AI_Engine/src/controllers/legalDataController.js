@@ -1,15 +1,22 @@
 const legalDataService = require('../services/legalDataService');
 const { CANONICAL_CATEGORIES } = require('../constants/legalCategories');
+const { DOCUMENT_TYPES, LEGAL_STATUSES } = require('../constants/legalMetadata');
+
+exports.getMetadataOptions = (req, res) => res.json({
+    success: true,
+    data: { documentTypes: [...DOCUMENT_TYPES], statuses: [...LEGAL_STATUSES] }
+});
 
 const getLegalDocuments = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = '', category = '', status = '' } = req.query;
+        const { page = 1, limit = 10, search = '', category = '', status = '', documentType = '' } = req.query;
         const result = await legalDataService.getLegalDocuments({
             page: parseInt(page, 10),
             limit: parseInt(limit, 10),
             search,
             category,
-            status
+            status,
+            documentType
         });
 
         res.json({ success: true, ...result });
@@ -92,3 +99,4 @@ module.exports = {
     getDocumentChunks,
     getCategories,
 };
+module.exports.getMetadataOptions = exports.getMetadataOptions;

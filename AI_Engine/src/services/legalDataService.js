@@ -1,24 +1,45 @@
 const { sql, pool, poolConnect } = require('../config/db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { Pinecone } = require('@pinecone-database/pinecone');
 const { chunkText } = require('../utils/chunkingUtils');
 const { normalizeLegalCategory } = require('../constants/legalCategories');
+const {
+    inferDocumentType,
+    normalizeLegalStatus,
+    normalizeSqlDate,
+    parseIssueDateString
+} = require('../constants/legalMetadata');
+const SystemConfig = require('../config/SystemConfig');
+const { getLegalPineconeIndex } = require('./legalPineconeService');
+const {
+    SYNC_STATUS,
+    getLegalDocumentId
+} = require('./legalIngestionContract');
+const {
+    listLegalDocumentVectorIds,
+    updateLegalDocumentMetadata,
+    replaceLegalDocumentVectors
+} = require('./legalVectorSyncService');
+const {
+    DOCUMENT_CHANGE_STATE,
+    classifyLegalDocumentChange,
+    logDocumentChange
+} = require('./legalDocumentChangeService');
 
-const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX || 'legai-index';
 let genAI;
 let embedModel;
-let pineconeClient;
-let pineconeIndex;
+let currentGeminiKey = '';
 
-const initCloudServices = () => {
-    if (!genAI) {
-        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
+const initCloudServices = ({ embeddingRequired = true } = {}) => {
+    if (embeddingRequired) {
+        const activeKey = SystemConfig.geminiApiKey || process.env.GEMINI_API_KEY;
+        if (!activeKey) throw new Error('Missing canonical Gemini API key.');
+        if (!genAI || currentGeminiKey !== activeKey) {
+            genAI = new GoogleGenerativeAI(activeKey);
+            embedModel = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
+            currentGeminiKey = activeKey;
+        }
     }
-    if (!pineconeClient) {
-        pineconeClient = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-        pineconeIndex = pineconeClient.index(PINECONE_INDEX_NAME);
-    }
+    return { embedModel, pineconeIndex: getLegalPineconeIndex() };
 };
 
 const updateSyncStatus = async (documentId, ssmsStatus, pineconeStatus) => {
@@ -34,210 +55,193 @@ const updateSyncStatus = async (documentId, ssmsStatus, pineconeStatus) => {
             WHERE Id = @id
         `);
 };
-const upsertLegalData = async (data, isUpdate = false) => {
+const upsertLegalData = async (data, isUpdate = false, options = {}) => {
     await poolConnect;
-
-    const requestedCategory = data.category || 'Lĩnh vực khác';
-    const normalizedCategory = normalizeLegalCategory(requestedCategory);
-    if (!normalizedCategory) {
-        throw new Error(`Category requires manual reclassification: ${requestedCategory}`);
-    }
-    initCloudServices();
-
-    let documentId;
-    let ssmsStatus = 'syncing';
-    let pineconeStatus = 'syncing';
-
-
-
+    let documentId = isUpdate && data.id
+        ? getLegalDocumentId({ id: data.id })
+        : getLegalDocumentId({ documentNumber: data.documentNumber || data.title });
+    let sqlPersisted = false;
+    let classification;
     try {
-        let finalContent = data.content;
-        let shouldReVectorize = true;
+        const existingResult = await pool.request()
+            .input('id', sql.NVarChar(500), documentId)
+            .query(`
+                SELECT Id, Title, DocumentNumber, DocumentType, IssueYear, IssueDate,
+                       IssueDateString, EffectiveDate, Status, Category, Content,
+                       SourceUrl, Agency, ContentHash, SyncStatusSsms, SyncStatusPinecone
+                FROM dbo.LegalDocuments WHERE Id = @id
+            `);
+        const existing = existingResult.recordset[0] || null;
+        const requestedCategory = data.category ?? existing?.Category ?? 'Lĩnh vực khác';
+        const normalizedCategory = normalizeLegalCategory(requestedCategory);
+        if (!normalizedCategory) throw new Error(`Category requires manual reclassification: ${requestedCategory}`);
 
-        // 1. TẠO ID NHẤT QUÁN: Ưu tiên Số hiệu văn bản -> Nếu không có mới dùng Tiêu đề
-        // Ưu tiên Số hiệu văn bản làm ID để khớp với dữ liệu Crawl
-        const idSource = (data.documentNumber && data.documentNumber.trim() !== '')
-            ? data.documentNumber
-            : data.title;
-        documentId = convertLegalStringToSlug(idSource);
+        const issueDateString = data.issueDateString ?? existing?.IssueDateString ?? null;
+        const hasIssueDate = Object.prototype.hasOwnProperty.call(data, 'issueDate');
+        const hasEffectiveDate = Object.prototype.hasOwnProperty.call(data, 'effectiveDate');
+        const issueDate = hasIssueDate
+            ? normalizeSqlDate(data.issueDate)
+            : normalizeSqlDate(existing?.IssueDate) ?? parseIssueDateString(issueDateString);
+        const explicitIssueYear = Number(data.issueYear ?? existing?.IssueYear);
+        const issueYear = Number.isInteger(explicitIssueYear) && explicitIssueYear > 0
+            ? explicitIssueYear
+            : issueDate ? Number(issueDate.slice(0, 4)) : null;
+        const incoming = {
+            doc_id: documentId,
+            title: data.title ?? existing?.Title ?? 'Văn bản pháp luật',
+            documentNumber: data.documentNumber ?? existing?.DocumentNumber ?? null,
+            documentType: inferDocumentType({
+                documentType: data.documentType ?? existing?.DocumentType,
+                title: data.title ?? existing?.Title,
+                documentNumber: data.documentNumber ?? existing?.DocumentNumber
+            }),
+            issueYear,
+            issueDate,
+            issueDateString,
+            effectiveDate: hasEffectiveDate
+                ? normalizeSqlDate(data.effectiveDate)
+                : normalizeSqlDate(existing?.EffectiveDate),
+            status: normalizeLegalStatus(data.status ?? existing?.Status),
+            category: normalizedCategory,
+            content: data.content && data.content.trim() !== '' ? data.content : existing?.Content || '',
+            sourceUrl: data.sourceUrl ?? existing?.SourceUrl ?? null,
+            agency: data.agency ?? existing?.Agency ?? ''
+        };
+        classification = classifyLegalDocumentChange(existing, incoming);
+        logDocumentChange(documentId, classification);
 
-        // 2. CHECK TỒN TẠI & XỬ LÝ THEO PHƯƠNG ÁN B (Vá lỗi đồng bộ)
-        if (!isUpdate) {
-            const checkStatus = await pool.request()
-                .input('id', documentId)
-                .query('SELECT SyncStatusSsms, SyncStatusPinecone, Content FROM LegalDocuments WHERE Id = @id');
-
-            const existingDoc = checkStatus.recordset[0];
-
-            if (existingDoc) {
-                if (existingDoc.SyncStatusPinecone === 'success') {
-                    return {
-                        success: false,
-                        error: 'DUPLICATE_DOCUMENT',
-                        message: 'Văn bản đã tồn tại và đã được vector hóa thành công.'
-                    };
-                } else {
-                    // Nếu đã có trong SQL nhưng Pinecone lỗi: Ép sang chế độ Update để vá lỗi
-                    console.log(`[legalDataService] Phát hiện lỗi đồng bộ cho ID: ${documentId}. Tự động chuyển sang Retry Sync.`);
-                    isUpdate = true;
-                    data.id = documentId; // Đảm bảo có ID để chạy query Update bên dưới
-                }
+        if (classification.state === DOCUMENT_CHANGE_STATE.UNCHANGED) {
+            if (!existing.ContentHash) {
+                await pool.request()
+                    .input('id', sql.NVarChar(500), documentId)
+                    .input('contentHash', sql.NVarChar(64), classification.incomingHash)
+                    .query('UPDATE dbo.LegalDocuments SET ContentHash = @contentHash WHERE Id = @id AND ContentHash IS NULL');
             }
+            return {
+                success: true,
+                documentId,
+                changeState: classification.state,
+                embeddingDocuments: 0,
+                syncStatus: { ssms: existing.SyncStatusSsms, pinecone: existing.SyncStatusPinecone }
+            };
         }
 
-        if (isUpdate) {
-            // Dùng ID từ dữ liệu cũ hoặc ID vừa sinh ra ở trên
-            documentId = data.id || documentId;
-
-            // LẤY DATA CŨ ĐỂ SO SÁNH
-            const oldDocResult = await pool.request()
-                .input('id', documentId)
-                .query('SELECT Content FROM LegalDocuments WHERE Id = @id');
-
-            const oldContent = oldDocResult.recordset[0]?.Content || '';
-
-            // Nếu nội dung mới rỗng -> dùng lại nội dung cũ
-            finalContent = (data.content && data.content.trim() !== '') ? data.content : oldContent;
-
-            // KIỂM TRA: Nếu nội dung y hệt cũ -> Không cần tốn tiền chạy lại Embedding/Pinecone
-            if (finalContent === oldContent && oldContent !== '') {
-                shouldReVectorize = false;
-            }
-
-            // CẬP NHẬT SQL
+        const isNew = classification.state === DOCUMENT_CHANGE_STATE.NEW;
+        const isMetadataOnly = classification.state === DOCUMENT_CHANGE_STATE.METADATA_CHANGED;
+        if (isNew) {
             await pool.request()
-                .input('id', documentId)
-                .input('title', data.title)
-                .input('documentNumber', data.documentNumber || null)
-                .input('issueYear', data.issueYear || null)
-                .input('status', data.status || 'Còn hiệu lực')
-                .input('category', normalizedCategory)
-                .input('content', finalContent)
-                .input('sourceUrl', data.sourceUrl || null)
+                .input('id', sql.NVarChar(500), documentId)
+                .input('title', sql.NVarChar(500), incoming.title)
+                .input('documentNumber', sql.NVarChar(100), incoming.documentNumber)
+                .input('documentType', sql.NVarChar(100), incoming.documentType)
+                .input('issueYear', sql.Int, incoming.issueYear)
+                .input('issueDate', sql.Date, incoming.issueDate)
+                .input('issueDateString', sql.NVarChar(500), incoming.issueDateString)
+                .input('effectiveDate', sql.Date, incoming.effectiveDate)
+                .input('status', sql.NVarChar(50), incoming.status)
+                .input('category', sql.NVarChar(100), incoming.category)
+                .input('content', sql.NVarChar(sql.MAX), incoming.content)
+                .input('sourceUrl', sql.NVarChar(1000), incoming.sourceUrl)
+                .input('agency', sql.NVarChar(500), incoming.agency)
                 .query(`
-                    UPDATE LegalDocuments
-                    SET Title = @title,
-                        DocumentNumber = @documentNumber,
-                        IssueYear = @issueYear,
-                        Status = @status,
-                        Category = @category,
-                        Content = @content,
-                        SourceUrl = @sourceUrl,
-                        SyncStatusSsms = 'success',
-                        SyncStatusPinecone = 'syncing'
+                    INSERT INTO dbo.LegalDocuments
+                        (Id, Title, DocumentNumber, DocumentType, IssueYear, IssueDate, IssueDateString,
+                         EffectiveDate, Status, Category, Content, CreatedAt,
+                         SourceUrl, Agency, ContentHash, SyncStatusSsms, SyncStatusPinecone)
+                    VALUES
+                        (@id, @title, @documentNumber, @documentType, @issueYear, @issueDate,
+                         @issueDateString, @effectiveDate, @status, @category, @content,
+                         GETDATE(), @sourceUrl, @agency, NULL, 'success', 'pending')
+                `);
+        } else {
+            await pool.request()
+                .input('id', sql.NVarChar(500), documentId)
+                .input('title', sql.NVarChar(500), incoming.title)
+                .input('documentNumber', sql.NVarChar(100), incoming.documentNumber)
+                .input('documentType', sql.NVarChar(100), incoming.documentType)
+                .input('issueYear', sql.Int, incoming.issueYear)
+                .input('issueDate', sql.Date, incoming.issueDate)
+                .input('issueDateString', sql.NVarChar(500), incoming.issueDateString)
+                .input('effectiveDate', sql.Date, incoming.effectiveDate)
+                .input('status', sql.NVarChar(50), incoming.status)
+                .input('category', sql.NVarChar(100), incoming.category)
+                .input('content', sql.NVarChar(sql.MAX), incoming.content)
+                .input('sourceUrl', sql.NVarChar(1000), incoming.sourceUrl)
+                .input('agency', sql.NVarChar(500), incoming.agency)
+                .input('contentHash', sql.NVarChar(64), classification.incomingHash)
+                .input('metadataOnly', sql.Bit, isMetadataOnly)
+                .query(`
+                    UPDATE dbo.LegalDocuments
+                    SET Title = @title, DocumentNumber = @documentNumber, DocumentType = @documentType,
+                        IssueYear = @issueYear, IssueDate = @issueDate,
+                        IssueDateString = @issueDateString, EffectiveDate = @effectiveDate,
+                        Status = @status, Category = @category, Content = @content,
+                        SourceUrl = @sourceUrl, Agency = @agency,
+                        ContentHash = CASE WHEN @metadataOnly = 1 THEN @contentHash ELSE ContentHash END,
+                        SyncStatusSsms = 'success', SyncStatusPinecone = 'pending'
                     WHERE Id = @id
                 `);
+        }
+        sqlPersisted = true;
 
-
-            // Chỉ xóa vector cũ nếu nội dung có thay đổi
-            if (shouldReVectorize) {
-                try {
-                    // Dùng cú pháp trực tiếp không qua filter: { $eq: ... }
-                    await pineconeIndex.deleteMany({ doc_id: documentId.toString() });
-                } catch (err) { console.warn("Lỗi xóa vector cũ Pinecone:", err.message); }
-            }
-
+        const cloud = initCloudServices({ embeddingRequired: !isMetadataOnly });
+        const listed = await listLegalDocumentVectorIds(cloud.pineconeIndex, documentId);
+        let staleVectorsRemoved = 0;
+        if (isMetadataOnly) {
+            await updateLegalDocumentMetadata(cloud.pineconeIndex, incoming, listed.canonicalIds);
         } else {
-            // LUỒNG INSERT MỚI HOÀN TOÀN
-            console.log(`Generated document ID: ${documentId}`);
-
-
-            // 1. CHÈN LOGIC CHECK TỒN TẠI 
-            if (!isUpdate) {
-                // 1. KIỂM TRA ĐỒNG BỘ 
-                const checkStatus = await pool.request()
-                    .input('id', documentId)
-                    .query('SELECT SyncStatusSsms, SyncStatusPinecone FROM LegalDocuments WHERE Id = @id');
-
-                const existingDoc = checkStatus.recordset[0];
-
-                if (existingDoc) {
-                    if (existingDoc.SyncStatusPinecone === 'success') {
-                        // Nếu đã xanh (Vectored), báo lỗi trùng để tránh rác Pinecone
-                        return {
-                            success: false,
-                            error: 'DUPLICATE_DOCUMENT',
-                            message: 'Văn bản đã tồn tại và đã được vector hóa thành công.'
-                        };
-                    } else {
-                        // Nếu chưa xanh, tự động gọi lại hàm này ở chế độ Update để vá lỗi
-                        console.log(`[legalDataService] Phát hiện lỗi đồng bộ cho ID: ${documentId}. Đang tự động Retry Sync...`);
-                        data.id = documentId; // Gán ID để khớp với luồng Update
-                        return upsertLegalData(data, true);
+            const chunks = chunkText(incoming.content, 1500, 200);
+            const replacement = await replaceLegalDocumentVectors({
+                index: cloud.pineconeIndex,
+                document: incoming,
+                chunks,
+                existingVectorIds: listed.canonicalIds,
+                embedChunks: options.embedChunks || (async texts => {
+                    const values = [];
+                    for (const text of texts) {
+                        const result = await cloud.embedModel.embedContent(text);
+                        values.push(Array.from(result.embedding.values));
                     }
-                }
-            }
-
-
-            // XỬ LÝ INSERT (Văn bản mới)
-            const result = await pool.request()
-                .input('id', documentId)
-                .input('title', data.title)
-                .input('documentNumber', data.documentNumber || null)
-                .input('issueYear', data.issueYear || null)
-                .input('status', data.status || 'Còn hiệu lực')
-                .input('category', normalizedCategory)
-                .input('content', finalContent)
-                .input('sourceUrl', data.sourceUrl || null)
-                .query(`
-                    INSERT INTO LegalDocuments
-                        (Id, Title, DocumentNumber, IssueYear, Status, Category, Content, CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone)
-                    OUTPUT INSERTED.Id
-                    VALUES
-                        (@id, @title, @documentNumber, @issueYear, @status, @category, @content, GETDATE(), @sourceUrl, 'success', 'syncing')
-                `);
-            documentId = result.recordset[0].Id;
+                    return values;
+                })
+            });
+            staleVectorsRemoved = replacement.staleVectorsRemoved;
         }
 
-        ssmsStatus = 'success';
-
-        // 4. CHỈ CHẠY PINECONE NẾU CẦN THIẾT
-        if (shouldReVectorize) {
-            const chunks = chunkText(finalContent, 1500, 200);
-            const vectors = [];
-
-            for (let index = 0; index < chunks.length; index += 1) {
-                const chunk = chunks[index];
-                const embeddingResult = await embedModel.embedContent(chunk);
-                const vectorValues = Array.from(embeddingResult.embedding.values);
-
-                vectors.push({
-                    id: `${documentId}_${index}`,
-                    values: vectorValues,
-                    metadata: {
-                        doc_id: documentId.toString(),
-                        title: data.title,
-                        documentNumber: data.documentNumber || null,
-                        issueYear: data.issueYear || null,
-                        status: data.status || 'Còn hiệu lực',
-                        category: normalizedCategory,
-                        text: chunk
-                    }
-                });
-            }
-
-            if (vectors.length > 0) {
-                await pineconeIndex.upsert(vectors);
-            }
-        }
-
-        pineconeStatus = 'success';
-        await updateSyncStatus(documentId, ssmsStatus, pineconeStatus);
-
-        return { success: true, documentId, syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
+        await pool.request()
+            .input('id', sql.NVarChar(500), documentId)
+            .input('contentHash', sql.NVarChar(64), classification.incomingHash)
+            .input('status', sql.NVarChar(50), SYNC_STATUS.SUCCESS)
+            .query('UPDATE dbo.LegalDocuments SET ContentHash = @contentHash, SyncStatusPinecone = @status WHERE Id = @id');
+        logDocumentChange(documentId, classification, staleVectorsRemoved);
+        return {
+            success: true,
+            documentId,
+            changeState: classification.state,
+            embeddingDocuments: classification.embeddingRequired || isNew ? 1 : 0,
+            staleVectorsRemoved,
+            syncStatus: { ssms: SYNC_STATUS.SUCCESS, pinecone: SYNC_STATUS.SUCCESS }
+        };
     } catch (error) {
         console.error('[legalDataService] upsertLegalData error:', error.message || error);
-        if (ssmsStatus !== 'success') ssmsStatus = 'error';
-        pineconeStatus = 'error';
-        if (documentId) {
-            try { await updateSyncStatus(documentId, ssmsStatus, pineconeStatus); } catch (updateErr) { }
+        if (documentId && sqlPersisted) {
+            try { await updateSyncStatus(documentId, SYNC_STATUS.SUCCESS, SYNC_STATUS.FAILED); } catch (updateErr) { }
         }
-        return { success: false, error: error.message, syncStatus: { ssms: ssmsStatus, pinecone: pineconeStatus } };
+        return {
+            success: false,
+            error: error.message,
+            changeState: classification?.state,
+            staleCleanupFailed: Boolean(error.staleCleanupFailed),
+            syncStatus: {
+                ssms: sqlPersisted ? SYNC_STATUS.SUCCESS : SYNC_STATUS.FAILED,
+                pinecone: SYNC_STATUS.FAILED
+            }
+        };
     }
 };
 const deleteLegalData = async (documentId) => {
     await poolConnect;
-    initCloudServices();
+    const { pineconeIndex } = initCloudServices();
 
     let pineconeStatus = 'syncing';
     let ssmsStatus = 'syncing';
@@ -278,7 +282,7 @@ const deleteLegalData = async (documentId) => {
         };
     }
 };
-const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category = '', status = '' }) => {
+const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category = '', status = '', documentType = '' }) => {
     await poolConnect;
 
     const whereClauses = [];
@@ -305,12 +309,18 @@ const getLegalDocuments = async ({ page = 1, limit = 10, search = '', category =
         countRequest.input('status', sql.NVarChar, status);
         whereClauses.push('Status = @status');
     }
+    if (documentType) {
+        dataRequest.input('documentType', sql.NVarChar, documentType);
+        countRequest.input('documentType', sql.NVarChar, documentType);
+        whereClauses.push('DocumentType = @documentType');
+    }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const offset = (page - 1) * limit;
 
     const query = `
-        SELECT Id, Title, DocumentNumber, IssueYear, Status, Category, LEFT(Content, 240) AS ContentPreview,
+        SELECT Id, Title, DocumentNumber, DocumentType, IssueYear, IssueDate, EffectiveDate,
+               Status, Category, LEFT(Content, 240) AS ContentPreview,
                CreatedAt, SourceUrl, SyncStatusSsms, SyncStatusPinecone
         FROM LegalDocuments
         ${whereSql}
@@ -354,27 +364,13 @@ const getDocumentChunks = async (documentId) => {
  * Ví dụ: "LUẬT ĐẤT ĐAI SỐ 31/2024/QH15, LUẬT NHÀ Ở..." -> "luat-dat-dai-so-31-2024-qh15-luat-nha-o-..."
  */
 const convertLegalStringToSlug = (str) => {
-    if (!str) return '';
-
-    return str
-        .toString()
-        .toLowerCase()
-        .trim()
-        .normalize('NFD') // Tách dấu
-        .replace(/[\u0300-\u036f]/g, '') // Xóa dấu
-        .replace(/[đĐ]/g, 'd') // Xử lý chữ đ
-        // Thay thế TẤT CẢ các ký tự đặc biệt (/, ,, ., :, ;) và khoảng trắng thành dấu '-'
-        // Chỉ giữ lại chữ cái a-z và số 0-9
-        .replace(/[^a-z0-9]+/g, '-')
-        // Xử lý các dấu gạch ngang bị lặp lại (do dấu phẩy + khoảng trắng tạo ra)
-        .replace(/-+/g, '-')
-        // Cắt bỏ dấu gạch ngang ở đầu và cuối chuỗi
-        .replace(/^-+|-+$/g, '');
+    return getLegalDocumentId({ documentNumber: str });
 };
 
 module.exports = {
     upsertLegalData,
     deleteLegalData,
     getLegalDocuments,
-    getDocumentChunks
+    getDocumentChunks,
+    _test: { convertLegalStringToSlug }
 };

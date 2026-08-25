@@ -1,18 +1,7 @@
 const { sql, pool, poolConnect } = require('../config/db');
-const { Pinecone } = require('@pinecone-database/pinecone');
-const axios = require('axios');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const bcrypt = require('bcryptjs');
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-// Khởi tạo Gemini cho embedding
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-const geminiService = require('../services/geminiService');
 const crawlService = require('../services/crawlService');
-// Khởi tạo Pinecone client
-const pc = new Pinecone({
-    apiKey: process.env.PINECONE_API_KEY
-});
+const { getLegalPineconeIndex } = require('../services/legalPineconeService');
 
 const getSystemStats = async (req, res) => {
     try {
@@ -32,8 +21,7 @@ const getSystemStats = async (req, res) => {
         const maxVectors = 100000; // Quota mặc định của gói Free
         try {
 
-            const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index';
-            const index = pc.index(indexName);
+            const index = getLegalPineconeIndex();
 
             // Gọi hàm thống kê
             const stats = await index.describeIndexStats();

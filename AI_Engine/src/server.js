@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const { poolConnect } = require('./config/db');
+const { registerChatSocket } = require('./socket/registerChatSocket');
 
 // 1. Load cấu hình
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -22,6 +23,7 @@ const io = new Server(server, {
     }
 });
 global.io = io;
+registerChatSocket(io);
 
 // 2. Middleware
 app.use(cors({

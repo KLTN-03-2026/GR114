@@ -69,7 +69,9 @@ export default function LegalDocuments() {
         keyword: "",
         fromDate: "",
         toDate: "",
-        category: "Tất cả"
+        category: "Tất cả",
+        documentType: "",
+        status: ""
     });
 
     const [userId, setUserId] = useState(null);
@@ -80,6 +82,7 @@ export default function LegalDocuments() {
     }, []);
     const [documents, setDocuments] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [metadataOptions, setMetadataOptions] = useState({ documentTypes: [], statuses: [] });
     const [loading, setLoading] = useState(true);
     const [debouncedKeyword, setDebouncedKeyword] = useState("");
     const [pagination, setPagination] = useState({
@@ -130,6 +133,12 @@ export default function LegalDocuments() {
         } catch (err) { console.error("Stats error:", err); }
     };
 
+    useEffect(() => {
+        axios.get('http://localhost:8000/api/legal-metadata-options')
+            .then(res => { if (res.data.success) setMetadataOptions(res.data.data); })
+            .catch(error => console.error('Metadata options error:', error));
+    }, []);
+
     const fetchDocuments = async (page = 1, { signal, requestId, keyword = debouncedKeyword } = {}) => {
         setLoading(true);
         try {
@@ -140,6 +149,8 @@ export default function LegalDocuments() {
                 params: {
                     search: normalizedSearch,
                     category: categoryToSend,
+                    documentType: filter.documentType,
+                    status: filter.status,
                     page: page,
                     limit: 10
                 },
@@ -371,7 +382,7 @@ export default function LegalDocuments() {
         latestRequestId.current = requestId;
         fetchDocuments(1, { signal: controller.signal, requestId });
         return () => controller.abort();
-    }, [filter.category, debouncedKeyword]);
+    }, [filter.category, filter.documentType, filter.status, debouncedKeyword]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -439,6 +450,16 @@ export default function LegalDocuments() {
                             Tìm kiếm
                         </button>
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                        <select value={filter.documentType} onChange={e => setFilter(current => ({ ...current, documentType: e.target.value }))} className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#B8985D]">
+                            <option value="">Tất cả loại văn bản</option>
+                            {metadataOptions.documentTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                        <select value={filter.status} onChange={e => setFilter(current => ({ ...current, status: e.target.value }))} className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#B8985D]">
+                            <option value="">Tất cả trạng thái</option>
+                            {metadataOptions.statuses.map(status => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Results Header */}
@@ -469,10 +490,13 @@ export default function LegalDocuments() {
                                                 {isStarred ? '🌟' : '☆'}
                                             </button>
                                         </div>
-                                        <div className="flex gap-4 text-xs text-zinc-500 mb-4">
+                                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-500 mb-4">
                                             <span>Số hiệu: <b className="text-zinc-600">{item.DocumentNumber}</b></span>
-                                            <span>Năm: <b className="text-zinc-600">{item.IssueYear}</b></span>
-                                            <span className={item.Status === "Còn hiệu lực" ? "text-emerald-500" : "text-rose-500"}>● {item.Status}</span>
+                                            <span>Loại: <b className="text-zinc-600">{item.DocumentType || 'Chưa xác định'}</b></span>
+                                            <span>Lĩnh vực: <b className="text-zinc-600">{item.Category}</b></span>
+                                            <span>Ban hành: <b className="text-zinc-600">{item.IssueDate ? new Date(item.IssueDate).toLocaleDateString('vi-VN') : item.IssueYear || '—'}</b></span>
+                                            {item.EffectiveDate && <span>Ngày hiệu lực: <b className="text-zinc-600">{new Date(item.EffectiveDate).toLocaleDateString('vi-VN')}</b></span>}
+                                            <span>Trạng thái: <b className={item.Status === "Còn hiệu lực" ? "text-emerald-600" : "text-zinc-700"}>{item.Status || 'Không xác định'}</b></span>
                                         </div>
                                         <button onClick={() => navigate(`/van-ban/chi-tiet/${item.Id}`)} className="text-[10px] border border-zinc-200 px-4 py-1.5 rounded-lg hover:bg-[#B8985D] hover:text-white transition-all uppercase font-bold tracking-tighter">Xem chi tiết</button>
                                     </div>

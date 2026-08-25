@@ -1,0 +1,1381 @@
+{
+  "metadata": {
+    "name": "live_case_005",
+    "mode": "live",
+    "generatedAt": "2026-08-24T06:32:04.244Z",
+    "datasetSize": 40,
+    "executedCases": 1,
+    "categoryDistribution": {
+      "simple_single_issue": 4,
+      "multi_aspect": 5,
+      "messy_long": 3,
+      "conversational": 3,
+      "current_law": 3,
+      "historical_version": 2,
+      "future_law": 2,
+      "old_vs_new": 3,
+      "document_number": 3,
+      "target_law": 3,
+      "rag_sufficient": 2,
+      "rag_insufficient": 3,
+      "partial_effect": 2,
+      "expired_historical": 2
+    },
+    "metricsByCategory": {
+      "multi_aspect": {
+        "scoredCases": 1,
+        "reviewRequiredCases": 0,
+        "complexity": {
+          "accuracy": 1,
+          "falseSimpleCount": 0,
+          "falseComplexCount": 0
+        },
+        "decomposition": {
+          "issueRecall": 1,
+          "issuePrecision": 1,
+          "overDecompositionCount": 0,
+          "missedRequiredIssues": 0
+        },
+        "retrieval": {
+          "expectedDocumentRecallAt5": null,
+          "expectedEvidenceHitRate": null,
+          "missingRequiredEvidenceCount": 0
+        },
+        "coverage": {
+          "rawLabeledCount": 1,
+          "scorableCount": 1,
+          "actualCompleteCount": 1,
+          "realFalsePositiveCount": 1,
+          "realFalseMissingCount": 0,
+          "benchmarkArtifactCount": 0,
+          "ambiguousReviewCount": 0,
+          "correctCoverageCount": 0,
+          "accuracy": 0
+        },
+        "grounding": {
+          "decisionAccuracy": 1,
+          "unnecessaryGroundingCount": 0,
+          "missedGroundingCount": 0,
+          "groundingRate": 1,
+          "reasonDistribution": {
+            "coverage": 0,
+            "freshness": 0,
+            "targetMismatch": 0,
+            "irrelevantRag": 1,
+            "emptyRag": 0,
+            "other": 0
+          }
+        },
+        "citation": {
+          "expectedDocumentCitationHitRate": null
+        },
+        "operational": {
+          "cases": 1,
+          "decomposerCalls": 1,
+          "embeddingCalls": 3,
+          "finalGeminiCalls": 1,
+          "groundingDecisions": 1,
+          "actualGroundingCalls": 1,
+          "averageDecomposerCallsPerQuery": 1,
+          "averageEmbeddingCallsPerQuery": 3,
+          "averageGeminiCallsPerQuery": 2,
+          "averageGroundingCallsPerQuery": 1,
+          "averageLatencyMs": 82489,
+          "tokens": {
+            "promptTokenCount": 583,
+            "candidatesTokenCount": 153,
+            "totalTokenCount": 736
+          }
+        }
+      }
+    },
+    "topFailures": [
+      {
+        "id": "CASE_005",
+        "reason": "real coverage false-positive: RETRIEVAL_SEMANTIC_ONLY, SELECTOR_TOO_PERMISSIVE, COVERAGE_EXISTENCE_ONLY"
+      }
+    ],
+    "productionMutation": false
+  },
+  "metrics": {
+    "scoredCases": 1,
+    "reviewRequiredCases": 0,
+    "complexity": {
+      "accuracy": 1,
+      "falseSimpleCount": 0,
+      "falseComplexCount": 0
+    },
+    "decomposition": {
+      "issueRecall": 1,
+      "issuePrecision": 1,
+      "overDecompositionCount": 0,
+      "missedRequiredIssues": 0
+    },
+    "retrieval": {
+      "expectedDocumentRecallAt5": null,
+      "expectedEvidenceHitRate": null,
+      "missingRequiredEvidenceCount": 0
+    },
+    "coverage": {
+      "rawLabeledCount": 1,
+      "scorableCount": 1,
+      "actualCompleteCount": 1,
+      "realFalsePositiveCount": 1,
+      "realFalseMissingCount": 0,
+      "benchmarkArtifactCount": 0,
+      "ambiguousReviewCount": 0,
+      "correctCoverageCount": 0,
+      "accuracy": 0
+    },
+    "grounding": {
+      "decisionAccuracy": 1,
+      "unnecessaryGroundingCount": 0,
+      "missedGroundingCount": 0,
+      "groundingRate": 1,
+      "reasonDistribution": {
+        "coverage": 0,
+        "freshness": 0,
+        "targetMismatch": 0,
+        "irrelevantRag": 1,
+        "emptyRag": 0,
+        "other": 0
+      }
+    },
+    "citation": {
+      "expectedDocumentCitationHitRate": null
+    },
+    "operational": {
+      "cases": 1,
+      "decomposerCalls": 1,
+      "embeddingCalls": 3,
+      "finalGeminiCalls": 1,
+      "groundingDecisions": 1,
+      "actualGroundingCalls": 1,
+      "averageDecomposerCallsPerQuery": 1,
+      "averageEmbeddingCallsPerQuery": 3,
+      "averageGeminiCallsPerQuery": 2,
+      "averageGroundingCallsPerQuery": 1,
+      "averageLatencyMs": 82489,
+      "tokens": {
+        "promptTokenCount": 583,
+        "candidatesTokenCount": 153,
+        "totalTokenCount": 736
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "CASE_005",
+      "category": "multi_aspect",
+      "status": "SCORABLE",
+      "question": "Người lao động có quyền gì, nghĩa vụ gì và thời hạn báo trước khi đơn phương chấm dứt hợp đồng là bao lâu?",
+      "expected": {
+        "complexity": "complex",
+        "issues": [
+          {
+            "label": "quyền của người lao động",
+            "required": true
+          },
+          {
+            "label": "nghĩa vụ của người lao động",
+            "required": true
+          },
+          {
+            "label": "thời hạn báo trước",
+            "required": true
+          }
+        ],
+        "targetLaw": null,
+        "targetDocumentNumber": null,
+        "targetYear": null,
+        "expectedEvidence": [],
+        "shouldGround": true,
+        "subjectCoverage": {
+          "status": "SCORABLE",
+          "expectedComplete": false,
+          "diagnosticCauses": [
+            "RETRIEVAL_SEMANTIC_ONLY",
+            "SELECTOR_TOO_PERMISSIVE",
+            "COVERAGE_EXISTENCE_ONLY"
+          ]
+        },
+        "answerPoints": []
+      },
+      "actual": {
+        "complexity": {
+          "candidateComplex": true,
+          "signals": [
+            "multiple_requested_outputs"
+          ],
+          "isComplex": true
+        },
+        "decomposition": {
+          "called": true,
+          "issueCount": 3,
+          "issues": [
+            {
+              "id": "Q1",
+              "query": "Quyền của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật"
+            },
+            {
+              "id": "Q2",
+              "query": "Nghĩa vụ của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật"
+            },
+            {
+              "id": "Q3",
+              "query": "Thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động"
+            }
+          ]
+        },
+        "retrieval": {
+          "top5ByIssue": [
+            {
+              "issueId": "Q1",
+              "query": "Quyền của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "documents": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_610",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n551",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.696196914
+                },
+                {
+                  "id": "69-2020-qh14_chunk_6",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 6",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.695397258
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_172",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 110",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.693724453
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.693182886
+                },
+                {
+                  "id": "DOC-1775801439737-77_chunk_480",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n428",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.692670584
+                }
+              ]
+            },
+            {
+              "issueId": "Q2",
+              "query": "Nghĩa vụ của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "documents": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.710795462
+                },
+                {
+                  "id": "69-2020-qh14_chunk_60",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 46",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.704734445
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702864826
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_166",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 104",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.702220798
+                },
+                {
+                  "id": "69-2020-qh14_chunk_65",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 51",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702189445
+                }
+              ]
+            },
+            {
+              "issueId": "Q3",
+              "query": "Thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động",
+              "documents": [
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_172",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 110",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.719807386
+                },
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.719623089
+                },
+                {
+                  "id": "31-vbhn-bct-2026_chunk_32",
+                  "docId": "31-vbhn-bct-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư quy định về phương pháp xác định và nguyên tắc áp dụng biểu giá chi phí tránh được cho các nhà máy điện năng lượng tái tạo nhỏ; nội dung chính của hợp đồng mua bán điện.",
+                  "article": "Điều 3",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Thuong-mai/Van-ban-hop-nhat-31-VBHN-BCT-2026-Thong-tu-bieu-gia-chi-phi-tranh-duoc-nha-may-dien-tai-tao-nho-703206.aspx",
+                  "score": 0.717664123
+                },
+                {
+                  "id": "12-2022-qh15_chunk_41",
+                  "docId": "12-2022-qh15",
+                  "documentNumber": null,
+                  "title": "Luật Dầu khí số 12/2022/QH15",
+                  "article": "Điều 35",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-dau-khi-so-12-2022-qh15--161042",
+                  "score": 0.702195227
+                },
+                {
+                  "id": "8-vbhn-bnv-2026_chunk_16",
+                  "docId": "8-vbhn-bnv-2026",
+                  "documentNumber": null,
+                  "title": "Nghị định quy định chi tiết một số điều và biện pháp thi hành luật người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng",
+                  "article": "Điều\n14",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Lao-dong-Tien-luong/Van-ban-hop-nhat-8-VBHN-BNV-2026-Nghi-dinh-huong-dan-Luat-Nguoi-lao-dong-Viet-Nam-di-lam-viec-o-nuoc-ngoai-703397.aspx",
+                  "score": 0.695818
+                }
+              ]
+            }
+          ],
+          "selectedIds": [
+            "69-2020-qh14_chunk_6",
+            "69-2020-qh14_chunk_60",
+            "DOC-1775801439737-77_chunk_549",
+            "69-2020-qh14_chunk_63",
+            "69-2020-qh14_chunk_65",
+            "35-2026-tt-bgddt-2026_chunk_166"
+          ],
+          "count": 6,
+          "selectorTraces": [
+            {
+              "issueId": "Q1",
+              "query": "Quyền của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "selectionMode": "clear_separation",
+              "reason": "Clear local relevance separation (finalGap=0.1617, contentGap=0.1639); kept complete sibling group",
+              "ambiguousFallback": false,
+              "selectedEvidence": [
+                {
+                  "id": "69-2020-qh14_chunk_6",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 6",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.695397258,
+                  "issueId": "Q1",
+                  "supportedIssueIds": [
+                    "Q1"
+                  ],
+                  "snippet": "Điều 6. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng có các quyền sau đây: a) Được cung cấp thông tin về chính sách, pháp luật của Việt ",
+                  "selector": {
+                    "pineconeScore": 0.695397258,
+                    "contentScore": 1,
+                    "titleScore": 0.4369606234054167,
+                    "articleScore": 0,
+                    "finalScore": 0.8030331108315589,
+                    "selectionMode": "clear_separation",
+                    "reason": "Clear local relevance separation (finalGap=0.1617, contentGap=0.1639); kept complete sibling group",
+                    "ambiguousFallback": false
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ]
+            },
+            {
+              "issueId": "Q2",
+              "query": "Nghĩa vụ của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "selectionMode": "ambiguous_fallback",
+              "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+              "ambiguousFallback": true,
+              "selectedEvidence": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.710795462,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                  "selector": {
+                    "pineconeScore": 0.710795462,
+                    "contentScore": 0.48321540782647604,
+                    "titleScore": 0.05625180654170384,
+                    "articleScore": 0,
+                    "finalScore": 0.4164617302378423,
+                    "selectionMode": "ambiguous_fallback",
+                    "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                    "ambiguousFallback": true
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "69-2020-qh14_chunk_60",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 46",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.704734445,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 46. Quyền, nghĩa vụ của người lao động do doanh nghiệp dịch vụ đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài với doanh nghi",
+                  "selector": {
+                    "pineconeScore": 0.704734445,
+                    "contentScore": 0.819597875983867,
+                    "titleScore": 0.35201184336186786,
+                    "articleScore": 0,
+                    "finalScore": 0.630266080090641,
+                    "selectionMode": "ambiguous_fallback",
+                    "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                    "ambiguousFallback": true
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702864826,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 49. Quyền, nghĩa vụ của người lao động do đơn vị sự nghiệp đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 và khoản 5 Điều 46 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài",
+                  "selector": {
+                    "pineconeScore": 0.702864826,
+                    "contentScore": 0.819597875983867,
+                    "titleScore": 0.35201184336186786,
+                    "articleScore": 0,
+                    "finalScore": 0.6128864351282846,
+                    "selectionMode": "ambiguous_fallback",
+                    "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                    "ambiguousFallback": true
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_166",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 104",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.702220798,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 104. Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn theo quy định tại ĐKCT, tuân thủ Điều 64 Nghị định",
+                  "selector": {
+                    "pineconeScore": 0.702220798,
+                    "contentScore": 0.4958724674999016,
+                    "titleScore": 0,
+                    "articleScore": 0,
+                    "finalScore": 0.3374847297992265,
+                    "selectionMode": "ambiguous_fallback",
+                    "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                    "ambiguousFallback": true
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "69-2020-qh14_chunk_65",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 51",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702189445,
+                  "issueId": "Q2",
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 51. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết có các quyền sau đây: a) Đ",
+                  "selector": {
+                    "pineconeScore": 0.702189445,
+                    "contentScore": 0.6265386922943088,
+                    "titleScore": 0.35201184336186786,
+                    "articleScore": 0,
+                    "finalScore": 0.4753279688307915,
+                    "selectionMode": "ambiguous_fallback",
+                    "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                    "ambiguousFallback": true
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ]
+            },
+            {
+              "issueId": "Q3",
+              "query": "Thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động",
+              "selectionMode": "clear_separation",
+              "reason": "Clear local relevance separation (finalGap=0.1681, contentGap=0.1618); kept complete sibling group",
+              "ambiguousFallback": false,
+              "selectedEvidence": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.719623089,
+                  "issueId": "Q3",
+                  "supportedIssueIds": [
+                    "Q3"
+                  ],
+                  "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                  "selector": {
+                    "pineconeScore": 0.719623089,
+                    "contentScore": 0.6123241460915351,
+                    "titleScore": 0,
+                    "articleScore": 0,
+                    "finalScore": 0.4957658242042108,
+                    "selectionMode": "clear_separation",
+                    "reason": "Clear local relevance separation (finalGap=0.1681, contentGap=0.1618); kept complete sibling group",
+                    "ambiguousFallback": false
+                  },
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ]
+            }
+          ],
+          "mergedEvidence": [
+            {
+              "id": "69-2020-qh14_chunk_6",
+              "docId": "69-2020-qh14",
+              "documentNumber": null,
+              "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+              "article": "Điều 6",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+              "score": 0.695397258,
+              "supportedIssueIds": [
+                "Q1"
+              ],
+              "snippet": "Điều 6. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng có các quyền sau đây: a) Được cung cấp thông tin về chính sách, pháp luật của Việt ",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            },
+            {
+              "id": "69-2020-qh14_chunk_60",
+              "docId": "69-2020-qh14",
+              "documentNumber": null,
+              "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+              "article": "Điều 46",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+              "score": 0.704734445,
+              "supportedIssueIds": [
+                "Q2"
+              ],
+              "snippet": "Điều 46. Quyền, nghĩa vụ của người lao động do doanh nghiệp dịch vụ đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài với doanh nghi",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            },
+            {
+              "id": "DOC-1775801439737-77_chunk_549",
+              "docId": "DOC-1775801439737-77",
+              "documentNumber": null,
+              "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+              "article": "Điều\n492",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+              "score": 0.710795462,
+              "supportedIssueIds": [
+                "Q2",
+                "Q3"
+              ],
+              "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            },
+            {
+              "id": "69-2020-qh14_chunk_63",
+              "docId": "69-2020-qh14",
+              "documentNumber": null,
+              "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+              "article": "Điều 49",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+              "score": 0.702864826,
+              "supportedIssueIds": [
+                "Q2"
+              ],
+              "snippet": "Điều 49. Quyền, nghĩa vụ của người lao động do đơn vị sự nghiệp đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 và khoản 5 Điều 46 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            },
+            {
+              "id": "69-2020-qh14_chunk_65",
+              "docId": "69-2020-qh14",
+              "documentNumber": null,
+              "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+              "article": "Điều 51",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+              "score": 0.702189445,
+              "supportedIssueIds": [
+                "Q2"
+              ],
+              "snippet": "Điều 51. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết có các quyền sau đây: a) Đ",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            },
+            {
+              "id": "35-2026-tt-bgddt-2026_chunk_166",
+              "docId": "35-2026-tt-bgdđt-2026",
+              "documentNumber": null,
+              "title": "Thông tư 35/2026/TT-BGDĐT",
+              "article": "Điều 104",
+              "issueYear": "",
+              "status": null,
+              "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+              "score": 0.702220798,
+              "supportedIssueIds": [
+                "Q2"
+              ],
+              "snippet": "Điều 104. Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn theo quy định tại ĐKCT, tuân thủ Điều 64 Nghị định",
+              "targetLawMatch": null,
+              "targetVersionMatch": null
+            }
+          ],
+          "perIssue": [
+            {
+              "issueId": "Q1",
+              "issueQuery": "Quyền của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "retrievedCandidates": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_610",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n551",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.696196914
+                },
+                {
+                  "id": "69-2020-qh14_chunk_6",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 6",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.695397258
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_172",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 110",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.693724453
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.693182886
+                },
+                {
+                  "id": "DOC-1775801439737-77_chunk_480",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n428",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.692670584
+                }
+              ],
+              "phase2": {
+                "issueId": "Q1",
+                "query": "Quyền của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+                "selectionMode": "clear_separation",
+                "reason": "Clear local relevance separation (finalGap=0.1617, contentGap=0.1639); kept complete sibling group",
+                "ambiguousFallback": false,
+                "selectedEvidence": [
+                  {
+                    "id": "69-2020-qh14_chunk_6",
+                    "docId": "69-2020-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                    "article": "Điều 6",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                    "score": 0.695397258,
+                    "issueId": "Q1",
+                    "supportedIssueIds": [
+                      "Q1"
+                    ],
+                    "snippet": "Điều 6. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng có các quyền sau đây: a) Được cung cấp thông tin về chính sách, pháp luật của Việt ",
+                    "selector": {
+                      "pineconeScore": 0.695397258,
+                      "contentScore": 1,
+                      "titleScore": 0.4369606234054167,
+                      "articleScore": 0,
+                      "finalScore": 0.8030331108315589,
+                      "selectionMode": "clear_separation",
+                      "reason": "Clear local relevance separation (finalGap=0.1617, contentGap=0.1639); kept complete sibling group",
+                      "ambiguousFallback": false
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  }
+                ]
+              },
+              "finalMergedEvidence": [
+                {
+                  "id": "69-2020-qh14_chunk_6",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 6",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.695397258,
+                  "supportedIssueIds": [
+                    "Q1"
+                  ],
+                  "snippet": "Điều 6. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng có các quyền sau đây: a) Được cung cấp thông tin về chính sách, pháp luật của Việt ",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ],
+              "countedAsCovered": true
+            },
+            {
+              "issueId": "Q2",
+              "issueQuery": "Nghĩa vụ của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+              "retrievedCandidates": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.710795462
+                },
+                {
+                  "id": "69-2020-qh14_chunk_60",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 46",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.704734445
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702864826
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_166",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 104",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.702220798
+                },
+                {
+                  "id": "69-2020-qh14_chunk_65",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 51",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702189445
+                }
+              ],
+              "phase2": {
+                "issueId": "Q2",
+                "query": "Nghĩa vụ của người lao động khi đơn phương chấm dứt hợp đồng lao động theo quy định pháp luật",
+                "selectionMode": "ambiguous_fallback",
+                "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                "ambiguousFallback": true,
+                "selectedEvidence": [
+                  {
+                    "id": "DOC-1775801439737-77_chunk_549",
+                    "docId": "DOC-1775801439737-77",
+                    "documentNumber": null,
+                    "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                    "article": "Điều\n492",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                    "score": 0.710795462,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                    "selector": {
+                      "pineconeScore": 0.710795462,
+                      "contentScore": 0.48321540782647604,
+                      "titleScore": 0.05625180654170384,
+                      "articleScore": 0,
+                      "finalScore": 0.4164617302378423,
+                      "selectionMode": "ambiguous_fallback",
+                      "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                      "ambiguousFallback": true
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  },
+                  {
+                    "id": "69-2020-qh14_chunk_60",
+                    "docId": "69-2020-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                    "article": "Điều 46",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                    "score": 0.704734445,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 46. Quyền, nghĩa vụ của người lao động do doanh nghiệp dịch vụ đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài với doanh nghi",
+                    "selector": {
+                      "pineconeScore": 0.704734445,
+                      "contentScore": 0.819597875983867,
+                      "titleScore": 0.35201184336186786,
+                      "articleScore": 0,
+                      "finalScore": 0.630266080090641,
+                      "selectionMode": "ambiguous_fallback",
+                      "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                      "ambiguousFallback": true
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  },
+                  {
+                    "id": "69-2020-qh14_chunk_63",
+                    "docId": "69-2020-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                    "article": "Điều 49",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                    "score": 0.702864826,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 49. Quyền, nghĩa vụ của người lao động do đơn vị sự nghiệp đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 và khoản 5 Điều 46 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài",
+                    "selector": {
+                      "pineconeScore": 0.702864826,
+                      "contentScore": 0.819597875983867,
+                      "titleScore": 0.35201184336186786,
+                      "articleScore": 0,
+                      "finalScore": 0.6128864351282846,
+                      "selectionMode": "ambiguous_fallback",
+                      "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                      "ambiguousFallback": true
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  },
+                  {
+                    "id": "35-2026-tt-bgddt-2026_chunk_166",
+                    "docId": "35-2026-tt-bgdđt-2026",
+                    "documentNumber": null,
+                    "title": "Thông tư 35/2026/TT-BGDĐT",
+                    "article": "Điều 104",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                    "score": 0.702220798,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 104. Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn theo quy định tại ĐKCT, tuân thủ Điều 64 Nghị định",
+                    "selector": {
+                      "pineconeScore": 0.702220798,
+                      "contentScore": 0.4958724674999016,
+                      "titleScore": 0,
+                      "articleScore": 0,
+                      "finalScore": 0.3374847297992265,
+                      "selectionMode": "ambiguous_fallback",
+                      "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                      "ambiguousFallback": true
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  },
+                  {
+                    "id": "69-2020-qh14_chunk_65",
+                    "docId": "69-2020-qh14",
+                    "documentNumber": null,
+                    "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                    "article": "Điều 51",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                    "score": 0.702189445,
+                    "issueId": "Q2",
+                    "supportedIssueIds": [
+                      "Q2"
+                    ],
+                    "snippet": "Điều 51. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết có các quyền sau đây: a) Đ",
+                    "selector": {
+                      "pineconeScore": 0.702189445,
+                      "contentScore": 0.6265386922943088,
+                      "titleScore": 0.35201184336186786,
+                      "articleScore": 0,
+                      "finalScore": 0.4753279688307915,
+                      "selectionMode": "ambiguous_fallback",
+                      "reason": "Ambiguous relevance separation (finalGap=0.0174, contentGap=0.0000)",
+                      "ambiguousFallback": true
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  }
+                ]
+              },
+              "finalMergedEvidence": [
+                {
+                  "id": "69-2020-qh14_chunk_60",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 46",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.704734445,
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 46. Quyền, nghĩa vụ của người lao động do doanh nghiệp dịch vụ đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài với doanh nghi",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.710795462,
+                  "supportedIssueIds": [
+                    "Q2",
+                    "Q3"
+                  ],
+                  "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "69-2020-qh14_chunk_63",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 49",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702864826,
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 49. Quyền, nghĩa vụ của người lao động do đơn vị sự nghiệp đưa đi làm việc ở nước ngoài 1. Các quyền, nghĩa vụ quy định tại Điều 6 và khoản 5 Điều 46 của Luật này. 2. Ký kết hợp đồng đưa người lao động Việt Nam đi làm việc ở nước ngoài",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "69-2020-qh14_chunk_65",
+                  "docId": "69-2020-qh14",
+                  "documentNumber": null,
+                  "title": "Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14",
+                  "article": "Điều 51",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643",
+                  "score": 0.702189445,
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 51. Quyền, nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết 1. Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết có các quyền sau đây: a) Đ",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                },
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_166",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 104",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.702220798,
+                  "supportedIssueIds": [
+                    "Q2"
+                  ],
+                  "snippet": "Điều 104. Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn Thủ tục, nghĩa vụ, trách nhiệm của các bên khi thực hiện chấm dứt hợp đồng trước thời hạn theo quy định tại ĐKCT, tuân thủ Điều 64 Nghị định",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ],
+              "countedAsCovered": true
+            },
+            {
+              "issueId": "Q3",
+              "issueQuery": "Thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động",
+              "retrievedCandidates": [
+                {
+                  "id": "35-2026-tt-bgddt-2026_chunk_172",
+                  "docId": "35-2026-tt-bgdđt-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư 35/2026/TT-BGDĐT",
+                  "article": "Điều 110",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Dau-tu/Thong-tu-35-2026-TT-BGDDT-dau-tu-theo-phuong-thuc-doi-tac-cong-tu-linh-vuc-giao-duc-dao-tao-703055.aspx",
+                  "score": 0.719807386
+                },
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.719623089
+                },
+                {
+                  "id": "31-vbhn-bct-2026_chunk_32",
+                  "docId": "31-vbhn-bct-2026",
+                  "documentNumber": null,
+                  "title": "Thông tư quy định về phương pháp xác định và nguyên tắc áp dụng biểu giá chi phí tránh được cho các nhà máy điện năng lượng tái tạo nhỏ; nội dung chính của hợp đồng mua bán điện.",
+                  "article": "Điều 3",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Thuong-mai/Van-ban-hop-nhat-31-VBHN-BCT-2026-Thong-tu-bieu-gia-chi-phi-tranh-duoc-nha-may-dien-tai-tao-nho-703206.aspx",
+                  "score": 0.717664123
+                },
+                {
+                  "id": "12-2022-qh15_chunk_41",
+                  "docId": "12-2022-qh15",
+                  "documentNumber": null,
+                  "title": "Luật Dầu khí số 12/2022/QH15",
+                  "article": "Điều 35",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://vbpl.vn/van-ban/chi-tiet/luat-dau-khi-so-12-2022-qh15--161042",
+                  "score": 0.702195227
+                },
+                {
+                  "id": "8-vbhn-bnv-2026_chunk_16",
+                  "docId": "8-vbhn-bnv-2026",
+                  "documentNumber": null,
+                  "title": "Nghị định quy định chi tiết một số điều và biện pháp thi hành luật người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng",
+                  "article": "Điều\n14",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Lao-dong-Tien-luong/Van-ban-hop-nhat-8-VBHN-BNV-2026-Nghi-dinh-huong-dan-Luat-Nguoi-lao-dong-Viet-Nam-di-lam-viec-o-nuoc-ngoai-703397.aspx",
+                  "score": 0.695818
+                }
+              ],
+              "phase2": {
+                "issueId": "Q3",
+                "query": "Thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động",
+                "selectionMode": "clear_separation",
+                "reason": "Clear local relevance separation (finalGap=0.1681, contentGap=0.1618); kept complete sibling group",
+                "ambiguousFallback": false,
+                "selectedEvidence": [
+                  {
+                    "id": "DOC-1775801439737-77_chunk_549",
+                    "docId": "DOC-1775801439737-77",
+                    "documentNumber": null,
+                    "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                    "article": "Điều\n492",
+                    "issueYear": "",
+                    "status": null,
+                    "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                    "score": 0.719623089,
+                    "issueId": "Q3",
+                    "supportedIssueIds": [
+                      "Q3"
+                    ],
+                    "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                    "selector": {
+                      "pineconeScore": 0.719623089,
+                      "contentScore": 0.6123241460915351,
+                      "titleScore": 0,
+                      "articleScore": 0,
+                      "finalScore": 0.4957658242042108,
+                      "selectionMode": "clear_separation",
+                      "reason": "Clear local relevance separation (finalGap=0.1681, contentGap=0.1618); kept complete sibling group",
+                      "ambiguousFallback": false
+                    },
+                    "targetLawMatch": null,
+                    "targetVersionMatch": null
+                  }
+                ]
+              },
+              "finalMergedEvidence": [
+                {
+                  "id": "DOC-1775801439737-77_chunk_549",
+                  "docId": "DOC-1775801439737-77",
+                  "documentNumber": null,
+                  "title": "Bộ luật dân sự 2015 số 91/2015/QH13 áp dụng 2025 mới nhất",
+                  "article": "Điều\n492",
+                  "issueYear": "",
+                  "status": null,
+                  "sourceUrl": "https://thuvienphapluat.vn/van-ban/Quyen-dan-su/Bo-luat-dan-su-2015-296215.aspx",
+                  "score": 0.710795462,
+                  "supportedIssueIds": [
+                    "Q2",
+                    "Q3"
+                  ],
+                  "snippet": "Điều 492. Đơn phương chấm dứt thực hiện hợp đồng thuê khoán 1. Trường hợp một bên đơn phương chấm dứt thực hiện hợp đồng thì phải báo cho bên kia biết trước một thời gian hợp lý; nếu thuê khoán theo thời vụ hoặc theo chu kỳ khai thác thì th",
+                  "targetLawMatch": null,
+                  "targetVersionMatch": null
+                }
+              ],
+              "countedAsCovered": true
+            }
+          ]
+        },
+        "coverage": {
+          "coverageCounts": {
+            "Q1": 1,
+            "Q2": 5,
+            "Q3": 1
+          },
+          "coverageComplete": true,
+          "missingIssueIds": [],
+          "targetVersionSatisfied": true,
+          "expectedComplete": false,
+          "verdict": "REAL_FALSE_POSITIVE",
+          "diagnosticCauses": [
+            "RETRIEVAL_SEMANTIC_ONLY",
+            "SELECTOR_TOO_PERMISSIVE",
+            "COVERAGE_EXISTENCE_ONLY"
+          ]
+        },
+        "grounding": {
+          "decision": true,
+          "executed": true,
+          "mode": "live",
+          "reason": [
+            "rag_irrelevant"
+          ]
+        },
+        "final": {
+          "answer": "**Kết luận:**\nQuyền và nghĩa vụ của người lao động nói chung được điều chỉnh bởi Bộ luật Lao động 2019, với thời hạn báo trước khi đơn phương chấm dứt hợp đồng dao động từ 03 ngày làm việc đến ít nhất 45 ngày tùy thuộc vào loại hợp đồng lao động, hoặc không cần báo trước trong một số trường hợp đặc biệt. Đối với người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng, quyền và nghĩa vụ cụ thể được quy định riêng biệt tại Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng 2020.\n\n**Phân tích:**\n\n**1. Đối với người lao động nói chung (theo Bộ luật Lao động 2019):**\n*   **Quyền của người lao động:** \n    *   Làm việc; tự do lựa chọn việc làm, nơi làm việc, nghề nghiệp, học nghề, nâng cao trình độ nghề nghiệp; không bị phân biệt đối xử, cưỡng bức lao động, quấy rối tình dục tại nơi làm việc.\n    *   Hưởng lương phù hợp với trình độ, kỹ năng nghề trên cơ sở thỏa thuận với người sử dụng lao động; được bảo hộ lao động, làm việc trong điều kiện bảo đảm về an toàn, vệ sinh lao động; nghỉ theo chế độ, nghỉ hằng năm có hưởng lương và được hưởng phúc lợi tập thể.\n    *   Thành lập, gia nhập, hoạt động trong tổ chức đại diện người lao động, tổ chức nghề nghiệp và tổ chức khác theo quy định của pháp luật; yêu cầu và tham gia đối thoại, thực hiện quy chế dân chủ, thương lượng tập thể với người sử dụng lao động và được tham vấn tại nơi làm việc để bảo vệ quyền và lợi ích hợp pháp, chính đáng của mình; tham gia quản lý theo nội quy của người sử dụng lao động.\n    *   Từ chối làm việc nếu có nguy cơ rõ ràng đe dọa trực tiếp đến tính mạng, sức khỏe trong quá trình thực hiện công việc.\n    *   Đơn phương chấm dứt hợp đồng lao động.\n    *   Đình công.\n    *   Các quyền khác theo quy định của pháp luật.\n*   **Nghĩa vụ của người lao động:**\n    *   Thực hiện hợp đồng lao động, thỏa ước lao động tập thể và thỏa thuận hợp pháp khác.\n    *   Chấp hành kỷ luật lao động, nội quy lao động; tuân theo sự quản lý, điều hành, giám sát của người sử dụng lao động.\n    *   Thực hiện quy định của pháp luật về lao động, việc làm, giáo dục nghề nghiệp, bảo hiểm xã hội, bảo hiểm y tế, bảo hiểm thất nghiệp và an toàn, vệ sinh lao động.\n*   **Thời hạn báo trước khi đơn phương chấm dứt hợp đồng lao động:**\n    *   *Ít nhất 45 ngày:* Nếu làm việc theo hợp đồng lao động không xác định thời hạn.\n    *   *Ít nhất 30 ngày:* Nếu làm việc theo hợp đồng lao động xác định thời hạn có thời hạn từ 12 tháng đến 36 tháng.\n    *   *Ít nhất 03 ngày làm việc:* Nếu làm việc theo hợp đồng lao động xác định thời hạn có thời hạn dưới 12 tháng.\n    *   *Đặc thù:* Đối với một số ngành, nghề, công việc đặc thù thì thời hạn báo trước được thực hiện theo quy định của Chính phủ.\n    *   *Không cần báo trước:* Người lao động có quyền đơn phương chấm dứt hợp đồng lao động không cần báo trước trong các trường hợp: không được bố trí đúng công việc, địa điểm hoặc không bảo đảm điều kiện làm việc; không được trả đủ lương hoặc trả lương không đúng thời hạn; bị ngược đãi, đánh đập, nhục mạ; bị quấy rối tình dục tại nơi làm việc; lao động nữ mang thai phải nghỉ việc; đủ tuổi nghỉ hưu; hoặc người sử dụng lao động cung cấp thông tin không trung thực làm ảnh hưởng đến việc thực hiện hợp đồng.\n\n**2. Đối với người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng (theo Luật số 69/2020/QH14):**\n*   **Quyền chung của người lao động:**\n    *   Được cung cấp thông tin về chính sách, pháp luật của Việt Nam và nước tiếp nhận lao động; quyền, nghĩa vụ của các bên khi đi làm việc ở nước ngoài theo hợp đồng.\n    *   Được tư vấn, hỗ trợ để thực hiện quyền, nghĩa vụ và hưởng lợi ích trong hợp đồng lao động, hợp đồng đào tạo nghề.\n    *   Hưởng tiền lương, tiền công, chế độ khám bệnh, chữa bệnh, bảo hiểm xã hội, bảo hiểm tai nạn lao động và quyền lợi, chế độ khác theo hợp đồng lao động; chuyển về nước tiền lương, tiền công, thu nhập, tài sản hợp pháp khác của cá nhân.\n    *   Được bảo hộ, bảo vệ quyền và lợi ích hợp pháp, chính đáng trong thời gian làm việc ở nước ngoài phù hợp với pháp luật Việt Nam, pháp luật nước tiếp nhận và thông lệ quốc tế.\n    *   Đơn phương chấm dứt hợp đồng khi bị người sử dụng lao động ngược đãi, cưỡng bức lao động hoặc có nguy cơ rõ ràng đe dọa trực tiếp đến tính mạng, sức khỏe hoặc bị quấy rối tình dục trong thời gian làm việc ở nước ngoài.\n    *   Hưởng chính sách hỗ trợ về lao động, việc làm và quyền lợi từ Quỹ Hỗ trợ việc làm ngoài nước.\n*   **Quyền và nghĩa vụ theo từng hình thức đi làm việc:**\n    *   *Do doanh nghiệp dịch vụ đưa đi:* Ký kết hợp đồng đưa đi; được bồi thường thiệt hại nếu doanh nghiệp vi phạm hợp đồng; được chấm dứt hợp đồng đưa đi khi doanh nghiệp không thực hiện đúng cam kết; được gia hạn hoặc ký kết hợp đồng lao động mới; thỏa thuận về tiền dịch vụ, tiền ký quỹ hoặc bên bảo lãnh; thanh lý hợp đồng đưa đi trong thời hạn 180 ngày kể từ ngày chấm dứt hợp đồng lao động.\n    *   *Do đơn vị sự nghiệp đưa đi:* Ký kết hợp đồng đưa đi; thỏa thuận về biện pháp ký quỹ, bảo lãnh; được bồi thường thiệt hại nếu đơn vị sự nghiệp vi phạm hợp đồng; thanh lý hợp đồng đưa đi trong thời hạn 180 ngày kể từ ngày chấm dứt hợp đồng lao động.\n    *   *Theo hợp đồng lao động trực tiếp giao kết:* \n        *   *Quyền:* Được cơ quan chuyên môn về lao động cấp tỉnh, cơ quan đại diện Việt Nam ở nước ngoài cung cấp thông tin chính sách, pháp luật; được bảo vệ quyền lợi hợp pháp, tư vấn, hỗ trợ; hưởng quyền lợi từ Quỹ Hỗ trợ việc làm ngoài nước; chuyển tiền lương, thu nhập hợp pháp về nước.\n        *   *Nghĩa vụ:* Đăng ký hợp đồng lao động; thực hiện hợp đồng và nội quy nơi làm việc; tham gia bảo hiểm xã hội, y tế, thất nghiệp theo luật Việt Nam và bảo hiểm theo luật nước tiếp nhận; nộp thuế thu nhập; đóng góp vào Quỹ Hỗ trợ việc làm ngoài nước; đăng ký công dân tại cơ quan đại diện Việt Nam tại nước đến làm việc.\n*   **Thời hạn báo trước khi đơn phương chấm dứt hợp đồng:** Luật số 69/2020/QH14 quy định người lao động đi làm việc ở nước ngoài được quyền đơn phương chấm dứt hợp đồng khi bị ngược đãi, cưỡng bức lao động, quấy rối tình dục hoặc có nguy cơ đe dọa trực tiếp đến tính mạng, sức khỏe mà không quy định cụ thể về thời hạn báo trước cho trường hợp này trong các điều khoản được cung cấp.\n\n**Cơ sở pháp lý:**\n*   Theo [Điều 5 - Bộ luật Lao động 2019](https://vbpl.vn/van-ban/chi-tiet/bo-luat-lao-dong-so-45-2019-qh14--139264), Khoản 1 quy định về quyền của người lao động và Khoản 2 quy định về nghĩa vụ của người lao động.\n*   Theo [Điều 35 - Bộ luật Lao động 2019](https://vbpl.vn/van-ban/chi-tiet/bo-luat-lao-dong-so-45-2019-qh14--139264), Khoản 1 quy định về thời hạn báo trước khi người lao động đơn phương chấm dứt hợp đồng lao động và Khoản 2 quy định các trường hợp người lao động có quyền đơn phương chấm dứt hợp đồng lao động không cần báo trước.\n*   Theo [Điều 6 - Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14](https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643), Khoản 1 quy định về quyền của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng (từ Điểm a đến Điểm e).\n*   Theo [Điều 46 - Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14](https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643), quy định về quyền, nghĩa vụ của người lao động do doanh nghiệp dịch vụ đưa đi làm việc ở nước ngoài (từ Khoản 1 đến Khoản 8).\n*   Theo [Điều 49 - Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14](https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643), quy định về quyền, nghĩa vụ của người lao động do đơn vị sự nghiệp đưa đi làm việc ở nước ngoài (từ Khoản 1 đến Khoản 5).\n*   Theo [Điều 51 - Luật Người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng số 69/2020/QH14](https://vbpl.vn/van-ban/chi-tiet/luat-nguoi-lao-dong-viet-nam-di-lam-viec-o-nuoc-ngoai-theo-hop-dong-so-69-2020-qh14--146643), Khoản 1 quy định về quyền và Khoản 2 quy định về nghĩa vụ của người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng lao động trực tiếp giao kết.\n\n**Lời khuyên:**\nNgười lao động khi có ý định đơn phương chấm dứt hợp đồng lao động cần xác định rõ loại hợp đồng mình đã ký kết (không xác định thời hạn, xác định thời hạn từ 12-36 tháng, hay dưới 12 tháng) để thực hiện nghĩa vụ báo trước đúng thời hạn quy định, tránh việc chấm dứt hợp đồng trái pháp luật dẫn đến các trách nhiệm bồi thường không đáng có. Trong trường hợp người lao động thuộc các đối tượng đặc thù như đi làm việc ở nước ngoài, cần đối chiếu kỹ các cam kết trong hợp đồng đưa đi ký với doanh nghiệp dịch vụ hoặc đơn vị sự nghiệp để tiến hành thanh lý hợp đồng đúng thời hạn 180 ngày theo quy định.\n\n---\n*Nội dung do LegAI cung cấp chỉ mang tính chất tham khảo tra cứu, không thay thế tư vấn pháp lý chính thức.*",
+          "citations": [
+            {
+              "lawName": "luatsuhcm.com",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "**Kết luận:**\nQuyền và nghĩa vụ của người lao động nói chung được điều chỉnh bởi Bộ luật Lao động 2019, với thời hạn báo trước khi đơn phương chấm dứt hợp đồng dao động từ 03 ngày làm việc đến ít nhất 45 ngày tùy thuộc vào loại hợp đồng lao động, hoặc không cần báo trước trong một số trường hợp đặc biệt",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEDSU5w5sf0h-wgnSf1PKLUa3pGmoNAQtPH55oGGNV8D6oCRfYR8-bJ5rm7fq3CiDB_ujzyKRC7hFJ44V2Ha5tkD8m5f4K0o7Y83cuVqlck3n-BoUHmUzIHgecoHHaYh4fjmv1ILFBVfTmpqrG-1V2KEHyK4Am9csmbNlwijVs2AE0KIhJNkZpUxz_1awSyqKaL_DuxUf5DDAqpAXsBDbcL3_6LBs9NGVjD1UxI"
+            },
+            {
+              "lawName": "yplawfirm.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "**Kết luận:**\nQuyền và nghĩa vụ của người lao động nói chung được điều chỉnh bởi Bộ luật Lao động 2019, với thời hạn báo trước khi đơn phương chấm dứt hợp đồng dao động từ 03 ngày làm việc đến ít nhất 45 ngày tùy thuộc vào loại hợp đồng lao động, hoặc không cần báo trước trong một số trường hợp đặc biệt",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFSoNe757Euyy1Y1WEXR6of9lqGQAmV4ZPHnLOkBpckmLWYalkVu6O_xr3MMDgT8QPUhP0kjoTgBC9XMFxgVUjBjC7b3JfNO-sjDiTziFPX9C-oIlRU48x-jhDVlMqfR5IRj9dNrlWaQg-a13i2ytNHwYYguAmBQInLNoV0YlEfmYYxCLmpNTjFT1xrMVhjZO0LwTmuMja6svDhJiY4e03QtGPUpv3AYxYAzFul3MO3LlU="
+            },
+            {
+              "lawName": "thuvienphapluat.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "Đối với người lao động nói chung (theo Bộ luật Lao động 2019):**\n*   **Quyền của người lao động:** \n    *   Làm việc; tự do lựa chọn việc làm, nơi làm việc, nghề nghiệp, học nghề, nâng cao trình độ nghề nghiệp; không bị phân biệt đối xử, cưỡng bức lao động, quấy rối tình dục tại nơi làm việc",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGJlPEhnSqMh2wTcczrsx6JN04bv68743V6u-gzCEKap3JsfnMmIo29-gKuHIOxwzr94F7BUPAdJRcy_Nmpzc7fuwX4aRSzVCdldxky0Vqb52xjXlk71GHdWv_JJY6MollfR1CxFFTgCNpkYL6uk7ReM28mZ6OS54HOFJLcut7sO2mEJii5S2XqA1sw-55obPWKKn0nK3QWB-59pq6xHZYIN7zWTrxi1bElr4mR9tzIOhvIyvzopsXow06s"
+            },
+            {
+              "lawName": "laodongthudo.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "Đối với người lao động nói chung (theo Bộ luật Lao động 2019):**\n*   **Quyền của người lao động:** \n    *   Làm việc; tự do lựa chọn việc làm, nơi làm việc, nghề nghiệp, học nghề, nâng cao trình độ nghề nghiệp; không bị phân biệt đối xử, cưỡng bức lao động, quấy rối tình dục tại nơi làm việc",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEizeCPNuvNarOKsOHJU8C3hHb53bI7GCv_ngYLiQDdSsuDd1lV4QSZQEWrke7pA2QIT33vRaLR2UzCcCr4MYEGtHzQh_Jp-dHVfnJ2h6eFr-mLttazfRidg-KnIfzLUWPRxOhrVjJPt5NAahPSmNqojFQWBf8qGUlCzbJzivZ-QpKoT_gT-HCIWUomVgEGWGu6tzPsZ0OXDjtdK0cI6w=="
+            },
+            {
+              "lawName": "hongbach.vn",
+              "dieu": "",
+              "khoan": "",
+              "quoteSnippet": "*   Chấp hành kỷ luật lao động, nội quy lao động; tuân theo sự quản lý, điều hành, giám sát của người sử dụng lao động",
+              "sourceUrl": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQED75Gdqv5zTLQMGSX4kYv1QY0cY6da1oA930CIsvPlxq2HA4z9sNuOOp1w4b0Hu9hH6AwKL46e21UWfvOaiclG2dZa9B5ZbqJhtf-tA0ZLtbDw-lDUKkUR1zR2SPEmf75GFS6UKiY82Nx1puVZyUCUkA=="
+            }
+          ],
+          "skippedReason": null
+        },
+        "calls": {
+          "decomposer": 1,
+          "embedding": 3,
+          "finalGemini": 1,
+          "grounding": 1,
+          "gemini": 2
+        },
+        "tokens": {
+          "promptTokenCount": 583,
+          "candidatesTokenCount": 153,
+          "totalTokenCount": 736
+        },
+        "latencyMs": {
+          "complexityAndDecomposition": 1467,
+          "retrieval": 5229,
+          "finalGemini": 75791,
+          "total": 82489
+        }
+      }
+    }
+  ]
+}

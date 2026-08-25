@@ -25,6 +25,7 @@ router.post('/auth/reset-password', authController.resetPassword);
 
 // --- Tra cứu văn bản công khai ---
 router.get('/documents', documentController.getAllDocuments);
+router.get('/legal-metadata-options', documentController.getLegalMetadataOptions);
 router.get('/documents/:id', documentController.getDocumentDetail);
 router.get('/document-stats', documentController.getDocumentStats);
 router.get('/source/resolve', sourceController.resolveLink);

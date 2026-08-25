@@ -25,11 +25,11 @@ const aiClient = {
      * Chức năng 1: Chat với Bot (RAG)
     
      */
-    ask: async (question, signal) => {
+    ask: async (question, signal, correlation = {}) => {
         try {
             // SỬA TẠI ĐÂY: Đường dẫn mới khớp với aiRoutes.js
             const response = await axiosInstance.post('/ai/ask', 
-                { question },
+                { question, requestId: correlation.requestId, tabId: correlation.tabId },
                 { signal }
             );
             return response.data;

@@ -1,5 +1,6 @@
 const { sql, pool, poolConnect } = require('../config/db');
 const { CANONICAL_CATEGORIES } = require('../constants/legalCategories');
+const { DOCUMENT_TYPES, LEGAL_STATUSES } = require('../constants/legalMetadata');
 
 /**
  * GET /api/documents
@@ -14,6 +15,8 @@ exports.getAllDocuments = async (req, res) => {
     const rawSearch = req.query.search || '';
     const search = rawSearch.replace(/\s+/g, ' ').trim();
     const category = (req.query.category || '').trim();
+    const documentType = (req.query.documentType || '').trim();
+    const status = (req.query.status || '').trim();
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -36,6 +39,14 @@ exports.getAllDocuments = async (req, res) => {
       whereClause += ` AND Category = @category`;
       request.input('category', sql.NVarChar, category);
     }
+    if (documentType) {
+      whereClause += ` AND DocumentType = @documentType`;
+      request.input('documentType', sql.NVarChar(100), documentType);
+    }
+    if (status) {
+      whereClause += ` AND Status = @status`;
+      request.input('status', sql.NVarChar(50), status);
+    }
 
     // 3. Thực hiện đếm tổng số bản ghi (Phải đếm dựa trên bộ lọc WHERE ở trên)
     const countResult = await request.query(`SELECT COUNT(*) as Total FROM LegalDocuments ${whereClause}`);
@@ -47,7 +58,7 @@ exports.getAllDocuments = async (req, res) => {
     request.input('limit', sql.Int, limit);
 
     const sqlText = `
-      SELECT Id, Title, DocumentNumber, IssueYear, Status, Category 
+      SELECT Id, Title, DocumentNumber, DocumentType, IssueYear, IssueDate, EffectiveDate, Status, Category
       FROM LegalDocuments 
       ${whereClause}
       ORDER BY IssueYear DESC, CreatedAt DESC
@@ -130,3 +141,8 @@ exports.getDocumentDetail = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.getLegalMetadataOptions = (req, res) => res.json({
+  success: true,
+  data: { documentTypes: [...DOCUMENT_TYPES], statuses: [...LEGAL_STATUSES] }
+});

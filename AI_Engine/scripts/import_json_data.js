@@ -24,12 +24,13 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const { sql, poolConnect, pool } = require('../src/config/db');
-const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const SystemConfig = require('../src/config/SystemConfig');
+const { getLegalPineconeIndex } = require('../src/services/legalPineconeService');
+const { getLegalDocumentId, buildLegalVectorRecord } = require('../src/services/legalIngestionContract');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 
 /*
  * =============================================================================
@@ -50,15 +51,6 @@ const CONFIG = {
     STANDARD_PRICE_USD_PER_MILLION_TOKENS: 0.20,
     VND_PER_USD: 26000,
     VERBOSE: true
-};
-
-const toAsciiId = (str) => {
-    if (!str) return 'doc';
-    return str
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d").replace(/Đ/g, "D")
-        .replace(/[^a-zA-Z0-9_-]/g, "-");
 };
 
 const cleanLegalContent = (text) => {
@@ -460,8 +452,9 @@ const importData = async () => {
         const laws = JSON.parse(rawData);
         console.log("Loaded " + laws.length + " documents from clean_data.json\n");
 
-        const indexName = process.env.PINECONE_INDEX_NAME || 'legai-index-v3';
-        const index = pc.index(indexName);
+        await SystemConfig.loadFromDB();
+        const index = getLegalPineconeIndex();
+        const indexName = SystemConfig.pineconeIndex;
         console.log("Pinecone index: " + indexName + "\n");
 
         let successCount = 0;
@@ -527,7 +520,11 @@ const importData = async () => {
             );
 
             const vectors = [];
-            const safeVectorId = toAsciiId(docId);
+            const safeVectorId = getLegalDocumentId({
+                id: docId,
+                documentNumber: law.DocumentNumber || law.documentNumber,
+                title: docTitle
+            });
 
             /*
              * ===== DYNAMIC TOKEN-BASED BATCHING LOOP =====
@@ -556,24 +553,25 @@ const importData = async () => {
                                 }
                             }
 
-                            vectors.push({
-                                id: safeVectorId + "_chunk_" + chunkIdx,
-                                values: vector768,
-                                metadata: {
-                                    doc_id: docId,
+                            vectors.push(buildLegalVectorRecord({
+                                document: {
+                                    doc_id: safeVectorId,
                                     title: docTitle,
-                                    law_name: docTitle,
-                                    doc_type: docCategory,
+                                    sourceUrl: docSourceUrl,
                                     agency: inferAgency(law),
+                                    documentNumber: law.DocumentNumber || law.documentNumber,
+                                    issueYear: law.IssueYear || law.issueYear,
+                                    category: docCategory,
+                                    status: law.Status || law.status
+                                },
+                                chunk: {
                                     text: fullBatch[m],
                                     chuong: correspondingChunkData ? correspondingChunkData.chuong : "Unknown",
-                                    dieu: correspondingChunkData ? correspondingChunkData.dieu : "Unknown",
-                                    chunk_index: chunkIdx,
-                                    chunk_length: fullBatch[m].length,
-                                    text_preview: fullBatch[m].substring(0, 300),
-                                    source: docSourceUrl
-                                }
-                            });
+                                    dieu: correspondingChunkData ? correspondingChunkData.dieu : "Unknown"
+                                },
+                                chunkIndex: chunkIdx,
+                                values: vector768
+                            }));
                             chunkIdx++;
                         }
                     } catch (error) {
@@ -592,22 +590,21 @@ const importData = async () => {
                     for (let m = 0; m < embeddings.length; m++) {
                         const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
 
-                        vectors.push({
-                            id: safeVectorId + "_chunk_" + chunkIdx,
-                            values: vector768,
-                            metadata: {
-                                doc_id: docId,
+                        vectors.push(buildLegalVectorRecord({
+                            document: {
+                                doc_id: safeVectorId,
                                 title: docTitle,
-                                law_name: docTitle.substring(0, 50),
-                                doc_type: docCategory,
+                                sourceUrl: docSourceUrl,
                                 agency: inferAgency(law),
-                                text: remainingBatch[m],
-                                chunk_index: chunkIdx,
-                                chunk_length: remainingBatch[m].length,
-                                text_preview: remainingBatch[m].substring(0, 300),
-                                source: docSourceUrl
-                            }
-                        });
+                                documentNumber: law.DocumentNumber || law.documentNumber,
+                                issueYear: law.IssueYear || law.issueYear,
+                                category: docCategory,
+                                status: law.Status || law.status
+                            },
+                            chunk: { text: remainingBatch[m], chuong: "Unknown", dieu: "Unknown" },
+                            chunkIndex: chunkIdx,
+                            values: vector768
+                        }));
                         chunkIdx++;
                     }
                 } catch (error) {
