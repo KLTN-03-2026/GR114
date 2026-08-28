@@ -1,125 +1,107 @@
 const INTENTS = Object.freeze({
-    SOCIAL: 'SOCIAL',
-    CAPABILITY: 'CAPABILITY',
-    NON_LEGAL: 'NON_LEGAL',
-    LEGAL_OR_UNCERTAIN: 'LEGAL_OR_UNCERTAIN'
+    SOCIAL: 'SOCIAL', CAPABILITY: 'CAPABILITY', NON_LEGAL: 'NON_LEGAL',
+    CLARIFICATION: 'CLARIFICATION', LEGAL_OR_UNCERTAIN: 'LEGAL_OR_UNCERTAIN'
 });
 
-const STANDALONE_SOCIAL = new Set([
-    'chào', 'xin chào', 'chào bạn', 'hello', 'hi', 'hey',
-    'cảm ơn', 'cám ơn', 'thanks', 'thank you',
-    'bye', 'goodbye', 'tạm biệt', 'hẹn gặp lại',
-    'haha', 'hahaha', 'ok', 'oke', 'okay', 'ừ', 'uh', 'vâng', 'được rồi', 'hiểu rồi'
-]);
+const SAFE_TOKENS = Object.freeze({ tui: 'toi', ko: 'khong', k: 'khong', hok: 'khong', ni: 'nay', cty: 'cong ty', dc: 'duoc' });
+const SOCIAL = new Set(['chao','xin chao','chao ban','hello','hi','hey','cam on','thanks','thank you','bye','goodbye','tam biet','hen gap lai','haha','hahaha','hehe','huhu','ua','o','e','ok','oke','okay','u','uh','vang','duoc roi','hieu roi']);
+const FILLERS = new Set(['nhi','vay','the','nha','nhe','a','ne','huhu','haha','hehe','e','ua','o','troi','oi','di','qua','ghe']);
 
 const CAPABILITY_PATTERNS = Object.freeze([
-    /^(?:bạn|mày|legai)\s+là\s+ai$/u,
-    /^legai\s+là\s+gì$/u,
-    /^(?:bạn|legai)\s+(?:có\s+thể\s+)?(?:trả\s+lời|hỗ\s+trợ|giúp|tư\s+vấn|làm)\s+(?:(?:được|về)\s+)?(?:các\s+câu\s+hỏi\s+)?(?:những\s+)?(?:câu\s+hỏi\s+)?(?:vấn\s+đề\s+)?(?:gì|lĩnh\s+vực\s+nào)(?:\s+vậy)?$/u,
-    /^(?:chức\s+năng|khả\s+năng)\s+của\s+(?:bạn|legai)(?:\s+là\s+gì)?$/u,
-    /^(?:bạn|legai)\s+chuyên\s+về\s+gì$/u,
-    /^(?:bạn|legai)\s+có\s+hỗ\s+trợ\s+pháp\s+lý\s+không$/u
+    /^(?:ban|may|legai) la ai$/u, /^legai la gi$/u,
+    /^(?:ban|legai) (?:co the )?(?:tra loi|ho tro|giup|tu van|lam) (?:(?:duoc|ve) )?(?:cac cau hoi )?(?:nhung )?(?:cau hoi )?(?:van de )?(?:gi|linh vuc nao)(?: vay)?$/u,
+    /^(?:chuc nang|kha nang) cua (?:ban|legai)(?: la gi)?$/u,
+    /^(?:ban|legai) chuyen ve gi$/u, /^(?:ban|legai) co ho tro phap ly khong$/u
 ]);
 
-const LEGAL_TERMS = Object.freeze([
-    'luật', 'pháp luật', 'điều luật', 'điều khoản', 'khoản', 'nghị định', 'thông tư',
-    'quyết định', 'nghị quyết', 'bộ luật', 'hiến pháp', 'hợp đồng', 'xử phạt', 'mức phạt',
-    'vi phạm', 'khởi kiện', 'tranh chấp', 'thuế', 'bảo hiểm', 'lao động', 'đất đai',
-    'viên chức', 'doanh nghiệp', 'quyền', 'nghĩa vụ', 'thủ tục', 'điều kiện', 'giấy phép',
-    'tòa án', 'toà án', 'ly hôn', 'thừa kế', 'bồi thường', 'trách nhiệm pháp lý', 'hình sự',
-    'dân sự', 'hành chính'
-]);
+// Maintainable positive-evidence groups. All values use the accent-folded
+// classification representation; the downstream question is never modified.
+const LEGAL_SIGNAL_GROUPS = Object.freeze({
+    explicitReferences: Object.freeze(['luat','phap luat','bo luat','hien phap','dieu luat','dieu khoan','nghi dinh','thong tu','quyet dinh','nghi quyet','quy dinh','van ban phap luat','con hieu luc','ban hanh','sua doi','ap dung van ban']),
+    legalActionsAndOutcomes: Object.freeze(['bi phat','muc phat','vi pham','trai luat','khoi kien','kien','toa an','boi thuong','quyen','nghia vu','trach nhiem','khieu nai','to cao','xu phat','giay phep','thu tuc']),
+    labor: Object.freeze(['khong tra luong','chua tra luong','no luong','giu luong','khong tra thang cuoi','sa thai','duoi viec','ong chu duoi','duoi toi','nghi viec khong bao truoc','khong dong bhxh','khong ky hop dong','hop dong lao dong','lao dong','vien chuc']),
+    civilAndContract: Object.freeze(['nguoi vay khong tra','vay tien','khong tra coc','khong tra tien coc','tranh chap hop dong','hop dong','doi boi thuong','the chap','thua ke']),
+    family: Object.freeze(['ly hon','chia tai san','quyen nuoi con','cap duong']),
+    landAndProperty: Object.freeze(['tranh chap dat','so do','chuyen nhuong dat','thu hoi dat','dat dai']),
+    criminalAndAdministrative: Object.freeze(['cong an giu','bi danh','bi lua','mat tai san','lap bien ban','hinh su','hanh chinh','dan su','doanh nghiep','thue','bao hiem'])
+});
 
-const LEGAL_CONTEXT_REFERENCES = Object.freeze([
-    'luật này', 'luật đó', 'điều này', 'điều đó', 'quy định này', 'quy định trên',
-    'trường hợp này', 'trường hợp trên', 'vấn đề trên', 'cái đó có bị phạt',
-    'như đã nói', 'nêu trên'
-]);
+const CONTEXT_REFERENCES = Object.freeze(['luat nay','luat do','dieu nay','dieu do','quy dinh nay','quy dinh tren','truong hop tren','van de tren','cai do co bi phat','nhu da noi','neu tren','muc do dung khong','van ban tren','tien thang cuoi']);
 
 const NON_LEGAL_RULES = Object.freeze([
-    { reason: 'standalone_math', test: text => /^(?:\d+|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)(?:\s*[+\-*/x×÷=]\s*(?:\d+|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười))+(?:\s+(?:bằng|là)\s+(?:mấy|bao nhiêu))?$/u.test(text) },
-    { reason: 'standalone_entertainment', test: text => /^(?:hãy\s+)?(?:kể|nói)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:một\s+)?(?:câu\s+)?chuyện\s+cười(?:\s+đi)?$/u.test(text) },
-    { reason: 'standalone_weather', test: text => /^(?:thời tiết|dự báo thời tiết)(?:\s+.+)?$/u.test(text) },
-    { reason: 'standalone_coding', test: text => /^(?:hãy\s+)?(?:viết|tạo|code)\s+(?:cho\s+(?:tôi|mình)\s+)?(?:đoạn\s+)?(?:code|mã|chương trình)\b.+$/u.test(text) },
-    { reason: 'standalone_casual', test: text => /^(?:tôi|mình)\s+(?:buồn|vui|chán|mệt)$|^hôm nay\s+(?:bạn\s+)?(?:vui|khỏe|khoẻ)\s+không$/u.test(text) },
-    { reason: 'obvious_nonsense', test: text => /^[?!.…]{1,12}$/u.test(text) || /^(?:abcxyz|xyzabc|asdfgh|qwerty)$/u.test(text) }
+    { reason:'standalone_math', test:t=>/^(?:\d+|mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi)(?:\s*[+\-*/x×÷=]\s*(?:\d+|mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi))+(?:\s+(?:bang|la)\s+(?:may|bao nhieu))?$/u.test(t) },
+    { reason:'standalone_entertainment', test:t=>/^(?:hay )?(?:ke|noi) (?:cho (?:toi|minh) )?(?:mot )?(?:cau )?chuyen cuoi$/u.test(t) },
+    { reason:'standalone_weather', test:t=>/^(?:(?:hom nay|nay) )?(?:thoi tiet|du bao thoi tiet)(?: .*)?$|^thoi tiet hom nay\b.*$/u.test(t) },
+    { reason:'standalone_coding', test:t=>/^(?:hay )?(?:viet|tao|code) (?:cho (?:toi|minh) )?(?:(?:doan )?(?:code|ma|chuong trinh)\b.*|hello world)$|^viet hello world$/u.test(t) },
+    { reason:'standalone_math_or_science', test:t=>/^(?:giai|lam) (?:(?:bai|giup toi) )?(?:toan|bai toan|vat ly)(?: .*)?$/u.test(t) },
+    { reason:'standalone_translation', test:t=>/^(?:hay )?dich .+ sang (?:tieng )?(?:anh|viet|phap|nhat|han|trung)$/u.test(t) },
+    { reason:'standalone_food', test:t=>/^(?:hay )?goi y (?:cho (?:toi|minh) )?(?:mot )?mon an(?: .+)?$/u.test(t) },
+    { reason:'standalone_sports', test:t=>/^(?:messi|ronaldo|neymar)\b.+\b(?:ban|tran|doi|ghi)\b.*$/u.test(t) },
+    { reason:'standalone_casual', test:t=>/^(?:(?:toi|minh) )?(?:buon|vui|chan|met)(?: (?:qua|ghe))?$|^(?:nay|hom nay) (?:(?:toi|minh) )?(?:buon|vui|chan|met)(?: (?:qua|ghe))?$|^hom nay (?:ban )?(?:vui|khoe) khong$|^ban khoe khong$|^noi chuyen voi (?:toi|minh)(?: di)?$/u.test(t) },
+    { reason:'obvious_nonsense', test:t=>/^[?!.…:;)=(\-]{1,12}$/u.test(t)||/^(?:abcxyz|xyzabc|asdfgh|qwerty|(?:ha){2,}|(?:he){2,})$/u.test(t) }
 ]);
 
 const RESPONSES = Object.freeze({
-    SOCIAL: 'Chào bạn! Tôi là LegAI. Bạn cần tra cứu hay tư vấn vấn đề pháp lý nào?',
-    CAPABILITY: 'Tôi là LegAI, trợ lý hỗ trợ tra cứu và giải thích thông tin pháp luật Việt Nam. Bạn có thể hỏi về quy định, thủ tục, quyền, nghĩa vụ hoặc tình huống pháp lý cụ thể.',
-    NON_LEGAL: 'Tôi chuyên hỗ trợ tra cứu và giải thích các vấn đề pháp luật Việt Nam. Bạn vui lòng gửi một câu hỏi pháp lý để tôi hỗ trợ.'
+    SOCIAL:'Chào bạn! Tôi là LegAI. Bạn cần tra cứu hay tư vấn vấn đề pháp lý nào?',
+    CAPABILITY:'Tôi là LegAI, trợ lý hỗ trợ tra cứu và giải thích thông tin pháp luật Việt Nam. Bạn có thể hỏi về quy định, thủ tục, quyền, nghĩa vụ hoặc tình huống pháp lý cụ thể.',
+    NON_LEGAL:'Tôi chuyên hỗ trợ tra cứu và giải thích các vấn đề pháp luật Việt Nam. Bạn vui lòng gửi một câu hỏi pháp lý để tôi hỗ trợ.',
+    CLARIFICATION:'Được, bạn mô tả cụ thể tình huống hoặc vấn đề cần hỗ trợ nhé.'
 });
 
 function normalizeMessage(value) {
-    return String(value || '')
-        .normalize('NFC')
-        .toLocaleLowerCase('vi-VN')
-        .replace(/[“”"'`]/gu, '')
-        .replace(/\s+/gu, ' ')
-        .replace(/[.,!?:;…]+$/gu, '')
-        .trim();
+    const cleaned=String(value||'').normalize('NFD').toLocaleLowerCase('vi-VN').replace(/[\u0300-\u036f]/gu,'').replace(/đ/gu,'d').replace(/[“”"'`]/gu,'').replace(/[^a-z0-9\s+\-*/x×÷=/:.?！]/gu,' ').replace(/([!?.,:;])\1+/gu,'$1').replace(/[.,!?:;]+$/gu,'').replace(/\s+/gu,' ').trim();
+    return cleaned.split(' ').map(token=>SAFE_TOKENS[token]||token).join(' ');
+}
+
+function stripConversationalFillers(text) {
+    const tokens=text.split(' ').filter(Boolean);
+    while(tokens.length&&FILLERS.has(tokens[0])) tokens.shift();
+    while(tokens.length&&FILLERS.has(tokens[tokens.length-1])) tokens.pop();
+    if(tokens.length>=2&&tokens.at(-2)==='vay'&&tokens.at(-1)==='ta') tokens.splice(-2);
+    return tokens.join(' ');
 }
 
 function containsPhrase(text, phrase) {
-    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
-    return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, 'u').test(text);
+    const escaped=phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`,'u').test(text);
 }
 
-function hasLegalVeto(text) {
-    if (LEGAL_TERMS.some(term => containsPhrase(text, term))) return 'legal_signal';
-    if (LEGAL_CONTEXT_REFERENCES.some(reference => text.includes(reference))) return 'legal_context_reference';
-    if (/\b\d{1,3}\s*[\/_-]\s*\d{4}(?:\s*[\/_-]\s*[a-zđ0-9-]+)?\b/iu.test(text)) return 'legal_document_number';
-    if (/\b(?:điều|khoản|điểm)\s*\d+[a-zđ]?\b/iu.test(text)) return 'article_clause_reference';
-    if (/https?:\/\/(?:www\.)?(?:vbpl\.vn|thuvienphapluat\.vn|luatvietnam\.vn|xaydungchinhsach\.chinhphu\.vn)\b/iu.test(text)) return 'legal_source_url';
-    if (/\b(?:phiên bản|hiệu lực|ban hành)\b/iu.test(text) || /\b(?:19|20)\d{2}\b/u.test(text)) return 'version_or_year_reference';
+function findLegalEvidence(text) {
+    for(const [group,signals] of Object.entries(LEGAL_SIGNAL_GROUPS)) if(signals.some(signal=>containsPhrase(text,signal))) return `legal_${group}`;
+    if(CONTEXT_REFERENCES.some(reference=>containsPhrase(text,reference))) return 'legal_context_reference';
+    if(/\b\d{1,3}\s*[\/_-]\s*\d{4}(?:\s*[\/_-]\s*[a-z0-9-]+)?\b/u.test(text)) return 'legal_document_number';
+    if(/\b(?:dieu|khoan|diem)\s*\d+[a-z]?\b/u.test(text)) return 'article_clause_reference';
+    if(/https?:\/\/(?:www\.)?(?:vbpl\.vn|thuvienphapluat\.vn|luatvietnam\.vn|xaydungchinhsach\.chinhphu\.vn)\b/u.test(text)) return 'legal_source_url';
     return null;
 }
 
+function hasLegalVeto(value) { return findLegalEvidence(normalizeMessage(value)); }
+
 function classifyChatIntent(message) {
-    const rawText = String(message || '').normalize('NFC').trim();
-    if (/^[?!.…]{1,12}$/u.test(rawText)) {
-        return { intent: INTENTS.NON_LEGAL, bypassLegalRetrieval: true, reason: 'obvious_nonsense', confidence: 'HIGH' };
-    }
-    const text = normalizeMessage(message);
-    if (!text) {
-        return { intent: INTENTS.LEGAL_OR_UNCERTAIN, bypassLegalRetrieval: false, reason: 'empty_or_uncertain', confidence: 'DEFAULT_LEGAL' };
-    }
-
-    const vetoReason = hasLegalVeto(text);
-    if (vetoReason) {
-        return { intent: INTENTS.LEGAL_OR_UNCERTAIN, bypassLegalRetrieval: false, reason: vetoReason, confidence: 'DEFAULT_LEGAL' };
-    }
-
-    if (STANDALONE_SOCIAL.has(text)) {
-        return { intent: INTENTS.SOCIAL, bypassLegalRetrieval: true, reason: 'standalone_social', confidence: 'HIGH' };
-    }
-
-    if (CAPABILITY_PATTERNS.some(pattern => pattern.test(text))) {
-        return { intent: INTENTS.CAPABILITY, bypassLegalRetrieval: true, reason: 'standalone_capability', confidence: 'HIGH' };
-    }
-
-    const nonLegalRule = NON_LEGAL_RULES.find(rule => rule.test(text));
-    if (nonLegalRule) {
-        return { intent: INTENTS.NON_LEGAL, bypassLegalRetrieval: true, reason: nonLegalRule.reason, confidence: 'HIGH' };
-    }
-
-    return { intent: INTENTS.LEGAL_OR_UNCERTAIN, bypassLegalRetrieval: false, reason: 'uncertain_default_legal', confidence: 'DEFAULT_LEGAL' };
+    const raw=String(message||'').trim();
+    if(/^[?!.…:;)=(\-]{1,12}$/u.test(raw)) return {intent:INTENTS.NON_LEGAL,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'obvious_nonsense',confidence:'HIGH'};
+    const text=normalizeMessage(message);
+    if(!text) return {intent:INTENTS.CLARIFICATION,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'insufficient_detail',confidence:'LOW'};
+    // Evaluate the whole message first: social tone cannot suppress legal substance.
+    const reason=findLegalEvidence(text);
+    if(reason) return {intent:INTENTS.LEGAL_OR_UNCERTAIN,bypassLegalRetrieval:false,requiresLegalRetrieval:true,reason,confidence:'HIGH'};
+    if(SOCIAL.has(text)) return {intent:INTENTS.SOCIAL,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'standalone_social',confidence:'HIGH'};
+    const intentText=stripConversationalFillers(text);
+    if(intentText&&SOCIAL.has(intentText)) return {intent:INTENTS.SOCIAL,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'standalone_social_with_filler',confidence:'HIGH'};
+    if(CAPABILITY_PATTERNS.some(pattern=>pattern.test(intentText))) return {intent:INTENTS.CAPABILITY,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'standalone_capability',confidence:'HIGH'};
+    const rule=NON_LEGAL_RULES.find(candidate=>candidate.test(intentText||text));
+    if(rule) return {intent:INTENTS.NON_LEGAL,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:rule.reason,confidence:'HIGH'};
+    return {intent:INTENTS.CLARIFICATION,bypassLegalRetrieval:true,requiresLegalRetrieval:false,reason:'insufficient_legal_evidence',confidence:'LOW'};
 }
 
-function getBypassResponse(intent, message = '') {
-    if (intent !== INTENTS.SOCIAL) return RESPONSES[intent] || '';
-    const text = normalizeMessage(message);
-    if (['cảm ơn', 'cám ơn', 'thanks', 'thank you'].includes(text)) {
-        return 'Rất vui được hỗ trợ bạn. Khi cần tra cứu hoặc tư vấn vấn đề pháp lý, bạn cứ gửi câu hỏi cho tôi.';
-    }
-    if (['bye', 'goodbye', 'tạm biệt', 'hẹn gặp lại'].includes(text)) {
-        return 'Tạm biệt bạn! Khi cần hỗ trợ tra cứu pháp luật, LegAI luôn sẵn sàng.';
-    }
-    if (['haha', 'hahaha', 'ok', 'oke', 'okay', 'ừ', 'uh', 'vâng', 'được rồi', 'hiểu rồi'].includes(text)) {
-        return 'Tôi luôn sẵn sàng hỗ trợ khi bạn có câu hỏi pháp lý.';
-    }
+function getBypassResponse(intent,message='') {
+    const normalized=normalizeMessage(message); const text=stripConversationalFillers(normalized)||normalized;
+    if(intent===INTENTS.NON_LEGAL&&/^(?:(?:toi|minh) )?(?:buon|chan|met)(?: (?:qua|ghe))?$/u.test(text)) return 'Mình rất tiếc khi nghe vậy. Nếu bạn muốn, bạn có thể chia sẻ thêm một chút nhé.';
+    if(intent!==INTENTS.SOCIAL) return RESPONSES[intent]||'';
+    if(['cam on','thanks','thank you'].includes(text)) return 'Rất vui được hỗ trợ bạn. Khi cần tra cứu hoặc tư vấn vấn đề pháp lý, bạn cứ gửi câu hỏi cho tôi.';
+    if(['bye','goodbye','tam biet','hen gap lai'].includes(text)) return 'Tạm biệt bạn! Khi cần hỗ trợ tra cứu pháp luật, LegAI luôn sẵn sàng.';
+    if(['haha','hahaha','hehe','huhu','ok','oke','okay','u','uh','vang','duoc roi','hieu roi','ua','o','e'].includes(text)) return 'Tôi luôn sẵn sàng hỗ trợ khi bạn có câu hỏi pháp lý.';
     return RESPONSES.SOCIAL;
 }
 
-module.exports = { INTENTS, classifyChatIntent, getBypassResponse, normalizeMessage, hasLegalVeto };
+module.exports={INTENTS,LEGAL_SIGNAL_GROUPS,classifyChatIntent,getBypassResponse,normalizeMessage,stripConversationalFillers,hasLegalVeto,findLegalEvidence};

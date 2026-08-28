@@ -2,9 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const dotenv = require('dotenv');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { sql, pool, poolConnect } = require('../src/config/db');
 const { CANONICAL_CATEGORIES, isValidLegalCategory } = require('../src/constants/legalCategories');
+const sharedClassifier = require('../src/services/legalCategoryClassifierService');
+
+let sql;
+let pool;
+let poolConnect;
+const initializeDatabase = () => {
+    if (!pool) ({ sql, pool, poolConnect } = require('../src/config/db'));
+};
 
 const ENV_PATH = path.resolve(__dirname, '../.env');
 const inheritedApiKey = process.env.GEMINI_API_KEY;
@@ -15,7 +21,7 @@ const apiKeySource = inheritedApiKey
         ? ENV_PATH
         : 'missing';
 
-const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+const { DEFAULT_MODEL, buildPrompt, parseClassification, extractErrorDetails, createClassifier, classifyDocument } = sharedClassifier;
 const OUTPUT_PATH = path.resolve(__dirname, 'output/legal_category_reclassification_audit.json');
 const CONCURRENCY = 2;
 const CONTENT_PREVIEW_LENGTH = 800;
@@ -42,6 +48,7 @@ const getKeyFingerprint = value => value ? {
     length: value.length
 } : null;
 
+/* Classification implementation moved to legalCategoryClassifierService.
 const parseDurationMs = value => {
     const match = String(value || '').match(/([0-9.]+)s/i);
     return match ? Math.ceil(Number(match[1]) * 1000) : null;
@@ -224,6 +231,7 @@ const classifyDocument = async (document, classifier) => {
         };
     }
 };
+*/
 
 const mapWithConcurrency = async (items, concurrency, worker) => {
     const results = new Array(items.length);
@@ -347,6 +355,7 @@ const loadLimitedDocuments = async limit => {
 const runDryAudit = async () => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+    initializeDatabase();
     await poolConnect;
     const documents = await loadDocuments();
     const modelName = process.env.CLASSIFICATION_MODEL || DEFAULT_MODEL;
@@ -361,6 +370,7 @@ const runDryAudit = async () => {
 
 const runApplyHigh = async () => {
     const report = loadAuditReport();
+    initializeDatabase();
     await poolConnect;
     const result = await applyHighConfidence(report, async item => {
         const updateResult = await pool.request()
@@ -383,6 +393,7 @@ const runDiagnostic = async () => {
     const limit = Math.max(1, Math.min(Number(limitArgument?.split('=')[1]) || 1, 5));
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is required');
+    initializeDatabase();
     await poolConnect;
     const documents = await loadLimitedDocuments(limit);
     const modelName = process.env.CLASSIFICATION_MODEL || DEFAULT_MODEL;

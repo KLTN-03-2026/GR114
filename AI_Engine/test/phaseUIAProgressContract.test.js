@@ -104,3 +104,23 @@ test('completed and streaming answers render without permanent completion-status
     assert.doesNotMatch(chat, /Đang xác minh nguồn/u);
     assert.doesNotMatch(progressState, /Đã hoàn tất tra cứu|Đã hoàn tất/u);
 });
+
+test('progress UI uses delayed sequential replacement with a soft transition', () => {
+    const frontendRoot = path.join(__dirname, '..', '..', 'Frontend', 'src');
+    const chat = fs.readFileSync(path.join(frontendRoot, 'components', 'ChatbotAI.jsx'), 'utf8');
+    assert.doesNotMatch(chat, /Đang xử lý yêu cầu/u);
+    assert.doesNotMatch(chat, /message\.progress\s*\|\|\s*\[\]\)\.filter/u);
+    assert.match(chat, /message\.currentProgressStage/u);
+    assert.match(chat, /PROGRESS_VISIBILITY_DELAY_MS/u);
+    assert.match(chat, /revealProgressMessage\(previous, requestId\)/u);
+    assert.match(chat, /initial=\{\{ opacity: 0, y: 4 \}\}/u);
+    assert.match(chat, /transition=\{\{ duration: 0\.2/u);
+});
+
+test('chat request sends only a bounded recent role/content history window', () => {
+    const frontendRoot = path.join(__dirname, '..', '..', 'Frontend', 'src');
+    const chat = fs.readFileSync(path.join(frontendRoot, 'components', 'ChatbotAI.jsx'), 'utf8');
+    const client = fs.readFileSync(path.join(frontendRoot, 'api', 'aiClient.js'), 'utf8');
+    assert.match(chat, /\.slice\(-6\)[\s\S]*role: message\.isBot \? 'assistant' : 'user'[\s\S]*content: message\.text/u);
+    assert.match(client, /chatHistory: correlation\.chatHistory/u);
+});

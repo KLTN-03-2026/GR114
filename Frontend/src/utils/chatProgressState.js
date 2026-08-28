@@ -7,6 +7,7 @@ export const PROGRESS_LABELS = {
     GROUNDING: 'Đang kiểm tra nguồn bổ sung…',
     SYNTHESIZING: 'Đang tổng hợp câu trả lời…'
 };
+export const PROGRESS_VISIBILITY_DELAY_MS = 190;
 
 export function applyProgressEvent(messages, event) {
     const index = messages.findIndex(message =>
@@ -31,13 +32,17 @@ export function applyProgressEvent(messages, event) {
     else progress.push(item);
 
     const next = [...messages];
+    const isTerminal = event.stage === 'COMPLETE' || event.stage === 'ERROR';
+    const isCurrentStageUpdate = event.status === 'started' || event.status === 'degraded';
     next[index] = {
         ...current,
         state: event.stage === 'ERROR' ? 'error' : current.state,
         text: event.stage === 'ERROR' ? item.message : current.text,
         progress,
+        currentProgressStage: isTerminal ? null : (isCurrentStageUpdate ? item : current.currentProgressStage),
+        progressVisible: isTerminal ? false : current.progressVisible,
         lastSeq: event.seq,
-        progressTerminal: event.stage === 'COMPLETE' || event.stage === 'ERROR',
+        progressTerminal: isTerminal,
         connectionDegraded: false
     };
     return next;
@@ -55,6 +60,8 @@ export function finalizeProgressMessage(messages, requestId, result) {
         sources: result.sources || [],
         state: 'complete',
         progress: [],
+        currentProgressStage: null,
+        progressVisible: false,
         progressTerminal: true,
         connectionDegraded: false,
         realtimeMessage: '',
@@ -78,8 +85,7 @@ export function applyStreamStart(messages, event) {
     const next = [...messages];
     next[index] = {
         ...current,
-        state: 'streaming',
-        progress: [],
+        streamStarted: true,
         progressSummary: '',
         lastSeq: event.seq,
         receivedChunkIds: current.receivedChunkIds || [],
@@ -93,13 +99,16 @@ export function applyStreamChunk(messages, event) {
     if (index < 0) return messages;
     const current = messages[index];
     const received = current.receivedChunkIds || [];
-    if (current.state !== 'streaming' || !Number.isInteger(event.seq) || event.seq <= (current.lastSeq || 0) || received.includes(event.chunkId)) {
+    if ((!current.streamStarted && current.state !== 'streaming') || !Number.isInteger(event.seq) || event.seq <= (current.lastSeq || 0) || received.includes(event.chunkId)) {
         return messages;
     }
     const next = [...messages];
     next[index] = {
         ...current,
+        state: 'streaming',
         text: `${current.text || ''}${event.delta || ''}`,
+        currentProgressStage: null,
+        progressVisible: false,
         lastSeq: event.seq,
         receivedChunkIds: [...received, event.chunkId],
         connectionDegraded: false
@@ -121,6 +130,8 @@ export function applyStreamComplete(messages, event) {
         sources: event.sources || [],
         lastSeq: event.seq,
         progress: [],
+        currentProgressStage: null,
+        progressVisible: false,
         progressSummary: '',
         receivedChunkIds: [],
         connectionDegraded: false
@@ -143,9 +154,21 @@ export function applyStreamError(messages, event) {
         ...current,
         state: 'error',
         text: event.message || 'Không thể hoàn tất yêu cầu.',
+        currentProgressStage: null,
+        progressVisible: false,
         lastSeq: event.seq,
         progressTerminal: true
     };
+    return next;
+}
+
+export function revealProgressMessage(messages, requestId) {
+    const index = messages.findIndex(message =>
+        message.requestId === requestId && message.isBot && message.state === 'progress' && !message.progressTerminal
+    );
+    if (index < 0 || messages[index].progressVisible) return messages;
+    const next = [...messages];
+    next[index] = { ...messages[index], progressVisible: true };
     return next;
 }
 

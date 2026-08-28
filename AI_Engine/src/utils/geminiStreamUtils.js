@@ -94,29 +94,125 @@ function createDeltaBatcher({ emit, intervalMs = 40, setTimer = setTimeout, clea
     return { push, flush, cancel, metrics };
 }
 
+function isStreamTransportUnsupported(error) {
+    const message = `${error?.code || ''} ${error?.message || ''}`.toLowerCase();
+    return message.includes('pipethrough is not a function') ||
+        message.includes('stream transport unsupported') ||
+        message.includes('web stream') && message.includes('unsupported');
+}
+
+function classifyStreamFailure(error) {
+    const message = `${error?.code || ''} ${error?.message || ''}`.toUpperCase();
+    if (isStreamTransportUnsupported(error)) return 'STREAM_TRANSPORT_UNSUPPORTED';
+    if (message.includes('TIMEOUT') || message.includes('ABORT')) return 'TIMEOUT';
+    if (message.includes('429') || message.includes('QUOTA') || message.includes('RATE_LIMIT')) return 'RATE_LIMIT';
+    if (message.includes('503') || message.includes('SERVICE_UNAVAILABLE')) return 'SERVICE_UNAVAILABLE';
+    if (message.includes('RECITATION')) return 'RECITATION';
+    return 'API_ERROR';
+}
+
+function preserveAttemptTimeout(error, options = {}) {
+    if (!options.isAttemptTimedOut?.()) return error;
+    if (error?.code === 'CLIENT_TIMEOUT') return error;
+    const timeoutError = new Error('TIMEOUT_EXCEEDED', { cause: error });
+    timeoutError.code = 'CLIENT_TIMEOUT';
+    return timeoutError;
+}
+
 async function generateContentStreaming(model, request, options = {}) {
     const parser = options.grounded ? null : new IncrementalAnswerParser();
-    const batcher = createDeltaBatcher({ emit: options.onDelta || (() => {}), intervalMs: options.intervalMs || 40 });
+    const now = options.now || options.latency?.now || Date.now;
+    const streamStarted = now();
+    const transportMetrics = {
+        streamAttempted: true,
+        streamInitMs: null,
+        firstMeaningfulChunkMs: null,
+        meaningfulChunkCount: 0,
+        streamFailureType: null,
+        streamFailureMs: null,
+        nonStreamFallbackUsed: false,
+        nonStreamFallbackMs: 0,
+        nativeFetch: options.nativeFetch === true
+    };
+    let meaningfulChunkEmitted = false;
+    const emit = delta => {
+        if (String(delta || '').trim()) meaningfulChunkEmitted = true;
+        (options.onDelta || (() => {}))(delta);
+    };
+    const batcher = createDeltaBatcher({ emit, intervalMs: options.intervalMs || 40 });
+    const nonStreamFallback = async reason => {
+        batcher.cancel();
+        transportMetrics.nonStreamFallbackUsed = true;
+        options.latency?.increment('streamTransportFallbackCalls');
+        const started = now();
+        options.onTransportFallback?.(reason);
+        try {
+            const result = await model.generateContent(request, options.requestOptions);
+            const elapsed = now() - started;
+            transportMetrics.nonStreamFallbackMs = elapsed;
+            options.latency?.add('streamTransportFallbackMs', elapsed);
+            options.onTransportFallbackSuccess?.(elapsed);
+            options.onTransportMetrics?.({ ...transportMetrics });
+            return { response: result.response, metrics: batcher.metrics(), transportMetrics, streamingSupported: false, transportFallback: true };
+        } catch (error) {
+            const normalizedError = preserveAttemptTimeout(error, options);
+            const elapsed = now() - started;
+            transportMetrics.nonStreamFallbackMs = elapsed;
+            options.latency?.add('streamTransportFallbackMs', elapsed);
+            options.onTransportFallbackFailure?.(normalizedError, elapsed);
+            options.onTransportMetrics?.({ ...transportMetrics });
+            normalizedError.transportMetrics = { ...transportMetrics };
+            throw normalizedError;
+        }
+    };
     try {
         if (typeof model.generateContentStream !== 'function') {
             options.onUnsupported?.();
-            const result = await model.generateContent(request, options.requestOptions);
-            return { response: result.response, metrics: batcher.metrics(), streamingSupported: false };
+            return await nonStreamFallback('generateContentStream_unavailable');
         }
         const result = await model.generateContentStream(request, options.requestOptions);
-        options.onStart?.();
+        // The SDK aggregate response is an independent promise. Attach a
+        // rejection handler immediately: a deadline may abort the iterator and
+        // let the caller move to another model before we reach `await response`.
+        // Keeping the original promise preserves normal error propagation.
+        const responsePromise = Promise.resolve(result.response);
+        responsePromise.catch(error => {
+            options.onLateStreamError?.(error, {
+                attemptTimedOut: options.isAttemptTimedOut?.() === true,
+                source: 'aggregate_response'
+            });
+        });
+        transportMetrics.streamInitMs = now() - streamStarted;
+        options.onStart?.(transportMetrics.streamInitMs);
         for await (const chunk of result.stream) {
             const rawDelta = chunk.text();
-            batcher.push(parser ? parser.push(rawDelta) : rawDelta);
+            const parsedDelta = parser ? parser.push(rawDelta) : rawDelta;
+            if (String(parsedDelta || '').trim()) {
+                transportMetrics.meaningfulChunkCount += 1;
+                if (transportMetrics.firstMeaningfulChunkMs === null) {
+                    transportMetrics.firstMeaningfulChunkMs = now() - streamStarted;
+                    options.onFirstMeaningfulChunk?.(transportMetrics.firstMeaningfulChunkMs);
+                }
+            }
+            batcher.push(parsedDelta);
         }
         batcher.flush();
-        const response = await result.response;
-        return { response, metrics: batcher.metrics(), streamingSupported: true };
+        const response = await responsePromise;
+        options.onTransportMetrics?.({ ...transportMetrics });
+        return { response, metrics: batcher.metrics(), transportMetrics, streamingSupported: true };
     } catch (error) {
+        const normalizedError = preserveAttemptTimeout(error, options);
+        transportMetrics.streamFailureType = classifyStreamFailure(normalizedError);
+        transportMetrics.streamFailureMs = now() - streamStarted;
+        if (isStreamTransportUnsupported(normalizedError) && !meaningfulChunkEmitted) {
+            return nonStreamFallback('pipeThrough_unavailable');
+        }
         batcher.flush();
-        options.onError?.(error);
-        throw error;
+        options.onError?.(normalizedError);
+        options.onTransportMetrics?.({ ...transportMetrics });
+        normalizedError.transportMetrics = { ...transportMetrics };
+        throw normalizedError;
     }
 }
 
-module.exports = { IncrementalAnswerParser, createDeltaBatcher, generateContentStreaming };
+module.exports = { IncrementalAnswerParser, createDeltaBatcher, isStreamTransportUnsupported, classifyStreamFailure, preserveAttemptTimeout, generateContentStreaming };

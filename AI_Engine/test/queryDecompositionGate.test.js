@@ -50,6 +50,16 @@ test('decomposition retains independent self-contained issues', () => {
     assert.equal(result.issueCount, 3);
 });
 
+test('decomposition retains mechanism query and factual anchors in the same model result', () => {
+    const result = validateDecomposition({ isComplex:true, issues:[
+        { query:'Trách nhiệm hình sự khi cố ý đánh gây thương tích 12%', legalMechanismQuery:'trách nhiệm hình sự đối với tổn hại sức khỏe', factualAnchors:['cố ý đánh','thương tích 12%'] },
+        { query:'Bồi thường viện phí và thu nhập bị mất', legalMechanismQuery:'bồi thường thiệt hại sức khỏe', factualAnchors:['viện phí','thu nhập bị mất'] }
+    ]});
+    assert.equal(result.issueCount,2);
+    assert.deepEqual(result.issues[0].factualAnchors,['cố ý đánh','thương tích 12%']);
+    assert.equal(result.issues[0].issueText,result.issues[0].query);
+});
+
 test('decomposition never exceeds the six issue cap', () => {
     const issues = Array.from({ length: 9 }, (_, index) => ({ query: `Quy định pháp luật độc lập cho vấn đề số ${index + 1}` }));
     assert.equal(validateDecomposition({ isComplex: true, issues }).issueCount, 6);

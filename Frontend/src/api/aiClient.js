@@ -29,7 +29,7 @@ const aiClient = {
         try {
             // SỬA TẠI ĐÂY: Đường dẫn mới khớp với aiRoutes.js
             const response = await axiosInstance.post('/ai/ask', 
-                { question, requestId: correlation.requestId, tabId: correlation.tabId },
+                { question, requestId: correlation.requestId, tabId: correlation.tabId, chatHistory: correlation.chatHistory },
                 { signal }
             );
             return response.data;

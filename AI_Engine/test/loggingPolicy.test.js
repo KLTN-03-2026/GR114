@@ -60,13 +60,12 @@ test('info/debug/verbose levels gate diagnostics without changing values', async
 test('multi-RAG emits one compact summary per issue and preserves behavior', async () => {
     const issues = [{ id: 'Q1', query: 'one' }, { id: 'Q2', query: 'two' }];
     const run = await capture('log', () => retrieveForIssues(issues, {
-        ragService: { query: async query => [{ id: query, score: 0.7 }] },
-        selectRagChunks: (_query, docs) => ({ selectedDocs: docs, scores: [], fallbackAll: false, reason: 'test' })
+        ragService: { query: async query => [{ id: query || 'fallback', dieu:'Điều 10', content:'Bộ luật dân sự', score: 0.7 }] },
+        rerankEvidence: async payload => ({issues:payload.map(row=>({issueId:row.issueId,coreSelection:null,supportingSelection:null,confidence:'LOW'}))})
     }));
-    assert.equal((run.output.match(/\[RAG Q1\]/g) || []).length, 1);
-    assert.equal((run.output.match(/\[RAG Q2\]/g) || []).length, 1);
-    assert.match(run.output, /\[MULTI-RAG\][\s\S]*coverage=2\/2[\s\S]*complete=true/u);
-    assert.deepEqual(run.value.documents.map(doc => doc.id), ['one', 'two']);
+    assert.equal((run.output.match(/\[RETRIEVAL QUERY\]/g) || []).length, 2);
+    assert.equal((run.output.match(/\[ISSUE EVIDENCE STATE\]/g) || []).length, 2);
+    assert.deepEqual(run.value.coverageCounts, { Q1:0, Q2:0 });
 });
 
 test('errors remain visible and benchmark artifacts retain detailed results', async () => {

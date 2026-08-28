@@ -15,8 +15,18 @@ const {
     filterGroundingContextDocuments,
     scheduleGroundedSourceCache,
     normalizeGeminiResponse,
-    isRagOutdated
+    generateAnswerWithGemini,
+    isRagOutdated,
+    classifyGenerationFailure
 } = require('../src/services/geminiService');
+
+test('generation failures distinguish stream transport, rate limit, service availability, timeout, and API errors', () => {
+    assert.equal(classifyGenerationFailure(new TypeError('response.body.pipeThrough is not a function')), 'STREAM_TRANSPORT_UNSUPPORTED');
+    assert.equal(classifyGenerationFailure(new Error('429 quota exceeded')), 'RATE_LIMIT');
+    assert.equal(classifyGenerationFailure(new Error('503 SERVICE_UNAVAILABLE')), 'SERVICE_UNAVAILABLE');
+    assert.equal(classifyGenerationFailure(new Error('TIMEOUT_EXCEEDED')), 'TIMEOUT');
+    assert.equal(classifyGenerationFailure(new Error('socket closed')), 'API_ERROR');
+});
 
 const rescueIssues = [
     { id:'Q1',query:'supported one' },
@@ -81,13 +91,106 @@ test('partial rescue context retains only evidence supporting preserved issues',
     assert.deepEqual(filterGroundingContextDocuments(docs,{...plan,fullQueryMode:true}),[]);
 });
 
-test('grounded citations are attributed only to rescued issue scope', () => {
+test('grounded Markdown is preserved and real source metadata is retained without JSON parsing', () => {
+    const markdown = '**Kết luận**\n\nNội dung đã được kiểm tra.';
     const normalized=normalizeGeminiResponse({
-        text:'rescued answer',grounded:true,
+        text:markdown,grounded:true,
         groundingRescue:{issueIds:['Q2']},
         groundingMetadata:{groundingChunks:[{web:{title:'VBPL',uri:'https://vbpl.vn/detail'}}],groundingSupports:[]}
     });
-    assert.deepEqual(normalized.citations[0].supportedIssueIds,['Q2']);
+    assert.equal(normalized.answer,markdown);
+    assert.equal(normalized.citations.length,1);
+    assert.equal(normalized.citations[0].sourceUrl,'https://vbpl.vn/detail');
+    assert.equal(normalized.citations[0].lawName,'VBPL');
+});
+
+test('grounded Markdown with no grounding chunks does not fabricate citations', () => {
+    const normalized = normalizeGeminiResponse({ text: '**Kết luận** Không có nguồn.', grounded: true, groundingMetadata: null }, true);
+    assert.equal(normalized.answer, '**Kết luận** Không có nguồn.');
+    assert.deepEqual(normalized.citations, []);
+});
+
+test('successful grounded Markdown reaches the controller response shape without structured finalization', async () => {
+    const markdown = '**Kết luận**\n\nCâu trả lời grounded.';
+    const result = await generateAnswerWithGemini('Offline grounded response', [], [], true, {
+        expectedIssues: [{ id: 'Q1', query: 'Vấn đề cần grounding' }],
+        allowGrounding: true,
+        ragAlreadySelected: true,
+        logUsage: async () => {},
+        getActiveModel: async () => ({
+            text: markdown,
+            grounded: true,
+            groundingMetadata: { groundingChunks: [{ web: { title: 'Nguồn VBPL', uri: 'https://vbpl.vn/grounded' } }], groundingSupports: [] }
+        })
+    });
+    assert.equal(result.answer, markdown);
+    assert.deepEqual(result.citations.map(citation => citation.sourceUrl), ['https://vbpl.vn/grounded']);
+    assert.equal(result.verifiedRagCount, 0);
+    assert.equal(result.verifiedGroundingCount, 1);
+});
+
+test('grounding call success with empty metadata rejects a model-written valid VBPL ItemID URL', async () => {
+    const modelUrl = 'https://vbpl.vn/TW/Pages/vbpq-toanvan.aspx?ItemID=999999';
+    await assert.rejects(generateAnswerWithGemini('Offline zero-source grounding', [], [], true, {
+        expectedIssues: [{ id: 'Q1', query: 'Vấn đề chưa có nguồn' }],
+        allowGrounding: true,
+        ragAlreadySelected: true,
+        logUsage: async () => {},
+        getActiveModel: async () => ({
+            text: `**Kết luận**\n\nPhân tích không được xác minh [VBPL](${modelUrl}).`,
+            grounded: true,
+            groundingMetadata: { groundingChunks: [], groundingSupports: [] }
+        })
+    }), error => error.code === 'SOURCE_UNAVAILABLE');
+});
+
+test('grounded text keeps only exact normalized URLs from genuine metadata', async () => {
+    const verifiedUrl = 'https://vbpl.vn/van-ban/chi-tiet/verified';
+    const inventedUrl = 'https://vbpl.vn/TW/Pages/vbpq-toanvan.aspx?ItemID=123456';
+    const result = await generateAnswerWithGemini('Offline exact provenance', [], [], true, {
+        expectedIssues: [{ id: 'Q1', query: 'Vấn đề có nguồn' }],
+        allowGrounding: true,
+        ragAlreadySelected: true,
+        logUsage: async () => {},
+        getActiveModel: async () => ({
+            text: `Nguồn thật [A](${verifiedUrl}) và nguồn tự viết [B](${inventedUrl}).`,
+            grounded: true,
+            groundingMetadata: { groundingChunks: [{ web: { title: 'Nguồn thật', uri: `${verifiedUrl}#fragment` } }], groundingSupports: [] }
+        })
+    });
+    assert.match(result.answer, /\[A\]\(https:\/\/vbpl\.vn\/van-ban\/chi-tiet\/verified\)/u);
+    assert.doesNotMatch(result.answer, /ItemID=123456/u);
+    assert.equal(result.verifiedGroundingCount, 1);
+});
+
+test('partial verified RAG survives zero-citation Grounding and unsupported URLs do not', async () => {
+    const document = { id: 'rag-1', title: 'Luật mẫu', dieu: 'Điều 10', content: 'Điều 10. Nghĩa vụ đã được xác minh.', sourceUrl: 'https://vbpl.vn/van-ban/chi-tiet/rag-1', supportedIssueIds: ['Q1'], authorityRoles: { Q1: 'PRIMARY' } };
+    const result = await generateAnswerWithGemini('Offline partial rescue', [document], [], true, {
+        expectedIssues: [{ id: 'Q1', query: 'Vấn đề có RAG' }, { id: 'Q2', query: 'Vấn đề thiếu nguồn' }],
+        allowGrounding: true,
+        ragAlreadySelected: true,
+        logUsage: async () => {},
+        getActiveModel: async () => ({
+            text: 'Q1 được hỗ trợ. Q2 chưa thể xác minh. [RAG](https://vbpl.vn/van-ban/chi-tiet/rag-1) [Bịa](https://vbpl.vn/fake)',
+            grounded: true,
+            groundingMetadata: { groundingChunks: [], groundingSupports: [] }
+        })
+    });
+    assert.equal(result.verifiedRagCount, 1);
+    assert.equal(result.verifiedGroundingCount, 0);
+    assert.equal(result.groundingCallSucceeded, true);
+    assert.match(result.answer, /chi-tiet\/rag-1/u);
+    assert.doesNotMatch(result.answer, /vbpl\.vn\/fake/u);
+});
+
+test('final integrity rejects broadening a verified bounded percentage range', async () => {
+    const document = { id: 'range-1', title: 'Luật mẫu', dieu: 'Điều 10', content: 'Tỷ lệ từ 11% đến 30% thì áp dụng quy định.', sourceUrl: 'https://vbpl.vn/van-ban/chi-tiet/range-1', supportedIssueIds: ['Q1'], authorityRoles: { Q1: 'PRIMARY' } };
+    await assert.rejects(generateAnswerWithGemini('Offline numeric boundary', [document], [], false, {
+        expectedIssues: [{ id: 'Q1', query: 'Ngưỡng tỷ lệ' }],
+        ragAlreadySelected: true,
+        logUsage: async () => {},
+        getActiveModel: async () => ({ text: 'Áp dụng cho tỷ lệ từ 11% trở lên.', grounded: false, groundingMetadata: null })
+    }), error => error.code === 'FINAL_RESPONSE_INTEGRITY_INVALID');
 });
 
 test('slow source cache is scheduled without blocking grounded citations or answer', async () => {
@@ -107,8 +210,8 @@ test('slow source cache is scheduled without blocking grounded citations or answ
     const normalized = normalizeGeminiResponse({ text: 'grounded answer', grounded: true, groundingMetadata: metadata }, true);
 
     assert.ok(Date.now() - startedAt < 100, 'response work must not wait for the modeled 6000ms cache tail');
-    assert.equal(normalized.answer, 'grounded answer');
-    assert.equal(normalized.citations[0].sourceUrl, metadata.groundingChunks[0].web.uri);
+    assert.match(normalized.answer, /grounded answer/);
+    assert.equal(normalized.citations.length, 1);
     assert.equal(cacheCalls, 0, 'background cache begins on a later microtask');
 
     await Promise.resolve();
@@ -193,9 +296,10 @@ test('full miss remains one combined Grounding request', () => {
     for (const issue of rescueIssues) assert.match(instruction, new RegExp(`${issue.id}: ${issue.query}`));
 });
 
-test('final chatbot path performs one synthesis call and permits at most one grounded attempt', () => {
+test('final chatbot path permits only one synthesis and has no verifier or repair call', () => {
     const finalAnswerFunction = source.match(/async function generateAnswerWithGemini[\s\S]*?^}/m)?.[0] || '';
-    assert.equal((finalAnswerFunction.match(/await getActiveModel\(/g) || []).length, 1);
+    assert.equal((finalAnswerFunction.match(/await activeModelCall\(/g) || []).length, 1);
+    assert.doesNotMatch(finalAnswerFunction, /applyRiskBasedVerification|repairPrompt|verifierGenerate|costStage:\s*['"]repair['"]/i);
     assert.match(source, /if \(enableGoogleSearch\) \{[\s\S]*?return returnResponseDetails[\s\S]*?: fallbackText;/);
 });
 
@@ -241,8 +345,9 @@ test('insufficient non-empty RAG enables Grounding', () => {
     assert.match(source, /forceSearch \|\| !isRagRelevant/);
 });
 
-test('Grounding failure enters internal-knowledge fallback only from a grounded attempt', () => {
-    assert.match(source, /catch \(error\)[\s\S]*?if \(enableGoogleSearch\) \{[\s\S]*?\[CHẾ ĐỘ LLM FALLBACK\]/);
+test('Grounding failure with zero verified RAG fails closed before ungrounded fallback', () => {
+    assert.match(source, /if \(!ungroundedFallbackAllowed\) \{[\s\S]*?SOURCE_UNAVAILABLE[\s\S]*?throw sourceError/);
+    assert.match(source, /verifiedRagCount > 0/);
 });
 
 test('Grounding remains incompatible with JSON response MIME type', () => {
@@ -278,8 +383,9 @@ test('fallback retains compiled RAG context and explicit coverage state', () => 
     assert.match(source, /không được ghi rõ là chưa thể xác minh|phải được ghi rõ là chưa thể xác minh/);
 });
 
-test('Grounding failure does not continue through the model queue', () => {
-    assert.match(source, /if \(enableGoogleSearch\) \{[\s\S]*?\[CHẾ ĐỘ LLM FALLBACK\]/);
+test('only preserved verified RAG permits a non-grounded synthesis after Grounding failure', () => {
+    assert.match(source, /decision: ungroundedFallbackAllowed \? 'PRESERVED_RAG_ONLY' : 'SOURCE_UNAVAILABLE'/);
+    assert.match(source, /Chỉ được tổng hợp những phần đã có bằng chứng RAG được bảo toàn/);
 });
 
 test('final legal answer prompt enforces concise-completeness limits', () => {

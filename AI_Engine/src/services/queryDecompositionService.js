@@ -5,6 +5,7 @@ const log = require('../utils/legalAiLogger');
 const { timed, timedSync } = require('../utils/latencyTracker');
 
 const DECOMPOSITION_MODEL = process.env.DECOMPOSITION_MODEL || 'gemini-3.1-flash-lite';
+const { recordCostUsage } = require('../utils/costUsageTelemetry');
 const DECOMPOSITION_TIMEOUT_MS = Number(process.env.DECOMPOSITION_TIMEOUT_MS) || 15000;
 const MAX_ISSUES = 6;
 const MIN_COMPLEX_ISSUES = 2;
@@ -21,9 +22,11 @@ const QUERY_DECOMPOSITION_SCHEMA = {
                 type: 'OBJECT',
                 properties: {
                     id: { type: 'STRING' },
-                    query: { type: 'STRING', description: 'One self-contained legal retrieval query naming the subject, legal act or relationship, and requested legal output.' }
+                    query: { type: 'STRING', description: 'One self-contained legal retrieval query naming the subject, legal act or relationship, and requested legal output.' },
+                    legalMechanismQuery: { type: 'STRING', description: 'A compact legal-mechanism query. Never include guessed article numbers, law numbers, IDs, or URLs.' },
+                    factualAnchors: { type: 'ARRAY', maxItems: 10, items: { type: 'STRING' }, description: 'Distinctive supplied facts: actors, conduct, objects, quantities, percentages, and requested outcome.' }
                 },
-                required: ['id', 'query']
+                required: ['id', 'query', 'legalMechanismQuery', 'factualAnchors']
             }
         }
     },
@@ -48,6 +51,9 @@ Quy tắc:
 - Không tách thành các từ khóa rời rạc, chủ thể đơn lẻ hoặc chi tiết sự kiện riêng lẻ. Ví dụ không được trả riêng "người lao động", "hợp đồng", "báo trước".
 - Với tình huống dài, gom các sự kiện liên quan vào 2 đến 6 cụm pháp lý chính; không tạo một vấn đề cho mỗi câu hay mỗi chi tiết.
 - Mỗi truy vấn phải hữu ích cho tìm kiếm ngữ nghĩa trong kho văn bản pháp luật.
+- Với mỗi vấn đề, query giữ sát cách diễn đạt và sự kiện của người dùng; legalMechanismQuery là cách diễn đạt ngắn gọn bằng các khái niệm/cơ chế pháp lý tương ứng.
+- legalMechanismQuery tuyệt đối không đoán số Điều, số luật, mã tài liệu hoặc URL.
+- factualAnchors chỉ ghi lại các sự kiện phân biệt đã có trong yêu cầu: chủ thể, hành vi, đối tượng, số lượng, tỷ lệ phần trăm và kết quả pháp lý được hỏi; không suy diễn thêm.
 - Mỗi truy vấn phải nêu rõ chủ thể, hành vi và sự kiện quan trọng; không dùng các cụm mơ hồ như "trường hợp này", "vấn đề trên", "như đã nói".
 - Nếu yêu cầu chỉ có một vấn đề pháp lý, trả isComplex=false, issueCount=0 và issues=[].
 - Ví dụ tách đúng: yêu cầu "mức phạt và hình thức xử phạt bổ sung" phải thành một truy vấn về mức phạt chính và một truy vấn về hình thức xử phạt bổ sung, có giữ đủ hành vi/chủ thể nếu câu hỏi cung cấp.
@@ -151,7 +157,18 @@ function validateDecomposition(rawResult) {
             continue;
         }
         uniqueQueries.add(comparisonKey);
-        issues.push({ id: `Q${issues.length + 1}`, query });
+        const legalMechanismQuery = normalizeWhitespace(rawIssue && rawIssue.legalMechanismQuery);
+        const factualAnchors = Array.isArray(rawIssue?.factualAnchors)
+            ? [...new Set(rawIssue.factualAnchors.map(normalizeWhitespace).filter(Boolean))].slice(0, 10)
+            : [];
+        issues.push({
+            id: `Q${issues.length + 1}`,
+            issueId: `Q${issues.length + 1}`,
+            query,
+            issueText: query,
+            legalMechanismQuery: normalizeForComparison(legalMechanismQuery) === comparisonKey ? '' : legalMechanismQuery,
+            factualAnchors
+        });
     }
 
     if (issues.length < MIN_COMPLEX_ISSUES) {
@@ -238,6 +255,7 @@ async function analyzeQuery(userQuery, options = {}) {
     try {
         const generate = options.generate || callDecompositionModel;
         options.progress?.started('DECOMPOSING', 'Đang xác định các vấn đề pháp lý…');
+        const callStarted = latency?.now?.() ?? Date.now();
         const modelResult = await timed(latency, 'decompositionMs', () => generate(userQuery));
         const response = modelResult && modelResult.response ? modelResult.response : modelResult;
         const rawResult = response && typeof response.text === 'function'
@@ -245,6 +263,7 @@ async function analyzeQuery(userQuery, options = {}) {
             : response;
         const validated = validateDecomposition(rawResult);
         const usage = getUsageMetadata(response);
+        recordCostUsage(latency, { stage: 'decomposer', model: DECOMPOSITION_MODEL, response, latencyMs: (latency?.now?.() ?? Date.now()) - callStarted, success: true, grounded: false });
         const result = {
             candidateComplex: true,
             signals: gate.signals,
@@ -260,6 +279,7 @@ async function analyzeQuery(userQuery, options = {}) {
         options.progress?.completed('DECOMPOSING', 'Đã xác định các vấn đề pháp lý');
         return result;
     } catch (error) {
+        recordCostUsage(latency, { stage: 'decomposer', model: DECOMPOSITION_MODEL, latencyMs: latency?.values?.decompositionMs || 0, success: false, grounded: false, failureType: error?.code || 'API_ERROR' });
         console.error('[QUERY DECOMPOSITION ERROR]', error.message);
         const result = getSimpleResult(true, gate.signals, true);
         log.line('QUERY', { complex: false, issues: 0 });

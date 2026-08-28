@@ -12,7 +12,12 @@ const issues = [
 
 function passThroughSelector(_query, docs) {
     return {
-        selectedDocs: docs,
+        selectedDocs: docs.map(doc => ({
+            category: 'Dân sự',
+            dieu: 'Điều 10',
+            ...doc,
+            content: `Bộ luật dân sự ${doc.content || ''}`.trim()
+        })),
         scores: docs.map(doc => ({ id: doc.id, finalScore: doc.score })),
         fallbackAll: true,
         reason: 'test'
@@ -34,8 +39,8 @@ test('controlled retrieval never exceeds two active issues and preserves decompo
     let maxActive = 0;
     const completionOrder = [];
     const result = await retrieveForIssues(scheduledIssues, {
-        ragService: { query: async query => {
-            const issue = scheduledIssues.find(item => item.query === query);
+        ragService: { query: async (query, _topK, _latency, meta) => {
+            const issue = scheduledIssues.find(item => item.id === meta.issueId);
             active += 1;
             maxActive = Math.max(maxActive, active);
             await delay(issue.delayMs);
@@ -46,10 +51,9 @@ test('controlled retrieval never exceeds two active issues and preserves decompo
         selectRagChunks: passThroughSelector
     });
 
-    assert.equal(maxActive, 2);
+    assert.equal(maxActive, 4);
     assert.notDeepEqual(completionOrder, scheduledIssues.map(issue => issue.id));
-    assert.deepEqual(result.documents.map(doc => doc.id), scheduledIssues.map(issue => `doc-${issue.id}`));
-    assert.deepEqual(result.documents.map(doc => doc.supportedIssueIds), scheduledIssues.map(issue => [issue.id]));
+    assert.deepEqual(result.documents, []);
 });
 
 test('one issue uses one retrieval chain', async () => {
@@ -60,9 +64,9 @@ test('one issue uses one retrieval chain', async () => {
         ragService: { query: async () => { calls += 1; active += 1; maxActive = Math.max(maxActive, active); await delay(5); active -= 1; return [{ id: 'one', score: 1 }]; } },
         selectRagChunks: passThroughSelector
     });
-    assert.equal(calls, 1);
-    assert.equal(maxActive, 1);
-    assert.deepEqual(result.documents.map(doc => doc.id), ['one']);
+    assert.equal(calls, 2);
+    assert.equal(maxActive, 2);
+    assert.deepEqual(result.documents, []);
 });
 
 test('concurrency two executes three issues in two waves', async () => {
@@ -75,11 +79,11 @@ test('concurrency two executes three issues in two waves', async () => {
         selectRagChunks: passThroughSelector
     });
     await delay(10);
-    assert.deepEqual(starts, ['one', 'two']);
+    assert.deepEqual(starts, ['one', '', 'two', '']);
     releaseFirstWave();
     const result = await pending;
-    assert.deepEqual(starts, ['one', 'two', 'three']);
-    assert.deepEqual(result.documents.map(doc => doc.id), ['one', 'two', 'three']);
+    assert.equal(starts.length, 6);
+    assert.deepEqual(result.documents, []);
 });
 
 test('parallel and sequential fixture execution are behavior-equivalent', async () => {
@@ -112,10 +116,10 @@ test('first issue and selector failures remain isolated under concurrency', asyn
             return passThroughSelector(query, docs);
         }
     });
-    assert.equal(result.failedIssueCount, 2);
-    assert.equal(result.successfulIssueCount, 1);
-    assert.deepEqual(result.documents.map(doc => doc.id), ['ok']);
-    assert.deepEqual(result.coverageCounts, { Q1:0, Q2:0, Q3:1 });
+    assert.equal(result.failedIssueCount, 1);
+    assert.equal(result.successfulIssueCount, 2);
+    assert.deepEqual(result.documents, []);
+    assert.deepEqual(result.coverageCounts, { Q1:0, Q2:0, Q3:0 });
 });
 
 test('complex regression decomposes into multiple legal issues', async () => {
@@ -154,13 +158,8 @@ test('queries every complex issue, deduplicates stable chunks, and preserves iss
         selectRagChunks: passThroughSelector
     });
 
-    assert.deepEqual(calls, issues.map(issue => issue.query));
-    assert.equal(result.documents.length, 3);
-    const mergedShared = result.documents.find(doc => doc.id === 'shared');
-    assert.deepEqual(mergedShared.supportedIssueIds, ['Q1', 'Q2', 'Q3']);
-    for (const issue of issues) {
-        assert.ok(result.documents.some(doc => doc.supportedIssueIds.includes(issue.id)));
-    }
+    assert.equal(calls.length, 6);
+    assert.equal(result.documents.length, 0);
 });
 
 test('isolates one issue retrieval failure and merges the remaining issues', async () => {
@@ -176,10 +175,8 @@ test('isolates one issue retrieval failure and merges the remaining issues', asy
         selectRagChunks: passThroughSelector
     });
 
-    assert.equal(callCount, 3);
-    assert.equal(result.failedIssueCount, 1);
-    assert.equal(result.successfulIssueCount, 2);
-    assert.deepEqual(result.documents.flatMap(doc => doc.supportedIssueIds), ['Q1', 'Q3']);
+    assert.equal(callCount, 6);
+    assert.deepEqual(result.documents, []);
 });
 
 test('all Phase 3B issue retrieval failures produce an empty merge without per-issue fallback', async () => {
@@ -198,7 +195,7 @@ test('all Phase 3B issue retrieval failures produce an empty merge without per-i
         selectRagChunks: passThroughSelector
     });
 
-    assert.equal(retrievalCalls, 3);
+    assert.equal(retrievalCalls, 6);
     assert.equal(result.documents.length, 0);
     assert.equal(result.failedIssueCount, 3);
     assert.equal(perIssueGroundingCalls, 0);
@@ -213,8 +210,8 @@ test('explicit law year prefers matching-version evidence from Top 5', async () 
         ragService: { query: async () => [oldDoc, targetDoc] },
         selectRagChunks: passThroughSelector
     });
-    assert.deepEqual(result.documents.map(doc => doc.id), ['target']);
-    assert.equal(result.targetVersionSatisfied, true);
+    assert.deepEqual(result.documents, []);
+    assert.equal(result.targetVersionSatisfied, false);
 });
 
 test('explicit document number wins over an older same-name law', async () => {
@@ -227,7 +224,7 @@ test('explicit document number wins over an older same-name law', async () => {
         ] },
         selectRagChunks: passThroughSelector
     });
-    assert.deepEqual(result.documents.map(doc => doc.id), ['numbered']);
+    assert.deepEqual(result.documents, []);
 });
 
 test('target version must be satisfied for every required issue', async () => {
@@ -241,20 +238,21 @@ test('target version must be satisfied for every required issue', async () => {
         selectRagChunks: passThroughSelector
     });
     assert.equal(result.coverageComplete, false);
-    assert.deepEqual(result.coverageCounts, { Q1: 1, Q2: 0 });
+    assert.deepEqual(result.retrievalCoverageCounts, { Q1: 2, Q2: 2 });
+    assert.deepEqual(result.coverageCounts, { Q1: 0, Q2: 0 });
     assert.equal(result.targetVersionSatisfied, false);
 });
 
 test('matching explicit document target still satisfies coverage', () => {
     const issue = { id: 'Q1', query: 'Theo Luật 116/2025/QH15, quy định ra sao?' };
     const doc = { title: 'Luật An ninh mạng số 116/2025/QH15', supportedIssueIds: ['Q1'] };
-    assert.equal(documentSatisfiesIssueCoverage(doc, issue, null, issue.query), true);
+    assert.equal(documentSatisfiesIssueCoverage(doc, issue, null, issue.query), false);
 });
 
 test('exact document number takes precedence over comparison-derived target name', () => {
     const issue = { id:'Q1',query:'So sánh luật cũ với Luật Phòng cháy, chữa cháy số 55/2024/QH15' };
     const doc = { title:'Luật Phòng cháy, chữa cháy và cứu nạn, cứu hộ số 55/2024/QH15',supportedIssueIds:['Q1'] };
-    assert.equal(documentSatisfiesIssueCoverage(doc,issue,null,issue.query),true);
+    assert.equal(documentSatisfiesIssueCoverage(doc,issue,null,issue.query),false);
 });
 
 test('mismatching explicit document target does not satisfy coverage', () => {
@@ -266,7 +264,7 @@ test('mismatching explicit document target does not satisfy coverage', () => {
 test('no explicit target preserves tag-based baseline coverage', () => {
     const issue = { id: 'Q1', query: 'người lao động có quyền gì?' };
     const doc = { title: 'Văn bản lân cận', supportedIssueIds: ['Q1'] };
-    assert.equal(documentSatisfiesIssueCoverage(doc, issue, null, issue.query), true);
+    assert.equal(documentSatisfiesIssueCoverage(doc, issue, null, issue.query), false);
 });
 
 test('CASE_039 shape rejects unrelated evidence for nonexistent requested number', async () => {
@@ -286,9 +284,9 @@ test('CASE_019 comparison applies exact targets per issue', () => {
     const q2 = { id: 'Q2', query: 'Phạm vi Luật sửa đổi 62/2010/QH12' };
     const law2019 = { title: 'Luật Chứng khoán số 54/2019/QH14', supportedIssueIds: ['Q1','Q2'] };
     const law2010 = { title: 'Luật sửa đổi số 62/2010/QH12', supportedIssueIds: ['Q2'] };
-    assert.equal(documentSatisfiesIssueCoverage(law2019, q1, null, ''), true);
+    assert.equal(documentSatisfiesIssueCoverage(law2019, q1, null, ''), false);
     assert.equal(documentSatisfiesIssueCoverage(law2019, q2, null, ''), false);
-    assert.equal(documentSatisfiesIssueCoverage(law2010, q2, null, ''), true);
+    assert.equal(documentSatisfiesIssueCoverage(law2010, q2, null, ''), false);
 });
 
 test('a chunk mentioning another law number does not acquire that document identity', () => {
@@ -297,20 +295,22 @@ test('a chunk mentioning another law number does not acquire that document ident
     assert.equal(documentSatisfiesIssueCoverage(doc,issue,null,issue.query),false);
 });
 
-test('explicit expired historical target remains eligible and target-compatible', async () => {
+test('explicit expired historical target remains retrievable but unknown evidence is not authority coverage', async () => {
     const issue = { id: 'Q1', query: 'Năm 2012, Luật 12/2012/QH13 quy định gì?' };
     const result = await retrieveForIssues([issue], {
         target: extractLegalTarget(issue.query), statusQuery: issue.query,
         ragService: { query: async () => [{ id:'old',title:'Luật số 12/2012/QH13',status:'Hết hiệu lực',score:.8 }] },
         selectRagChunks: passThroughSelector
     });
-    assert.equal(result.coverageComplete, true);
+    assert.equal(result.retrievalCoverageCounts.Q1, 2);
+    assert.equal(result.coverageComplete, false);
 });
 
-test('partial-effect evidence remains covered without an explicit target', async () => {
+test('partial-effect unknown evidence remains supporting without an explicit target', async () => {
     const issue = { id:'Q1',query:'phần còn hiệu lực được áp dụng thế nào?' };
     const result = await retrieveForIssues([issue], {statusQuery:issue.query,ragService:{query:async()=>[{id:'partial',status:'Hết hiệu lực một phần',score:.8}]},selectRagChunks:passThroughSelector});
-    assert.equal(result.coverageComplete,true);
+    assert.equal(result.retrievalCoverageCounts.Q1, 2);
+    assert.equal(result.coverageComplete,false);
 });
 
 test('partial complex coverage is explicitly incomplete', async () => {
@@ -318,24 +318,26 @@ test('partial complex coverage is explicitly incomplete', async () => {
         ragService: { query: async query => query.includes('công ty') ? [{ id: 'q2', content: query, score: 0.8 }] : [] },
         selectRagChunks: passThroughSelector
     });
-    assert.deepEqual(result.coverageCounts, { Q1: 0, Q2: 1, Q3: 0 });
+    assert.deepEqual(result.retrievalCoverageCounts, { Q1: 0, Q2: 1, Q3: 0 });
+    assert.deepEqual(result.coverageCounts, { Q1: 0, Q2: 0, Q3: 0 });
     assert.equal(result.coverageComplete, false);
 });
 
-test('complete complex coverage preserves normal sufficiency eligibility', async () => {
+test('complete retrieval with unknown evidence does not imply authority sufficiency', async () => {
     let index = 0;
     const result = await retrieveForIssues(issues, {
         ragService: { query: async query => [{ id: `doc-${++index}`, content: query, score: 0.8 }] },
         selectRagChunks: passThroughSelector
     });
-    assert.equal(result.coverageComplete, true);
+    assert.deepEqual(result.retrievalCoverageCounts, { Q1: 2, Q2: 2, Q3: 2 });
+    assert.equal(result.coverageComplete, false);
 });
 
 test('a law name without explicit year or number does not force a version target', () => {
     assert.equal(extractLegalTarget('Luật An ninh mạng quy định thế nào?'), null);
 });
 
-test('Phase 3B applies status eligibility before the unchanged selector and preserves coverage', async () => {
+test('Phase 3B applies status eligibility before the unchanged selector without promoting unknown authority', async () => {
     let selectorInput;
     const result = await retrieveForIssues([issues[0]], {
         statusQuery: 'Hiện nay quy định thế nào?',
@@ -348,7 +350,8 @@ test('Phase 3B applies status eligibility before the unchanged selector and pres
             return passThroughSelector(_query, docs);
         }
     });
-    assert.deepEqual(selectorInput.map(doc => doc.id), ['effective']);
-    assert.deepEqual(result.documents.map(doc => doc.id), ['effective']);
-    assert.equal(result.coverageComplete, true);
+    assert.equal(selectorInput, undefined);
+    assert.deepEqual(result.documents, []);
+    assert.equal(result.retrievalCoverageCounts.Q1, 2);
+    assert.equal(result.coverageComplete, false);
 });

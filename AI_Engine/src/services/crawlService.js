@@ -6,12 +6,10 @@ const pMap = require('p-map');
 const SystemConfig = require('../config/SystemConfig');
 const { getLegalDocumentId } = require('./legalIngestionContract');
 const { DOCUMENT_CHANGE_STATE } = require('./legalDocumentChangeService');
-const {
-    inferDocumentType,
-    normalizeLegalStatus,
-    parseIssueDateString
-} = require('../constants/legalMetadata');
+const { inferDocumentType } = require('../constants/legalMetadata');
 const legalDataService = require('./legalDataService');
+const { embedChunkBatches, createRollingItemLimiter } = require('./legalEmbeddingBatchService');
+const { normalizeCrawlerMetadata } = require('./legalCrawlerMetadataService');
 
 puppeteer.use(StealthPlugin());
 
@@ -89,6 +87,27 @@ const scrapeContent = async (url) => {
         await autoScroll(page);
 
         const data = await page.evaluate((minLen) => {
+            const bodyText = document.body?.innerText || '';
+            const rightHeaderText = document.querySelector('.right-header')?.innerText || '';
+            const explicitIssueDateTexts = Array.from(document.querySelectorAll('tr, dl, .row, .form-group, .field, .metadata-item'))
+                .map(element => element.innerText || '')
+                .filter(text => /^\s*Ngày\s+(?:ban\s+hành|ký)\s*:/iu.test(text));
+            const dateItems = Array.from(document.querySelectorAll('[class*="lawDocumentHeader_dateItem"]')).map(item => ({
+                label: item.querySelector('[class*="lawDocumentHeader_dateLabel"]')?.innerText || '',
+                value: item.querySelector('[class*="lawDocumentHeader_dateValue"]')?.innerText || ''
+            }));
+            const labelValueItems = Array.from(document.querySelectorAll('tr, dl, .row, .form-group, .field, .metadata-item'))
+                .map(item => {
+                    const text = item.innerText || '';
+                    const separator = text.indexOf(':');
+                    return separator > 0 ? { label: text.slice(0, separator), value: text.slice(separator + 1) } : null;
+                })
+                .filter(Boolean);
+            const structuredPayloads = Array.from(document.scripts)
+                .map(script => script.textContent || '')
+                .filter(text => text.includes('docNum') && text.length <= 2000000)
+                .slice(0, 20);
+            const structuredStatusText = document.querySelector('[class*="effStatus_detailStatusTag"]')?.innerText || '';
             const noise = [
                 'header', 'footer', '.header', '.footer',
                 '#divLeftControl', '.menu-links', '.sidebar',
@@ -114,8 +133,7 @@ const scrapeContent = async (url) => {
                 document.querySelector('.content-html p:first-child')?.innerText.trim() || "";
 
             // 2. Bóc tách Địa danh & Ngày tháng (Phía trên bên phải)
-            const issueDateFull = document.querySelector('.right-header')?.innerText.match(/(.*ngày\s+\d+.*)/i)?.[0] || "";
-            const pageText = document.body?.innerText || '';
+            const pageText = bodyText;
             const statusText = pageText.match(/(?:Tình trạng hiệu lực|Trạng thái hiệu lực)\s*:?\s*(Chưa có hiệu lực|Còn hiệu lực một phần|Còn hiệu lực|Hết hiệu lực một phần|Hết hiệu lực)/i)?.[1] || '';
             const effectiveDateText = pageText.match(/(?:Ngày có hiệu lực|Ngày hiệu lực)\s*:?\s*((?:ngày\s+)?\d{1,2}(?:\s+tháng\s+\d{1,2}\s+năm\s+|\s*\/\s*\d{1,2}\s*\/\s*)\d{4})/i)?.[1] || '';
 
@@ -184,9 +202,23 @@ const scrapeContent = async (url) => {
             }
             finalContent = finalContent.substring(0, firstTrashIndex).trim();
 
-            return { title, agency, issueDateFull, statusText, effectiveDateText, content: finalContent };
+            return {
+                title, agency, explicitIssueDateTexts, rightHeaderText, bodyText,
+                statusText, effectiveDateText, content: finalContent,
+                structuredPayloads,
+                dom: { dateItems, labelValueItems, statusText: structuredStatusText }
+            };
         }, minLen);
-        return data;
+        const metadata = normalizeCrawlerMetadata({
+            structuredPayloads: data.structuredPayloads,
+            dom: data.dom,
+            legacy: data
+        });
+        return {
+            ...data,
+            ...metadata,
+            issueDateFull: metadata.issueDateString
+        };
     } catch (err) {
         console.error(" Lỗi Scrape:", err.message);
         return null;
@@ -230,25 +262,28 @@ const processLegalCrawl = async (urlArray, io) => {
             uniqueUrls.push(url);
         }
         let processedCount = 0;
+        const embeddingItemLimiter = createRollingItemLimiter({
+            itemLimit: Number(process.env.LEGAL_EMBED_ITEM_LIMIT) || 80,
+            windowMs: 60000
+        });
 
-        const embedChunksInBatch = async texts => {
-            const buildRequest = () => ({
-                requests: texts.map(text => ({
-                    content: { parts: [{ text }] },
-                    outputDimensionality: 768
-                }))
-            });
-            let embedResult;
-            try {
-                embedResult = await getEmbeddingModel().batchEmbedContents(buildRequest());
-            } catch (error) {
-                if (!String(error.message || '').includes('429')) throw error;
-                console.log(' Quá tải API nhúng Vector, tạm nghỉ 30 giây và thử lại...');
-                await new Promise(resolve => setTimeout(resolve, 30000));
-                embedResult = await getEmbeddingModel().batchEmbedContents(buildRequest());
+        const embedChunksInBatch = chunks => embedChunkBatches(
+            chunks,
+            async batch => {
+                const embedResult = await getEmbeddingModel().batchEmbedContents({
+                    requests: batch.map(chunk => ({
+                        content: { role: 'user', parts: [{ text: chunk.text }] },
+                        outputDimensionality: 768
+                    }))
+                });
+                return (embedResult.embeddings || []).map(embedding => Array.from(embedding.values).slice(0, 768));
+            },
+            {
+                maxTokens: Number(process.env.LEGAL_EMBED_MAX_TOKENS) || 7000,
+                maxItemsPerBatch: Number(process.env.LEGAL_EMBED_MAX_ITEMS) || 20,
+                itemLimiter: embeddingItemLimiter
             }
-            return (embedResult.embeddings || []).map(embedding => Array.from(embedding.values));
-        };
+        );
 
         await pMap(uniqueUrls, async (url) => {
             const current = ++processedCount;
@@ -272,7 +307,7 @@ const processLegalCrawl = async (urlArray, io) => {
 
                 const finalCategory = getCategoryFromUrl(url);
                 const docNumMatch = content.substring(0, 1000).match(/([0-9]{1,4}\/[0-9]{4}\/[A-ZĐ0-9\-]{2,10})\b/);
-                let documentNumber = docNumMatch ? docNumMatch[1] : "Đang cập nhật";
+                let documentNumber = scrapedData.documentNumber || (docNumMatch ? docNumMatch[1] : "Đang cập nhật");
 
                 if (documentNumber === "Đang cập nhật") {
                     const urlMatch = url.match(/([0-9]{1,4}-[A-Z0-9-]{2,10}-[0-9]{4})/i);
@@ -293,6 +328,10 @@ const processLegalCrawl = async (urlArray, io) => {
                 }
                 const documentId = getLegalDocumentId({ documentNumber: idSource });
 
+                if (!scrapedData.issueDate) {
+                    console.warn(`[LEGAL METADATA WARNING] issueDate extraction failed documentId=${documentId}`);
+                }
+
                 console.log(`Generated document ID: ${documentId}`);
                 if (io) io.emit('crawl-progress', { ...crawlStatus, current, title: 'Đang so sánh thay đổi...', step: 'compare' });
                 const result = await legalDataService.upsertLegalData({
@@ -301,12 +340,12 @@ const processLegalCrawl = async (urlArray, io) => {
                     sourceUrl: url,
                     agency: scrapedData.agency || '',
                     documentNumber,
-                    documentType: inferDocumentType({ title, documentNumber }),
+                    documentType: scrapedData.documentType || inferDocumentType({ title, documentNumber }),
                     issueYear,
-                    issueDate: parseIssueDateString(scrapedData.issueDateFull),
-                    effectiveDate: parseIssueDateString(scrapedData.effectiveDateText),
+                    issueDate: scrapedData.issueDate,
+                    effectiveDate: scrapedData.effectiveDate,
                     category: finalCategory,
-                    status: normalizeLegalStatus(scrapedData.statusText),
+                    status: scrapedData.status,
                     content,
                     issueDateString: scrapedData.issueDateFull || ''
                 }, false, { embedChunks: embedChunksInBatch });
@@ -323,7 +362,7 @@ const processLegalCrawl = async (urlArray, io) => {
                 console.error(`Lỗi xử lý tại URL ${url}:`, urlError.message || urlError);
                 failCount++;
             }
-        }, { concurrency: 5 });
+        }, { concurrency: 1 });
         const endTime = Date.now();
         const executionTime = ((endTime - startTime) / 1000).toFixed(2);
         console.log('[CRAWL CHANGE SUMMARY]', changeSummary);

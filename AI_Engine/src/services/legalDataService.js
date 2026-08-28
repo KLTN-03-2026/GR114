@@ -1,12 +1,18 @@
 const { sql, pool, poolConnect } = require('../config/db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { chunkText } = require('../utils/chunkingUtils');
+const { chunkLegalArticles } = require('./articleAwareChunkingService');
+const { embedChunkBatches, createRollingItemLimiter } = require('./legalEmbeddingBatchService');
 const { normalizeLegalCategory } = require('../constants/legalCategories');
+const {
+    DEFAULT_MODEL,
+    createClassifier,
+    resolveDocumentCategory
+} = require('./legalCategoryClassifierService');
 const {
     inferDocumentType,
     normalizeLegalStatus,
     normalizeSqlDate,
-    parseIssueDateString
+    resolveIssueDatePersistence
 } = require('../constants/legalMetadata');
 const SystemConfig = require('../config/SystemConfig');
 const { getLegalPineconeIndex } = require('./legalPineconeService');
@@ -22,12 +28,19 @@ const {
 const {
     DOCUMENT_CHANGE_STATE,
     classifyLegalDocumentChange,
+    requiresPineconeResync,
     logDocumentChange
 } = require('./legalDocumentChangeService');
 
 let genAI;
 let embedModel;
 let currentGeminiKey = '';
+let categoryClassifier;
+let currentClassifierKey = '';
+const legalEmbeddingItemLimiter = createRollingItemLimiter({
+    itemLimit: Number(process.env.LEGAL_EMBED_ITEM_LIMIT) || 80,
+    windowMs: 60000
+});
 
 const initCloudServices = ({ embeddingRequired = true } = {}) => {
     if (embeddingRequired) {
@@ -55,6 +68,18 @@ const updateSyncStatus = async (documentId, ssmsStatus, pineconeStatus) => {
             WHERE Id = @id
         `);
 };
+const getCategoryClassifier = () => {
+    const activeKey = SystemConfig.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!activeKey) throw new Error('Missing canonical Gemini API key.');
+    if (!categoryClassifier || currentClassifierKey !== activeKey) {
+        categoryClassifier = createClassifier({
+            apiKey: activeKey,
+            modelName: process.env.CLASSIFICATION_MODEL || DEFAULT_MODEL
+        });
+        currentClassifierKey = activeKey;
+    }
+    return categoryClassifier;
+};
 const upsertLegalData = async (data, isUpdate = false, options = {}) => {
     await poolConnect;
     let documentId = isUpdate && data.id
@@ -72,20 +97,29 @@ const upsertLegalData = async (data, isUpdate = false, options = {}) => {
                 FROM dbo.LegalDocuments WHERE Id = @id
             `);
         const existing = existingResult.recordset[0] || null;
-        const requestedCategory = data.category ?? existing?.Category ?? 'Lĩnh vực khác';
-        const normalizedCategory = normalizeLegalCategory(requestedCategory);
-        if (!normalizedCategory) throw new Error(`Category requires manual reclassification: ${requestedCategory}`);
-
-        const issueDateString = data.issueDateString ?? existing?.IssueDateString ?? null;
-        const hasIssueDate = Object.prototype.hasOwnProperty.call(data, 'issueDate');
+        const resolvedIssueDate = resolveIssueDatePersistence(data, existing);
+        const issueDateString = resolvedIssueDate.issueDateString;
         const hasEffectiveDate = Object.prototype.hasOwnProperty.call(data, 'effectiveDate');
-        const issueDate = hasIssueDate
-            ? normalizeSqlDate(data.issueDate)
-            : normalizeSqlDate(existing?.IssueDate) ?? parseIssueDateString(issueDateString);
+        const issueDate = resolvedIssueDate.issueDate;
         const explicitIssueYear = Number(data.issueYear ?? existing?.IssueYear);
         const issueYear = Number.isInteger(explicitIssueYear) && explicitIssueYear > 0
             ? explicitIssueYear
             : issueDate ? Number(issueDate.slice(0, 4)) : null;
+        const content = data.content && data.content.trim() !== '' ? data.content : existing?.Content || '';
+        const requestedCategory = data.category ?? '';
+        const category = await resolveDocumentCategory({
+            sourceCategory: requestedCategory,
+            existing,
+            document: {
+                Id: documentId,
+                Title: data.title ?? existing?.Title ?? 'Văn bản pháp luật',
+                DocumentNumber: data.documentNumber ?? existing?.DocumentNumber ?? null,
+                IssuingAgency: data.agency ?? existing?.Agency ?? '',
+                ContentPreviewSource: content
+            },
+            classifier: options.classifyDocument || (document => getCategoryClassifier()(document))
+        });
+        const normalizedCategory = normalizeLegalCategory(category) || 'Lĩnh vực khác';
         const incoming = {
             doc_id: documentId,
             title: data.title ?? existing?.Title ?? 'Văn bản pháp luật',
@@ -103,14 +137,15 @@ const upsertLegalData = async (data, isUpdate = false, options = {}) => {
                 : normalizeSqlDate(existing?.EffectiveDate),
             status: normalizeLegalStatus(data.status ?? existing?.Status),
             category: normalizedCategory,
-            content: data.content && data.content.trim() !== '' ? data.content : existing?.Content || '',
+            content,
             sourceUrl: data.sourceUrl ?? existing?.SourceUrl ?? null,
             agency: data.agency ?? existing?.Agency ?? ''
         };
         classification = classifyLegalDocumentChange(existing, incoming);
         logDocumentChange(documentId, classification);
 
-        if (classification.state === DOCUMENT_CHANGE_STATE.UNCHANGED) {
+        const shouldResyncPinecone = requiresPineconeResync(existing, classification);
+        if (classification.state === DOCUMENT_CHANGE_STATE.UNCHANGED && !shouldResyncPinecone) {
             if (!existing.ContentHash) {
                 await pool.request()
                     .input('id', sql.NVarChar(500), documentId)
@@ -127,7 +162,7 @@ const upsertLegalData = async (data, isUpdate = false, options = {}) => {
         }
 
         const isNew = classification.state === DOCUMENT_CHANGE_STATE.NEW;
-        const isMetadataOnly = classification.state === DOCUMENT_CHANGE_STATE.METADATA_CHANGED;
+        const isMetadataOnly = classification.state === DOCUMENT_CHANGE_STATE.METADATA_CHANGED && !shouldResyncPinecone;
         if (isNew) {
             await pool.request()
                 .input('id', sql.NVarChar(500), documentId)
@@ -190,20 +225,29 @@ const upsertLegalData = async (data, isUpdate = false, options = {}) => {
         if (isMetadataOnly) {
             await updateLegalDocumentMetadata(cloud.pineconeIndex, incoming, listed.canonicalIds);
         } else {
-            const chunks = chunkText(incoming.content, 1500, 200);
+            const chunks = chunkLegalArticles(incoming.content, { maxChars: 1500 });
             const replacement = await replaceLegalDocumentVectors({
                 index: cloud.pineconeIndex,
                 document: incoming,
                 chunks,
                 existingVectorIds: listed.canonicalIds,
-                embedChunks: options.embedChunks || (async texts => {
-                    const values = [];
-                    for (const text of texts) {
-                        const result = await cloud.embedModel.embedContent(text);
-                        values.push(Array.from(result.embedding.values));
+                embedChunks: options.embedChunks || (chunksToEmbed => embedChunkBatches(
+                    chunksToEmbed,
+                    async batch => {
+                        const result = await cloud.embedModel.batchEmbedContents({
+                            requests: batch.map(chunk => ({
+                                content: { role: 'user', parts: [{ text: chunk.text }] },
+                                outputDimensionality: 768
+                            }))
+                        });
+                        return (result.embeddings || []).map(embedding => Array.from(embedding.values).slice(0, 768));
+                    },
+                    {
+                        maxTokens: Number(process.env.LEGAL_EMBED_MAX_TOKENS) || 7000,
+                        maxItemsPerBatch: Number(process.env.LEGAL_EMBED_MAX_ITEMS) || 20,
+                        itemLimiter: legalEmbeddingItemLimiter
                     }
-                    return values;
-                })
+                ))
             });
             staleVectorsRemoved = replacement.staleVectorsRemoved;
         }
@@ -218,7 +262,7 @@ const upsertLegalData = async (data, isUpdate = false, options = {}) => {
             success: true,
             documentId,
             changeState: classification.state,
-            embeddingDocuments: classification.embeddingRequired || isNew ? 1 : 0,
+            embeddingDocuments: classification.embeddingRequired || isNew || shouldResyncPinecone ? 1 : 0,
             staleVectorsRemoved,
             syncStatus: { ssms: SYNC_STATUS.SUCCESS, pinecone: SYNC_STATUS.SUCCESS }
         };
@@ -356,7 +400,7 @@ const getDocumentChunks = async (documentId) => {
         throw new Error('Document not found');
     }
 
-    return chunkText(result.recordset[0].Content, 1500, 200);
+    return chunkLegalArticles(result.recordset[0].Content, { maxChars: 1500 });
 };
 
 /**

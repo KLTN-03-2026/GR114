@@ -18,26 +18,45 @@ import Swal from 'sweetalert2';
 import { chatSocket, connectChatSocket, disconnectChatSocket, ensureChatSocketRegistered, getChatTabId } from '../api/chatSocket';
 import {
     applyProgressEvent, applyStreamChunk, applyStreamComplete, applyStreamError, applyStreamStart,
-    finalizeProgressMessage, PROGRESS_LABELS, setProgressConnectionState
+    finalizeProgressMessage, PROGRESS_LABELS, PROGRESS_VISIBILITY_DELAY_MS, revealProgressMessage,
+    setProgressConnectionState
 } from '../utils/chatProgressState';
 import { DEFAULT_NEAR_BOTTOM_PX, updateAutoFollowFromScroll } from '../utils/chatScrollState';
+import { splitLegalHeadingLines } from '../utils/legalAnswerHeadings';
 
-const ChatProgress = ({ message }) => (
-    <div className="min-w-[230px] space-y-2" aria-live="polite">
-        <p className="text-[11px] font-black uppercase tracking-wider text-[#8E6D45]">Đang xử lý yêu cầu</p>
-        {(message.progress || []).filter(item => item.stage !== 'COMPLETE' && item.stage !== 'ERROR').map(item => (
-            <div key={item.stage} className={`flex items-start gap-2 text-xs ${item.status === 'degraded' ? 'text-amber-700' : 'text-zinc-600'}`}>
-                <span className={`mt-0.5 shrink-0 ${item.status === 'started' ? 'animate-pulse text-[#B8985D]' : ''}`}>
-                    {item.status === 'completed' ? '✓' : item.status === 'degraded' ? '!' : '●'}
-                </span>
-                <span>{item.message || PROGRESS_LABELS[item.stage]}</span>
-            </div>
-        ))}
-        {message.connectionDegraded && (
-            <p className="text-xs text-amber-700">Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…</p>
-        )}
-    </div>
-);
+const renderLegalHeadingLines = children => React.Children.map(children, child => {
+    if (typeof child !== 'string') return child;
+    return splitLegalHeadingLines(child).map((line, index) => (
+        <React.Fragment key={`${index}-${line.text}`}>
+            {index > 0 && <br />}
+            {line.heading ? <strong className="font-bold">{line.text}</strong> : line.text}
+        </React.Fragment>
+    ));
+});
+
+const ChatProgress = ({ message }) => {
+    const current = message.connectionDegraded
+        ? { stage: 'CONNECTION', status: 'degraded', message: 'Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…' }
+        : message.currentProgressStage;
+    if (!message.progressVisible || !current) return null;
+    return (
+        <div className="min-w-[230px] min-h-5" aria-live="polite">
+            <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                    key={`${current.stage}-${current.status}-${current.message}`}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className={`flex items-start gap-2 text-xs ${current.status === 'degraded' ? 'text-amber-700' : 'text-zinc-600'}`}
+                >
+                    <span className={`mt-0.5 shrink-0 ${current.status === 'started' ? 'animate-pulse text-[#B8985D]' : ''}`}>●</span>
+                    <span>{current.message || PROGRESS_LABELS[current.stage]}</span>
+                </motion.div>
+            </AnimatePresence>
+        </div>
+    );
+};
 
 export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     const navigate = useNavigate();
@@ -56,6 +75,7 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
     const chatScrollRef = useRef(null);
     const autoFollowRef = useRef(true);
     const scrollFrameRef = useRef(null);
+    const progressTimersRef = useRef(new Map());
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
     useEffect(() => {
@@ -92,6 +112,11 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
             chatSocket.off('connect', handleConnect);
             disconnectChatSocket(registrationDisconnectHandler);
         };
+    }, []);
+
+    useEffect(() => () => {
+        for (const timer of progressTimersRef.current.values()) clearTimeout(timer);
+        progressTimersRef.current.clear();
     }, []);
 
     // Khởi tạo tin nhắn chào mừng (Chỉ còn AI)
@@ -221,6 +246,10 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
         if (!input.trim() || isLoading) return;
 
         const question = input;
+        const chatHistory = messages
+            .filter(message => typeof message.text === 'string' && message.text.trim() && (!message.isBot || message.state === 'complete' || !message.state))
+            .slice(-6)
+            .map(message => ({ role: message.isBot ? 'assistant' : 'user', content: message.text }));
         setIsLoading(true);
         const registration = progressListenerAttachedRef.current
             ? await ensureChatSocketRegistered()
@@ -234,17 +263,25 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
             state: 'progress',
             text: '',
             progress: [],
+            currentProgressStage: null,
+            progressVisible: false,
             lastSeq: 0,
             progressTerminal: false,
+            streamStarted: false,
             receivedChunkIds: [],
             connectionDegraded: !registration.ok
         };
         setMessages(prev => [...prev, userMsg, pendingMessage]);
+        const progressTimer = setTimeout(() => {
+            setMessages(previous => revealProgressMessage(previous, requestId));
+            progressTimersRef.current.delete(requestId);
+        }, PROGRESS_VISIBILITY_DELAY_MS);
+        progressTimersRef.current.set(requestId, progressTimer);
         setInput("");
         setIsSaved(false);
 
         try {
-            const res = await aiClient.ask(question, undefined, { requestId, tabId: registration.tabId });
+            const res = await aiClient.ask(question, undefined, { requestId, tabId: registration.tabId, chatHistory });
             const answer = res.answer || "Tôi đang học hỏi thêm về vấn đề này, bạn có thể nói rõ hơn không?";
             setMessages(prev => finalizeProgressMessage(prev, requestId, { ...res, answer }));
 
@@ -258,12 +295,18 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
             setMessages(prev => prev.map(message => message.requestId === requestId ? {
                 ...message,
                 state: 'error',
-                text: "⚠️ Server LegAI đang bận, thử lại sau nhé bạn.",
+                text: " Server LegAI đang bận, thử lại sau nhé bạn.",
                 progress: [],
+                currentProgressStage: null,
+                progressVisible: false,
                 progressTerminal: true,
-                connectionDegraded: false
+                connectionDegraded: false,
+                realtimeMessage: ''
             } : message));
         } finally {
+            const progressTimer = progressTimersRef.current.get(requestId);
+            if (progressTimer) clearTimeout(progressTimer);
+            progressTimersRef.current.delete(requestId);
             setIsLoading(false);
         }
     };
@@ -297,15 +340,15 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
 
                 if (ketLuan || phanTich || coSo || loiKhuyen) {
                     let mdText = "";
-                    if (ketLuan) mdText += `**Kết luận:**\n${ketLuan}\n\n`;
-                    if (phanTich) mdText += `**Phân tích:**\n${phanTich}\n\n`;
+                    if (ketLuan) mdText += `Kết luận:\n${ketLuan}\n\n`;
+                    if (phanTich) mdText += `Phân tích:\n${phanTich}\n\n`;
                     if (coSo) {
-                        mdText += `**Cơ sở pháp lý:**\n`;
+                        mdText += `Cơ sở pháp lý:\n`;
                         if (Array.isArray(coSo)) coSo.forEach(item => mdText += `- ${item}\n`);
                         else mdText += `${coSo}\n`;
                         mdText += `\n`;
                     }
-                    if (loiKhuyen) mdText += `**Lời khuyên:**\n${loiKhuyen}\n\n`;
+                    if (loiKhuyen) mdText += `Lời khuyên:\n${loiKhuyen}\n\n`;
                     content = mdText.trim();
                 } else {
                     // NẾU LÀ DẠNG { "answer": "Nội dung..." } -> Bóc lấy nội dung bên trong
@@ -319,24 +362,6 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
 
         // Đảm bảo dữ liệu đầu ra là chuỗi String
         if (typeof content !== 'string') content = String(content);
-
-        //  ÉP ĐỊNH DẠNG TIÊU ĐỀ 
-        const titles = [
-            { key: 'Kết luận' },
-            { key: 'Phân tích' },
-            { key: 'Cơ sở pháp lý' },
-            { key: 'Lời khuyên' }
-        ];
-
-        titles.forEach(item => {
-
-
-            const regex = new RegExp(`([\\s\\*\\-⚖️🔍📚💡]*)${item.key}(:?\\s*|:?\\*\\*\\s*)?`, 'gi');
-
-
-
-            content = content.replace(regex, `\n\n**${item.key}:**\n\n`);
-        });
 
         content = content.replace(/Nội dung do LegAI cung cấp.*/gi, (match) => `\n\n---\n*${match}*`);
 
@@ -398,66 +423,69 @@ export default function ChatbotAI({ isOpen, onClose, curretCagetory }) {
 
                 {/* CHAT BODY */}
                 <div className="relative flex-1 min-h-0 bg-zinc-50/50">
-                <div ref={chatScrollRef} className="h-full p-5 overflow-y-auto space-y-5 custom-scrollbar overscroll-contain">
-                    <AnimatePresence mode='popLayout'>
-                        {messages.map((msg) => (
-                            <motion.div
-                                key={msg.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
-                            >
-                                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-medium shadow-sm ${msg.isBot
-                                    ? 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none'
-                                    : 'bg-[#1A2530] text-white rounded-tr-none'
-                                    }`}>
+                    <div ref={chatScrollRef} className="h-full p-5 overflow-y-auto space-y-5 custom-scrollbar overscroll-contain">
+                        <AnimatePresence mode='popLayout'>
+                            {messages.map((msg) => (
+                                <motion.div
+                                    key={msg.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'} ${msg.isBot && msg.state === 'progress' && !msg.progressVisible ? 'hidden' : ''}`}
+                                >
+                                    <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-medium shadow-sm ${msg.isBot
+                                        ? 'bg-white text-zinc-700 border border-zinc-200 rounded-tl-none'
+                                        : 'bg-[#1A2530] text-white rounded-tr-none'
+                                        }`}>
 
-                                    {msg.isBot ? (
-                                        msg.state === 'progress' ? (
-                                            <ChatProgress message={msg} />
-                                        ) :
-                                        msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
-                                            <LawyerCard />
+                                        {msg.isBot ? (
+                                            msg.state === 'progress' ? (
+                                                <ChatProgress message={msg} />
+                                            ) :
+                                                msg.text.replace(/"/g, '').trim() === "[CONTACT_LAWYER]" ? (
+                                                    <LawyerCard />
+                                                ) : (
+                                                    <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
+                                                        {msg.connectionDegraded && <p className="not-prose mb-2 text-xs text-amber-700">{msg.realtimeMessage || 'Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…'}</p>}
+                                                        <ReactMarkdown
+                                                            components={{
+                                                                p: ({ node, children, ...props }) => (
+                                                                    <p {...props}>{renderLegalHeadingLines(children)}</p>
+                                                                ),
+                                                                // đường link trích dẫn pháp lý
+                                                                a: ({ node, ...props }) => (
+                                                                    <a
+                                                                        {...props}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        title="Bấm để xem văn bản pháp luật gốc"
+                                                                        className="text-blue-600 hover:text-blue-800 font-semibold underline underline-offset-2 transition-colors"
+                                                                    />
+                                                                )
+                                                            }}
+                                                        >
+                                                            {formatAIMessage(msg.text)}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                )
                                         ) : (
-                                            <div className="prose prose-sm max-w-none text-zinc-700 break-words prose-p:my-1.5 prose-li:my-0.5 prose-ul:my-1.5 prose-hr:my-3">
-                                                {msg.connectionDegraded && <p className="not-prose mb-2 text-xs text-amber-700">{msg.realtimeMessage || 'Mất kết nối cập nhật trực tiếp; vẫn đang xử lý…'}</p>}
-                                                <ReactMarkdown
-                                                    components={{
-                                                        // đường link trích dẫn pháp lý
-                                                        a: ({ node, ...props }) => (
-                                                            <a
-                                                                {...props}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                title="Bấm để xem văn bản pháp luật gốc"
-                                                                className="text-blue-600 hover:text-blue-800 font-semibold underline underline-offset-2 transition-colors"
-                                                            />
-                                                        )
-                                                    }}
-                                                >
-                                                    {formatAIMessage(msg.text)}
-                                                </ReactMarkdown>
-                                            </div>
-                                        )
-                                    ) : (
-                                        <div className="whitespace-pre-wrap break-words">{msg.text}</div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                                            <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
 
-                </div>
-                {showScrollToBottom && (
-                    <button
-                        type="button"
-                        onClick={scrollToBottom}
-                        aria-label="Về cuối cuộc trò chuyện"
-                        className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-bold text-zinc-600 shadow-md backdrop-blur hover:text-[#8E6D45]"
-                    >
-                        ↓ Về cuối
-                    </button>
-                )}
+                    </div>
+                    {showScrollToBottom && (
+                        <button
+                            type="button"
+                            onClick={scrollToBottom}
+                            aria-label="Về cuối cuộc trò chuyện"
+                            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-zinc-200 bg-white/95 px-3 py-1.5 text-xs font-bold text-zinc-600 shadow-md backdrop-blur hover:text-[#8E6D45]"
+                        >
+                            ↓
+                        </button>
+                    )}
                 </div>
 
 

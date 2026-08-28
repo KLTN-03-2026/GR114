@@ -15,6 +15,8 @@ const log = require('../utils/legalAiLogger');
 const { createLatencyTracker, snapshot, enterLatencyContext } = require('../utils/latencyTracker');
 const { createAiProgressReporter } = require('../utils/aiProgressReporter');
 const { classifyChatIntent, getBypassResponse } = require('../services/chatIntentRouter');
+const { resolveChatSemantics } = require('../services/chatSemanticResolver');
+const { logCostUsageSummary } = require('../utils/costUsageTelemetry');
 
 // hàm này sẽ được gọi trong aiRoutes.js khi có request POST /api/ai/ask
 // ==========================================
@@ -26,7 +28,7 @@ exports.ask = async (req, res) => {
     const requestStarted = latency.now();
     let progress = createAiProgressReporter();
     try {
-        const { question, message, requestId, tabId } = req.body;
+        const { question, message, requestId, tabId, chatHistory } = req.body;
         const userQuery = question || message;
 
         if (!userQuery) {
@@ -38,14 +40,30 @@ exports.ask = async (req, res) => {
 
         console.log(`\n [CHATBOT] Nhận câu hỏi: "${userQuery}"`);
 
-        const chatIntent = classifyChatIntent(userQuery);
+        let chatIntent = classifyChatIntent(userQuery);
         log.line('CHAT INTENT', {
             intent: chatIntent.intent,
             bypassLegalRetrieval: chatIntent.bypassLegalRetrieval,
+            requiresLegalRetrieval: chatIntent.requiresLegalRetrieval,
             reason: chatIntent.reason
         });
-        if (chatIntent.bypassLegalRetrieval) {
-            const answer = getBypassResponse(chatIntent.intent, userQuery);
+        let semanticReply = '';
+        if (chatIntent.intent === 'CLARIFICATION' && chatIntent.confidence === 'LOW') {
+            const semanticResult = await resolveChatSemantics(userQuery, chatHistory, { latency });
+            chatIntent = {
+                intent: semanticResult.intent === 'LEGAL' ? 'LEGAL_OR_UNCERTAIN' : semanticResult.intent,
+                bypassLegalRetrieval: semanticResult.requiresLegalRetrieval !== true,
+                requiresLegalRetrieval: semanticResult.requiresLegalRetrieval === true,
+                reason: semanticResult.failedSafe ? 'semantic_resolver_failed_safe' : 'semantic_resolver',
+                confidence: semanticResult.confidence
+            };
+            semanticReply = semanticResult.reply;
+        }
+
+        // Legal retrieval is allowlisted. Resolver failure and every non-legal result
+        // return before complexity, embedding, Pinecone, selector, and Grounding.
+        if (chatIntent.requiresLegalRetrieval !== true) {
+            const answer = semanticReply || getBypassResponse(chatIntent.intent, userQuery);
             const citations = [];
             const sources = [];
             progress.completed('ANALYZING', 'Đã phân tích yêu cầu');
@@ -74,6 +92,7 @@ exports.ask = async (req, res) => {
             const multiResult = await multiQueryRagService.retrieveForIssues(queryAnalysis.issues, {
                 ragService,
                 selectRagChunks: geminiService.selectRagChunks,
+                rerankEvidence: geminiService.rerankLegalEvidence,
                 target: targetLaw,
                 statusQuery: userQuery,
                 latency
@@ -94,11 +113,12 @@ exports.ask = async (req, res) => {
         }
 
         // LOG GIÁM SÁT NGUỒN DATA CHO CHATBOT
-        if (relatedDocs && relatedDocs.length > 0) {
-            console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật).`);
-        } else {
-            console.log(` [NGUỒN DATA]: PINECONE TRỐNG -> Đã cấp quyền dùng Google Search Grounding hoặc Tri thức nội tại.`);
-        }
+        if (isMultiQueryRag) {
+            const retrieved = Object.values(multiRagEvaluation.retrievalCoverageCounts || {}).reduce((sum, count) => sum + count, 0);
+            const state = retrieved === 0 ? 'PINECONE_CANDIDATES_EMPTY' : relatedDocs.length === 0 ? 'POST_RERANK_VALIDATION_EMPTY' : multiRagEvaluation.coverageComplete ? 'FULL_VERIFIED_COVERAGE' : 'PARTIAL_VERIFIED_EVIDENCE';
+            log.line('RAG EVIDENCE PIPELINE', { state, retrievedCandidates: retrieved, verifiedEvidence: relatedDocs.length });
+        } else if (relatedDocs && relatedDocs.length > 0) console.log(` [NGUỒN DATA]: DÙNG PINECONE (Lấy được ${relatedDocs.length} tài liệu luật).`);
+        else log.line('RAG EVIDENCE PIPELINE', { state: 'PINECONE_CANDIDATES_EMPTY', retrievedCandidates: 0, verifiedEvidence: 0 });
 
         // ← GỌI AI VỚI CITATIONS STRUCTURED
         // ← GỌI AI VỚI CITATIONS STRUCTURED - ÉP BUỘC DÙNG STRUCTURED CITATIONS
@@ -124,6 +144,9 @@ exports.ask = async (req, res) => {
         const missingIssueIds = isMultiQueryRag
             ? queryAnalysis.issues.filter(issue => !multiRagEvaluation.coverageCounts[issue.id]).map(issue => issue.id)
             : [];
+        if (isMultiQueryRag && missingIssueIds.length) {
+            log.line('GROUNDING RESCUE', { missingIssues: missingIssueIds.join(','), ragIssuesPreserved: queryAnalysis.issues.length - missingIssueIds.length, fullQueryMode: relatedDocs.length === 0, groundingAttemptedIssues: missingIssueIds.join(',') });
+        }
         const targetMismatchedIssueIds = isMultiQueryRag && targetLaw
             ? queryAnalysis.issues.filter(issue =>
                 !relatedDocs.some(doc => {
@@ -141,6 +164,7 @@ exports.ask = async (req, res) => {
             true,
             isMultiQueryRag ? {
                 ragAlreadySelected: true,
+                expectedIssues: queryAnalysis.issues,
                 allowGrounding: groundingAllowed,
                 targetLaw,
                 groundingContext: {
@@ -177,6 +201,7 @@ exports.ask = async (req, res) => {
         const latencyBreakdown = snapshot(latency, latency.now() - requestStarted);
         const { perIssue, ...summary } = latencyBreakdown;
         log.line('LATENCY', summary);
+        logCostUsageSummary(latency);
         if (perIssue.length) log.debug('LATENCY PER-ISSUE', { timings: perIssue.map(item => `${item.issueId}:embedding=${item.embeddingMs},pinecone=${item.pineconeMs},total=${item.totalMs}`).join(' | ') });
 
         const sources = formattedCitations.map(cite => ({
@@ -196,6 +221,22 @@ exports.ask = async (req, res) => {
         });
     } catch (error) {
         console.error('  Lỗi Chat Controller:', error);
+        logCostUsageSummary(latency);
+        if (error?.code === 'SOURCE_UNAVAILABLE') {
+            progress.error('Nguồn pháp lý hiện không khả dụng.');
+            return res.status(503).json({ success: false, incomplete: true, code: 'SOURCE_UNAVAILABLE', answer: 'Nguồn pháp lý đã xác minh hiện không khả dụng. Vui lòng thử lại sau.', message: 'Nguồn pháp lý đã xác minh hiện không khả dụng. Vui lòng thử lại sau.', citations: [], sources: [] });
+        }
+        if (error?.code === 'LEGAL_ANSWER_INTEGRITY_INVALID' || error?.code === 'STRUCTURED_LEGAL_RESPONSE_INVALID') {
+            progress.error('Chưa đủ cơ sở pháp lý đã xác minh để trả lời an toàn.');
+            return res.status(422).json({
+                success: false,
+                incomplete: true,
+                answer: 'Chưa đủ cơ sở pháp lý đã được xác minh để đưa ra câu trả lời đáng tin cậy.',
+                message: 'Chưa đủ cơ sở pháp lý đã được xác minh để đưa ra câu trả lời đáng tin cậy.',
+                citations: [],
+                sources: []
+            });
+        }
         progress.error('Không thể hoàn tất yêu cầu. Vui lòng thử lại sau.');
         return res.status(500).json({
             success: false,

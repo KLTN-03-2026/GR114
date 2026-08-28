@@ -28,6 +28,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const SystemConfig = require('../src/config/SystemConfig');
 const { getLegalPineconeIndex } = require('../src/services/legalPineconeService');
 const { getLegalDocumentId, buildLegalVectorRecord } = require('../src/services/legalIngestionContract');
+const { chunkLegalArticles } = require('../src/services/articleAwareChunkingService');
+const { createTokenBatches } = require('../src/services/legalEmbeddingBatchService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
@@ -39,8 +41,8 @@ const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
  */
 
 const CONFIG = {
-    MAX_TOKENS_PER_BATCH: 7000,
-    TARGET_TPM: 750000,
+    MAX_TOKENS_PER_BATCH: Number(process.env.LEGAL_EMBED_MAX_TOKENS) || 7000,
+    TARGET_TPM: Number(process.env.LEGAL_EMBED_TARGET_TPM) || 18000,
     MAX_TOTAL_EMBED_TOKENS: 3400000,
     CHARS_PER_TOKEN_VI: 2.5,
     MEASUREMENT_WINDOW_MS: 60000,
@@ -75,33 +77,6 @@ const cleanMarkdown = (text) => {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
     return cleanLegalContent(cleaned);
-};
-
-const smartChunk = (content) => {
-    if (!content) return [];
-    const chunks = [];
-    const regex = /(?=\n\s*Điều\s+\d+[a-zA-ZđĐ]*[\.:\s])/g;
-    const parts = content.split(regex);
-    let currentChuong = "Introductory Chapter";
-
-    parts.forEach(part => {
-        const text = part.trim();
-        if (text.length > 0) {
-            const chuongMatch = text.match(/(Chương\s+[IVXLCDM\d]+[^\n]*)/i);
-            if (chuongMatch) currentChuong = chuongMatch[1].trim();
-
-            const dieuMatch = text.match(/^(Điều\s+\d+[a-zA-ZđĐ]*)/i);
-            const dieu = dieuMatch ? dieuMatch[1] : "Basis/Introduction";
-
-            if (text.length > 2500) {
-                const subChunks = text.match(/[\s\S]{1,1500}(?!\S)/g) || [text];
-                subChunks.forEach(sub => chunks.push({ text: sub.trim(), dieu, chuong: currentChuong }));
-            } else {
-                chunks.push({ text, dieu, chuong: currentChuong });
-            }
-        }
-    });
-    return chunks;
 };
 
 function inferAgency(law) {
@@ -319,53 +294,6 @@ async function enforceRateLimit(upcomingTokens) {
 
 /*
  * =============================================================================
- * DYNAMIC TOKEN-BASED BATCHING
- * =============================================================================
- * 
- * Groups chunks into batches where total token count <= MAX_TOKENS_PER_BATCH.
- * Does not use fixed batch size - purely token-driven.
- */
-
-class DynamicBatcher {
-    constructor(maxTokensPerBatch = CONFIG.MAX_TOKENS_PER_BATCH) {
-        this.maxTokens = maxTokensPerBatch;
-        this.currentBatch = [];
-        this.currentTokens = 0;
-    }
-
-    addChunk(text) {
-        const tokens = estimateTokens(text);
-
-        if (this.currentTokens > 0 && this.currentTokens + tokens > this.maxTokens) {
-            const batch = this.currentBatch;
-            this.currentBatch = [text];
-            this.currentTokens = tokens;
-            return batch;
-        }
-
-        this.currentBatch.push(text);
-        this.currentTokens += tokens;
-        return null;
-    }
-
-    flush() {
-        const batch = this.currentBatch;
-        this.currentBatch = [];
-        this.currentTokens = 0;
-        return batch.length > 0 ? batch : null;
-    }
-
-    getStats() {
-        return {
-            batchSize: this.currentBatch.length,
-            tokens: this.currentTokens,
-            isFull: this.currentTokens >= CONFIG.MAX_TOKENS_PER_BATCH * 0.85
-        };
-    }
-}
-
-/*
- * =============================================================================
  * EMBEDDING WITH RETRY & EXPONENTIAL BACKOFF
  * =============================================================================
  */
@@ -375,7 +303,7 @@ async function embedChunksWithRetry(chunks) {
 
     while (attempt < CONFIG.MAX_RETRIES) {
         try {
-            const tokenCount = chunks.reduce((sum, text) => sum + estimateTokens(text), 0);
+            const tokenCount = chunks.reduce((sum, chunk) => sum + estimateTokens(chunk.text), 0);
 
             await enforceRateLimit(tokenCount);
 
@@ -388,8 +316,9 @@ async function embedChunksWithRetry(chunks) {
             tpmTracker.totalBatches++;
 
             const embedResult = await embedModel.batchEmbedContents({
-                requests: chunks.map(text => ({
-                    content: { role: "user", parts: [{ text }] }
+                requests: chunks.map(chunk => ({
+                    content: { role: "user", parts: [{ text: chunk.text }] },
+                    outputDimensionality: 768
                 }))
             });
 
@@ -493,7 +422,7 @@ const importData = async () => {
                 continue;
             }
 
-            const chunkData = smartChunk(cleanContent);
+            const chunkData = chunkLegalArticles(cleanContent, { maxChars: 1500 });
             console.log("   Generated " + chunkData.length + " chunks");
 
             const documentEstimatedTokens = chunkData.reduce(
@@ -529,63 +458,17 @@ const importData = async () => {
             /*
              * ===== DYNAMIC TOKEN-BASED BATCHING LOOP =====
              */
-            const batcher = new DynamicBatcher(CONFIG.MAX_TOKENS_PER_BATCH);
+            const batches = createTokenBatches(chunkData, {
+                maxTokens: CONFIG.MAX_TOKENS_PER_BATCH,
+                charsPerToken: CONFIG.CHARS_PER_TOKEN_VI
+            });
             let batchNumber = 0;
             let chunkIdx = 0;
 
-            for (let j = 0; j < chunkData.length; j++) {
-                const chunkText = chunkData[j].text;
-                const fullBatch = batcher.addChunk(chunkText);
-
-                if (fullBatch) {
-                    batchNumber++;
-                    try {
-                        const embeddings = await embedChunksWithRetry(fullBatch);
-
-                        for (let m = 0; m < embeddings.length; m++) {
-                            const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
-
-                            let correspondingChunkData = null;
-                            for (let k = j - fullBatch.length + 1; k <= j; k++) {
-                                if (chunkData[k] && chunkData[k].text === fullBatch[m]) {
-                                    correspondingChunkData = chunkData[k];
-                                    break;
-                                }
-                            }
-
-                            vectors.push(buildLegalVectorRecord({
-                                document: {
-                                    doc_id: safeVectorId,
-                                    title: docTitle,
-                                    sourceUrl: docSourceUrl,
-                                    agency: inferAgency(law),
-                                    documentNumber: law.DocumentNumber || law.documentNumber,
-                                    issueYear: law.IssueYear || law.issueYear,
-                                    category: docCategory,
-                                    status: law.Status || law.status
-                                },
-                                chunk: {
-                                    text: fullBatch[m],
-                                    chuong: correspondingChunkData ? correspondingChunkData.chuong : "Unknown",
-                                    dieu: correspondingChunkData ? correspondingChunkData.dieu : "Unknown"
-                                },
-                                chunkIndex: chunkIdx,
-                                values: vector768
-                            }));
-                            chunkIdx++;
-                        }
-                    } catch (error) {
-                        console.error("   FAILED - Batch #" + batchNumber + " embedding error: " + error.message);
-                        throw error;
-                    }
-                }
-            }
-
-            const remainingBatch = batcher.flush();
-            if (remainingBatch && remainingBatch.length > 0) {
+            for (const batch of batches) {
                 batchNumber++;
                 try {
-                    const embeddings = await embedChunksWithRetry(remainingBatch);
+                    const embeddings = await embedChunksWithRetry(batch);
 
                     for (let m = 0; m < embeddings.length; m++) {
                         const vector768 = Array.from(embeddings[m].values).slice(0, 768).map(Number);
@@ -601,14 +484,14 @@ const importData = async () => {
                                 category: docCategory,
                                 status: law.Status || law.status
                             },
-                            chunk: { text: remainingBatch[m], chuong: "Unknown", dieu: "Unknown" },
+                            chunk: batch[m],
                             chunkIndex: chunkIdx,
                             values: vector768
                         }));
                         chunkIdx++;
                     }
                 } catch (error) {
-                    console.error("   FAILED - Final batch embedding error: " + error.message);
+                    console.error("   FAILED - Batch #" + batchNumber + " embedding error: " + error.message);
                     throw error;
                 }
             }

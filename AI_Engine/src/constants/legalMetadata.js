@@ -85,7 +85,7 @@ function toSqlDate(value) {
     if (!value) return null;
     if (value instanceof Date) {
         if (Number.isNaN(value.getTime())) return null;
-        return value.toISOString().slice(0, 10);
+        return `${String(value.getFullYear()).padStart(4, '0')}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
     }
     const raw = String(value).normalize('NFC').trim();
     let year;
@@ -94,7 +94,7 @@ function toSqlDate(value) {
     let match = raw.match(/(?:^|[,\s])ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})(?:\D|$)/iu);
     if (match) [, day, month, year] = match;
     if (!match) {
-        match = raw.match(/(?:^|\D)(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})(?:\D|$)/u);
+        match = raw.match(/(?:^|\D)(\d{1,2})\s*[\/-]\s*(\d{1,2})\s*[\/-]\s*(\d{4})(?:\D|$)/u);
         if (match) [, day, month, year] = match;
     }
     if (!match) {
@@ -110,6 +110,63 @@ function toSqlDate(value) {
     return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+const EXCLUDED_ISSUE_DATE_LABEL = /^\s*Ngày\s+(?:có\s+hiệu\s+lực|hiệu\s+lực|hết\s+hiệu\s+lực|cập\s+nhật)\s*:/iu;
+const EXPLICIT_ISSUE_DATE_LABEL = /^\s*Ngày\s+(?:ban\s+hành|ký)\s*:/iu;
+const HEADER_END = /^\s*(?:Căn\s+cứ(?:\s|[.:,;]|$)|Điều\s+1(?:\s|[.:\-–—]|$))/iu;
+
+function extractDateLine(text, { explicitLabelRequired = false } = {}) {
+    for (const value of String(text || '').normalize('NFC').split(/\n+/u)) {
+        const line = value.replace(/\s+/gu, ' ').trim();
+        if (!line || EXCLUDED_ISSUE_DATE_LABEL.test(line)) continue;
+        if (explicitLabelRequired && !EXPLICIT_ISSUE_DATE_LABEL.test(line)) continue;
+        const iso = toSqlDate(line);
+        if (iso) return { raw: line, iso };
+    }
+    return null;
+}
+
+function extractLegalDateline(text) {
+    for (const value of String(text || '').normalize('NFC').split(/\n+/u)) {
+        const line = value.replace(/\s+/gu, ' ').trim();
+        if (!/^\p{L}[\p{L}\s.-]{0,100},\s*ngày\s+\d{1,2}\s+tháng\s+\d{1,2}\s+năm\s+\d{4}(?:\D|$)/iu.test(line)) continue;
+        const iso = toSqlDate(line);
+        if (iso) return { raw: line, iso };
+    }
+    return null;
+}
+
+function getScopedDocumentHeader(bodyText) {
+    const lines = String(bodyText || '').normalize('NFC').split('\n');
+    const header = [];
+    for (const line of lines) {
+        if (HEADER_END.test(line)) break;
+        header.push(line);
+        if (header.length >= 120 || header.join('\n').length >= 6000) break;
+    }
+    return header.join('\n');
+}
+
+function extractIssueDateMetadata({ explicitIssueDateTexts = [], rightHeaderText = '', bodyText = '' } = {}) {
+    for (const fieldText of explicitIssueDateTexts || []) {
+        const explicit = extractDateLine(fieldText, { explicitLabelRequired: true });
+        if (explicit) return explicit;
+    }
+    const rightHeader = extractLegalDateline(rightHeaderText);
+    if (rightHeader) return rightHeader;
+    return extractLegalDateline(getScopedDocumentHeader(bodyText));
+}
+
+function resolveIssueDatePersistence(data = {}, existing = null) {
+    const incomingRaw = String(data.issueDateString || '').normalize('NFC').trim();
+    const existingRaw = String(existing?.IssueDateString ?? existing?.issueDateString ?? '').normalize('NFC').trim();
+    const incomingDate = toSqlDate(data.issueDate) || toSqlDate(incomingRaw);
+    const existingDate = toSqlDate(existing?.IssueDate ?? existing?.issueDate);
+    return {
+        issueDateString: incomingRaw || existingRaw || null,
+        issueDate: incomingDate || existingDate || null
+    };
+}
+
 module.exports = {
     DOCUMENT_TYPES,
     LEGAL_STATUSES,
@@ -118,5 +175,9 @@ module.exports = {
     inferDocumentTypeFromNumber,
     inferDocumentType,
     parseIssueDateString: toSqlDate,
-    normalizeSqlDate: toSqlDate
+    normalizeSqlDate: toSqlDate,
+    extractIssueDateMetadata,
+    extractLegalDateline,
+    resolveIssueDatePersistence,
+    getScopedDocumentHeader
 };

@@ -93,6 +93,11 @@ function classifyLegalDocumentChange(storedDocument, incomingDocument) {
     };
 }
 
+function requiresPineconeResync(storedDocument, classification) {
+    return Boolean(storedDocument) && classification?.state !== DOCUMENT_CHANGE_STATE.NEW &&
+        String(storedDocument?.SyncStatusPinecone || '').toLowerCase() !== 'success';
+}
+
 function logDocumentChange(docId, classification, staleVectorsRemoved = 0) {
     console.log('[DOCUMENT CHANGE]');
     console.log(`docId=${docId}`);
@@ -111,5 +116,6 @@ module.exports = {
     computeLegalContentHash,
     getChangedMetadataFields,
     classifyLegalDocumentChange,
+    requiresPineconeResync,
     logDocumentChange
 };

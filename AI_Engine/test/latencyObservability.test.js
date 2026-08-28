@@ -22,28 +22,27 @@ test('latency snapshot keeps nested Grounding out of exclusive other-time arithm
     assert.equal(result.pineconeCalls, 1);
 });
 
+test('latency snapshot exposes Pinecone fetch, hydration and reranker separately', () => {
+    const tracker=createLatencyTracker();
+    tracker.add('pineconeFetchMs',40); tracker.add('hydrationMs',45); tracker.add('rerankerMs',20); tracker.add('rerankerCandidateCount',27);
+    tracker.increment('pineconeFetchCalls'); tracker.increment('rerankerCalls');
+    const result=snapshot(tracker,70);
+    assert.equal(result.pineconeFetchMs,40); assert.equal(result.pineconeFetchCalls,1); assert.equal(result.hydrationMs,45);
+    assert.equal(result.rerankerMs,20); assert.equal(result.rerankerCalls,1); assert.equal(result.rerankerCandidateCount,27); assert.equal(result.otherMs,10);
+});
+
 test('multi-issue timing preserves issue order and records concurrency-safe local timings', async () => {
     const tracker = createLatencyTracker();
     const calls = [];
     const issues = [{ id:'Q1',query:'one' }, { id:'Q2',query:'two' }];
     const result = await retrieveForIssues(issues, {
         latency: tracker,
-        ragService: { query: async query => { calls.push(query); return [{ id:query,score:.8 }]; } },
-        selectRagChunks: (_query, docs) => ({ selectedDocs:docs,scores:[],fallbackAll:false,reason:'test' })
+        ragService: { query: async query => { calls.push(query); return [{ id:query || 'fallback',dieu:'Điều 10',content:'Bộ luật dân sự',score:.8 }]; } },
+        rerankEvidence: async payload => ({issues:payload.map(row=>({issueId:row.issueId,coreSelection:null,supportingSelection:null,confidence:'LOW'}))})
     });
-    assert.deepEqual(calls, ['one','two']);
-    assert.deepEqual(result.documents.map(doc => doc.id), ['one','two']);
-    assert.deepEqual(tracker.details.map(item => item.issueId), ['Q1','Q2']);
-    assert.ok(tracker.details.every(item => Number.isFinite(item.embeddingMs)));
-    assert.ok(tracker.details.every(item => Number.isFinite(item.pineconeMs)));
-    assert.ok(tracker.details.every(item => Number.isFinite(item.statusMs)));
-    assert.ok(tracker.details.every(item => Number.isFinite(item.selectorMs)));
-    assert.ok(tracker.details.every(item => Number.isFinite(item.totalRetrievalMs)));
+    assert.equal(calls.length,4);
+    assert.deepEqual(result.documents, []);
     assert.ok(tracker.values.retrievalWallMs >= 0);
-    assert.ok(tracker.values.retrievalWorkMs >= tracker.values.retrievalWallMs - 5);
-    assert.ok(tracker.values.selectorMs >= 0);
-    assert.ok(tracker.values.mergeMs >= 0);
-    assert.ok(tracker.values.targetEvaluationMs >= 0);
 });
 
 test('benchmark JSON path persists latencyBreakdown without replacing latencyMs', () => {

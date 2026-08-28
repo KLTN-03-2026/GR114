@@ -1,8 +1,5 @@
-const fetch = require('node-fetch');
-global.fetch = fetch;
-global.Headers = fetch.Headers;
-global.Request = fetch.Request;
-global.Response = fetch.Response;
+const { ensureFetchRuntime } = require('../utils/fetchRuntime');
+const fetchRuntime = ensureFetchRuntime();
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const SystemConfig = require('../config/SystemConfig');
@@ -15,7 +12,15 @@ const { pool, poolConnect } = require('../config/db');
 const ragService = require('./ragService');
 const lawSourceService = require('./lawSourceService');
 const { CANONICAL_CATEGORIES, normalizeLegalCategory } = require('../constants/legalCategories');
-const { generateContentStreaming } = require('../utils/geminiStreamUtils');
+const { generateContentStreaming, isStreamTransportUnsupported } = require('../utils/geminiStreamUtils');
+const { validateLegalAnswerIntegrity, isValidArticleIdentifier } = require('./legalAnswerIntegrityService');
+const { evaluateLegalEvidence } = require('./legalEvidenceEligibilityService');
+const { recordCostUsage, recordFinalInputTelemetry } = require('../utils/costUsageTelemetry');
+const { optimizeFinalEvidence, identity: finalEvidenceIdentity } = require('./finalEvidenceOptimizer');
+const {
+    FINAL_LEGAL_PRIMARY_MODEL, FINAL_LEGAL_FALLBACK_MODEL, DEFAULT_PROMPT_SCHEMA_VERSION,
+    prepareDeterministicEvidence, buildCacheKey, getCachedAnswer, setCachedAnswer, resolveModelPayload
+} = require('./finalLegalStabilizationService');
 
 const GEMINI_NORMAL_TIMEOUT_MS = 45000;
 const DEFAULT_GEMINI_GROUNDING_TIMEOUT_MS = 90000;
@@ -715,19 +720,22 @@ Nếu cả RAG nội bộ và Search grounding đều không có kết quả:
 // =============================================================================
 // GET MODEL 
 // =============================================================================
-async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null, returnResponseDetails = false, ragAlreadySelected = false, groundingContext = {}, latency = null, progress = null) {
+async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forceSearch = false, useProModel = false, rawUserQuestion = "", responseSchema = null, returnResponseDetails = false, ragAlreadySelected = false, groundingContext = {}, latency = null, progress = null, dependencies = {}) {
     const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
     const preferredModel = SystemConfig?.geminiModel;
     const temp = SystemConfig?.temperature || 0.1;
 
     if (!apiKey) throw new Error("Chưa có API Key trong hệ thống!");
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = dependencies.genAI || new GoogleGenerativeAI(apiKey);
+    const scheduleTimeout = dependencies.setTimeout || setTimeout;
+    const cancelTimeout = dependencies.clearTimeout || clearTimeout;
 
     // 1. Enable GOOGLE SEARCH 
     let enableGoogleSearch = false;
     let ragContext = "";
     let groundingRescue = null;
+    let effectiveEvidenceDocuments = [];
     const routerStarted = latency?.now();
 
     if (relatedDocs && relatedDocs.length > 0) {
@@ -793,6 +801,21 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
                 relatedDocs
             ));
         const selectedDocs = filterGroundingContextDocuments(selectorResult.selectedDocs, groundingRescue);
+        const selectedIdentities = new Set(selectedDocs.map((document, index) => finalEvidenceIdentity(document, index)));
+        effectiveEvidenceDocuments = Array.isArray(dependencies.serializedEvidenceDocuments)
+            ? dependencies.serializedEvidenceDocuments.filter((document, index) => selectedIdentities.has(finalEvidenceIdentity(document, index)))
+            : selectedDocs;
+        if (!enableGoogleSearch && Array.isArray(dependencies.serializedEvidenceDocuments) &&
+            dependencies.serializedEvidenceDocuments.length > 0 && effectiveEvidenceDocuments.length === 0) {
+            const handoffError = new Error('FINAL_EVIDENCE_HANDOFF_INVALID');
+            handoffError.code = 'FINAL_EVIDENCE_HANDOFF_INVALID';
+            log.error('FINAL EVIDENCE HANDOFF', {
+                optimizedEvidenceCount: dependencies.serializedEvidenceDocuments.length,
+                selectedEvidenceCount: selectedDocs.length,
+                finalEvidenceCount: 0
+            });
+            throw handoffError;
+        }
         if (!ragAlreadySelected) {
             progress?.completed('RAG_SELECT', 'Đã chọn tài liệu liên quan');
         }
@@ -806,8 +829,8 @@ async function getActiveModel(userPrompt, isJson = false, relatedDocs = [], forc
 
         const ragPromptStarted = latency?.now();
         const rawContext = buildRawContextText(relatedDocs);
-        const documentGroups = groupContextDocuments(selectedDocs);
-        ragContext = buildStrictContextText(selectedDocs);
+        const documentGroups = groupContextDocuments(effectiveEvidenceDocuments);
+        ragContext = buildStrictContextText(effectiveEvidenceDocuments);
         if (latency) latency.add('promptBuildMs', latency.now() - ragPromptStarted);
         const articleGroups = documentGroups.reduce((total, documentGroup) => total + documentGroup.articles.size, 0);
         const savedChars = rawContext.length - ragContext.length;
@@ -891,6 +914,26 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
 "${userPrompt}"
     `;
     if (latency) latency.add('promptBuildMs', latency.now() - promptStarted);
+    if ((dependencies.costStage || 'final') === 'final') {
+        const roles = effectiveEvidenceDocuments.map(document => Object.values(document.authorityRoles || {}));
+        const identities = effectiveEvidenceDocuments.map((document, index) => document.id || document.vector_id || document.chunk_id || document.doc_id || `row-${index}`);
+        const generalDocuments = effectiveEvidenceDocuments.filter((document, index) => roles[index].length === 0 || roles[index].every(role => !['PRIMARY', 'SUPPORTING'].includes(role)));
+        recordFinalInputTelemetry(latency, {
+            finalPromptChars: compiledPrompt.length,
+            finalEvidenceCount: effectiveEvidenceDocuments.length,
+            mergedEvidenceCount: Array.isArray(relatedDocs) ? relatedDocs.length : 0,
+            allMergedEvidenceSent: effectiveEvidenceDocuments.length === (Array.isArray(relatedDocs) ? relatedDocs.length : 0),
+            primaryEvidenceCount: roles.filter(values => values.includes('PRIMARY')).length,
+            supportingEvidenceCount: roles.filter(values => values.includes('SUPPORTING')).length,
+            totalEvidenceChars: effectiveEvidenceDocuments.reduce((sum, document) => sum + String(document.content || document.text || '').length, 0),
+            duplicateEvidenceCount: identities.length - new Set(identities).size,
+            generalEvidenceCount: generalDocuments.length,
+            generalEvidenceChars: generalDocuments.reduce((sum, document) => sum + String(document.content || document.text || '').length, 0),
+            issueCount: Array.isArray(groundingContext?.issues) ? groundingContext.issues.length : 0,
+            fixedSystemPromptChars: getSystemLawInstruction().length,
+            fixedFinalWrapperChars: Math.max(0, compiledPrompt.length - String(userPrompt || '').length - ragContext.length)
+        });
+    }
 
     const normalizeModelName = (modelName) => {
         if (!modelName) return null;
@@ -901,7 +944,9 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
     // 2. PHÂN BỔ HÀNG ĐỢI MODEL - STRICT PRIORITY
     let fastQueue = [];
 
-    if (useProModel) {
+    if (dependencies.finalLegalRouting === true) {
+        fastQueue = [FINAL_LEGAL_PRIMARY_MODEL, FINAL_LEGAL_FALLBACK_MODEL];
+    } else if (useProModel) {
         // PRO MODEL PRIORITY: 
         fastQueue = ["models/gemini-3.1-pro-preview", "models/gemini-2.5-pro", "models/gemini-3.5-flash"];
     } else {
@@ -914,6 +959,7 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
     const normalizedPreferredModel = normalizeModelName(preferredModel);
 
     if (
+        dependencies.finalLegalRouting !== true &&
         normalizedPreferredModel &&
         normalizedPreferredModel !== "gemini-3.1-flash-lite"
     ) {
@@ -937,14 +983,70 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
 
     progress?.started('SYNTHESIZING', 'Đang tổng hợp câu trả lời…');
 
-    for (const modelName of fastQueue) {
+    for (let modelIndex = 0; modelIndex < fastQueue.length; modelIndex += 1) {
+        const modelName = fastQueue[modelIndex];
         let timeoutId = null;
         let generationAbortController = null;
         let modelCallStarted = null;
         let modelTimingRecorded = false;
+        let attemptDeadlineExceeded = false;
+        let transportMetrics = null;
+        let attemptRecorded = false;
         const startedAt = new Date();
+        modelCallStarted = latency?.now();
         const timeoutLimitMs = enableGoogleSearch ? getGroundingTimeoutMs() : GEMINI_NORMAL_TIMEOUT_MS;
+        const attempt = {
+            model: modelName,
+            attemptStart: startedAt.toISOString(),
+            attemptEnd: null,
+            attemptMs: 0,
+            grounding: enableGoogleSearch,
+            streamAttempted: true,
+            streamInitMs: null,
+            firstMeaningfulChunkMs: null,
+            meaningfulChunkCount: 0,
+            streamFailureType: null,
+            streamFailureMs: null,
+            nonStreamFallbackUsed: false,
+            nonStreamFallbackMs: 0,
+            finalFailureType: null,
+            success: false
+        };
+        const recordAttempt = (success, failureType = null, metrics = transportMetrics) => {
+            if (attemptRecorded) return;
+            attemptRecorded = true;
+            if (metrics) Object.assign(attempt, {
+                streamAttempted: metrics.streamAttempted,
+                streamInitMs: metrics.streamInitMs,
+                firstMeaningfulChunkMs: metrics.firstMeaningfulChunkMs,
+                meaningfulChunkCount: metrics.meaningfulChunkCount,
+                streamFailureType: metrics.streamFailureType,
+                streamFailureMs: metrics.streamFailureMs,
+                nonStreamFallbackUsed: metrics.nonStreamFallbackUsed,
+                nonStreamFallbackMs: metrics.nonStreamFallbackMs
+            });
+            attempt.attemptEnd = new Date().toISOString();
+            attempt.attemptMs = Date.now() - startedAt.getTime();
+            attempt.finalFailureType = failureType;
+            attempt.success = success;
+            latency?.modelAttempt(attempt);
+            log.line('MODEL ATTEMPT', {
+                model: modelName,
+                grounding: enableGoogleSearch,
+                result: success ? 'SUCCESS' : failureType,
+                attemptMs: attempt.attemptMs
+            });
+            log.line('STREAM TRANSPORT', {
+                model: modelName,
+                nativeFetch: fetchRuntime.nativeFetch,
+                fallbackUsed: attempt.nonStreamFallbackUsed,
+                streamInitMs: attempt.streamInitMs,
+                firstChunkMs: attempt.firstMeaningfulChunkMs,
+                success
+            }, success ? 'debug' : 'info');
+        };
         try {
+            log.line('MODEL ATTEMPT', { model: modelName, grounding: enableGoogleSearch, stream: true }, 'debug');
             log.debug('GEMINI REQUEST', { model: modelName, grounding: enableGoogleSearch });
 
             const modelConfig = {
@@ -961,7 +1063,8 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
             const model = genAI.getGenerativeModel(modelConfig);
 
             const timeoutPromise = new Promise((_, reject) => {
-                timeoutId = setTimeout(() => {
+                timeoutId = scheduleTimeout(() => {
+                    attemptDeadlineExceeded = true;
                     generationAbortController?.abort();
                     const timeoutError = new Error("TIMEOUT_EXCEEDED");
                     timeoutError.code = 'CLIENT_TIMEOUT';
@@ -986,21 +1089,48 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
             }, {
                 grounded: enableGoogleSearch,
                 requestOptions: { signal: generationAbortController.signal },
-                onStart: () => progress?.streamStart(),
+                latency,
+                nativeFetch: fetchRuntime.nativeFetch,
+                isAttemptTimedOut: () => attemptDeadlineExceeded,
+                onStart: initMs => {
+                    attempt.streamInitMs = initMs;
+                    progress?.streamStart();
+                },
+                onFirstMeaningfulChunk: elapsed => { attempt.firstMeaningfulChunkMs = elapsed; },
+                onTransportMetrics: metrics => { transportMetrics = metrics; },
                 onDelta: delta => progress?.streamChunk(delta),
+                onTransportFallback: reason => log.line('STREAM TRANSPORT', { model: modelName, nativeFetch: fetchRuntime.nativeFetch, fallbackUsed: true, reason }),
+                onTransportFallbackSuccess: elapsed => log.line('STREAM TRANSPORT', { model: modelName, nonStreamFallbackSuccess: true, latencyMs: Math.round(elapsed) }),
+                onTransportFallbackFailure: (transportError, elapsed) => log.error('STREAM TRANSPORT', { model: modelName, nonStreamFallbackSuccess: false, type: classifyGenerationFailure(transportError), latencyMs: Math.round(elapsed) }),
+                onLateStreamError: (lateError, cleanup) => log.line('STREAM CLEANUP', {
+                    model: modelName,
+                    grounded: enableGoogleSearch,
+                    source: cleanup.source,
+                    attemptTimedOut: cleanup.attemptTimedOut,
+                    type: classifyGenerationFailure(lateError)
+                }),
                 onError: () => progress?.streamError('STREAM_INTERRUPTED', 'Mất kết nối truyền trực tiếp; vẫn đang xử lý…', true)
             });
+            apiPromise.catch(lateError => {
+                if (!attemptDeadlineExceeded) return;
+                log.line('STREAM CLEANUP', {
+                    model: modelName,
+                    grounded: enableGoogleSearch,
+                    source: 'stream_operation',
+                    attemptTimedOut: true,
+                    type: classifyGenerationFailure(lateError)
+                });
+            });
 
-            const modelStarted = latency?.now();
-            modelCallStarted = modelStarted;
             const result = await Promise.race([apiPromise, timeoutPromise]);
-            const modelElapsed = latency ? latency.now() - modelStarted : 0;
+            transportMetrics = result?.transportMetrics || transportMetrics;
+            const modelElapsed = latency ? latency.now() - modelCallStarted : 0;
             if (latency) {
                 latency.add('finalModelMs', modelElapsed);
                 if (enableGoogleSearch) latency.add('groundingMs', modelElapsed);
                 modelTimingRecorded = true;
             }
-            if (timeoutId) clearTimeout(timeoutId);
+            if (timeoutId) cancelTimeout(timeoutId);
             if (result && result.response) {
                 const finishReason = result.response.candidates?.[0]?.finishReason;
                 if (finishReason === 'RECITATION') {
@@ -1020,11 +1150,17 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
                 }
 
                 if (text) {
+                    recordAttempt(true, null, transportMetrics);
                     if (enableGoogleSearch) {
                         progress?.completed('GROUNDING', 'Đã kiểm tra nguồn pháp lý bổ sung');
                     }
                     progress?.completed('SYNTHESIZING', 'Đã tổng hợp câu trả lời');
                     const usage = result.response.usageMetadata || {};
+                    recordCostUsage(latency, {
+                        stage: enableGoogleSearch ? 'grounding' : (dependencies.costStage || 'final'),
+                        model: modelName, response: result.response,
+                        latencyMs: Date.now() - startedAt.getTime(), success: true, grounded: enableGoogleSearch
+                    });
                     if (enableGoogleSearch) {
                         const sourceDomains = (groundingMetadata?.groundingChunks || []).map(chunk => {
                             const uri = chunk?.web?.uri;
@@ -1053,14 +1189,22 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
                         : text;
                 }
             }
+            recordAttempt(false, 'API_ERROR', transportMetrics);
         } catch (error) {
-            if (timeoutId) clearTimeout(timeoutId);
+            if (timeoutId) cancelTimeout(timeoutId);
             if (latency && modelCallStarted != null && !modelTimingRecorded) {
                 const elapsed = latency.now() - modelCallStarted;
                 latency.add('finalModelMs', elapsed);
                 if (enableGoogleSearch) latency.add('groundingMs', elapsed);
             }
             const msg = (error.message || "").toString();
+            const failureType = classifyGenerationFailure(error);
+            recordCostUsage(latency, {
+                stage: enableGoogleSearch ? 'grounding' : (dependencies.costStage || 'final'),
+                model: modelName, response: error?.response,
+                latencyMs: Date.now() - startedAt.getTime(), success: false, grounded: enableGoogleSearch, failureType
+            });
+            recordAttempt(false, failureType, error.transportMetrics || transportMetrics);
             const timeoutSource = getTimeoutSource(error);
             console.warn(`  ${modelName} thất bại:`, msg.split('\n')[0]);
             if (enableGoogleSearch) {
@@ -1071,22 +1215,67 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
             console.log({
                 model: modelName,
                 grounded: enableGoogleSearch,
-                type: classifyGenerationFailure(error)
+                type: failureType
             });
 
-            // A Grounding request gets exactly one attempt. Only after that
-            // attempt fails (quota, API error, or timeout) may internal model
-            // knowledge be used by the existing controlled fallback.
+            // A Grounding request gets exactly one attempt. With no preserved
+            // verified RAG evidence, legal generation must fail closed.
             if (enableGoogleSearch) {
                 progress?.degraded('GROUNDING', 'Không thể kiểm tra nguồn trực tuyến, đang tiếp tục với dữ liệu hiện có…');
+                const verifiedRagCount = Array.isArray(dependencies.serializedEvidenceDocuments)
+                    ? dependencies.serializedEvidenceDocuments.length
+                    : 0;
+                const ungroundedFallbackAllowed = verifiedRagCount > 0;
+                log.line('LEGAL SAFETY GATE', {
+                    requiresLegalRetrieval: true,
+                    verifiedRagCount,
+                    verifiedGroundingCount: 0,
+                    totalVerifiedEvidence: verifiedRagCount,
+                    ungroundedFallbackAllowed,
+                    decision: ungroundedFallbackAllowed ? 'PRESERVED_RAG_ONLY' : 'SOURCE_UNAVAILABLE'
+                });
+                if (!ungroundedFallbackAllowed) {
+                    const sourceError = new Error('SOURCE_UNAVAILABLE');
+                    sourceError.code = 'SOURCE_UNAVAILABLE';
+                    throw sourceError;
+                }
+                const fallbackStartedAt = new Date();
+                const fallbackModelStarted = latency?.now();
+                let fallbackTransportMetrics = null;
+                let fallbackTimingRecorded = false;
+                const recordGroundingFallbackAttempt = (success, failureType = null, metrics = fallbackTransportMetrics) => {
+                    if (fallbackTimingRecorded) return;
+                    fallbackTimingRecorded = true;
+                    const elapsed = latency && fallbackModelStarted != null ? latency.now() - fallbackModelStarted : Date.now() - fallbackStartedAt.getTime();
+                    if (latency && fallbackModelStarted != null) latency.add('finalModelMs', elapsed);
+                    const fallbackAttempt = {
+                        model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash',
+                        attemptStart: fallbackStartedAt.toISOString(),
+                        attemptEnd: new Date().toISOString(),
+                        attemptMs: Math.round(elapsed),
+                        grounding: false,
+                        streamAttempted: metrics?.streamAttempted ?? true,
+                        streamInitMs: metrics?.streamInitMs ?? null,
+                        firstMeaningfulChunkMs: metrics?.firstMeaningfulChunkMs ?? null,
+                        meaningfulChunkCount: metrics?.meaningfulChunkCount ?? 0,
+                        streamFailureType: metrics?.streamFailureType ?? null,
+                        streamFailureMs: metrics?.streamFailureMs ?? null,
+                        nonStreamFallbackUsed: metrics?.nonStreamFallbackUsed ?? false,
+                        nonStreamFallbackMs: metrics?.nonStreamFallbackMs ?? 0,
+                        finalFailureType: failureType,
+                        success
+                    };
+                    latency?.modelAttempt(fallbackAttempt);
+                    log.line('MODEL ATTEMPT', { model: fallbackAttempt.model, grounding: false, result: success ? 'SUCCESS' : failureType, attemptMs: fallbackAttempt.attemptMs });
+                };
                 try {
                     console.warn(
                         "Google Search Grounding gặp lỗi API/quota/timeout. " +
-                        "Chuyển sang LLM fallback..."
+                        "Tiếp tục chỉ với RAG đã xác minh..."
                     );
 
                     const fallbackModel = genAI.getGenerativeModel({
-                        model: normalizeModelName("models/gemini-2.5-flash"),
+                        model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : normalizeModelName("models/gemini-2.5-flash"),
                         systemInstruction: getSystemLawInstruction(),
                         tools: []
                     });
@@ -1112,8 +1301,9 @@ ${enableGoogleSearch ? buildGroundingRescueInstruction(groundingRescue) : ''}
 Google Search Grounding hiện không khả dụng do lỗi hệ thống
 hoặc quá tải.
 
-Bạn được phép sử dụng kiến thức nội tại của model để cố gắng
-trả lời phần nội dung câu hỏi.
+Chỉ được tổng hợp những phần đã có bằng chứng RAG được bảo toàn.
+Không được sử dụng kiến thức nội tại để phân tích nội dung pháp lý
+của bất kỳ vấn đề nào còn thiếu bằng chứng.
 TUYỆT ĐỐI KHÔNG:
 
 - tự tạo URL pháp luật;
@@ -1132,6 +1322,7 @@ hoặc Google Search Grounding, sourceUrl phải là chuỗi rỗng.
 - Trả lời đầy đủ mọi vấn đề có thể xác minh từ RAG bên dưới.
 - Không rút gọn thành câu trả lời chung chung chỉ vì Grounding thất bại.
 - Vấn đề chưa có bằng chứng hoặc chưa khớp đúng phiên bản phải được ghi rõ là chưa thể xác minh từ nguồn hiện có.
+- Nếu không có vấn đề nào có bằng chứng RAG được xác minh, chỉ trả thông báo nguồn pháp lý hiện không khả dụng; không đưa ra phân tích hoặc lời khuyên pháp lý thực chất.
 - Không dùng phiên bản luật cũ làm căn cứ chính thay cho phiên bản người dùng yêu cầu.
 ${buildGroundingGapHint(groundingContext)}
 
@@ -1149,10 +1340,18 @@ ${compiledPrompt}
                         generationConfig: fallbackGenerationConfig
                     }, {
                         grounded: false,
+                        latency,
+                        nativeFetch: fetchRuntime.nativeFetch,
                         onStart: () => progress?.streamStart(),
                         onDelta: delta => progress?.streamChunk(delta),
+                        onTransportMetrics: metrics => { fallbackTransportMetrics = metrics; },
+                        onTransportFallback: reason => log.line('STREAM TRANSPORT', { model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', nativeFetch: fetchRuntime.nativeFetch, fallbackUsed: true, reason }),
+                        onTransportFallbackSuccess: elapsed => log.line('STREAM TRANSPORT', { model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', nonStreamFallbackSuccess: true, latencyMs: Math.round(elapsed) }),
+                        onTransportFallbackFailure: (transportError, elapsed) => log.error('STREAM TRANSPORT', { model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', nonStreamFallbackSuccess: false, type: classifyGenerationFailure(transportError), latencyMs: Math.round(elapsed) }),
+                        onLateStreamError: lateError => log.line('STREAM CLEANUP', { model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', grounded: false, source: 'aggregate_response', type: classifyGenerationFailure(lateError) }),
                         onError: () => progress?.streamError('STREAM_INTERRUPTED', 'Mất kết nối truyền trực tiếp; vẫn đang xử lý…', true)
                     });
+                    fallbackTransportMetrics = fallbackResult.transportMetrics || fallbackTransportMetrics;
                     const fallbackFinishReason = fallbackResult.response.candidates?.[0]?.finishReason;
                     if (fallbackFinishReason === 'RECITATION') {
                         const recitationError = new Error('RECITATION');
@@ -1160,6 +1359,11 @@ ${compiledPrompt}
                         throw recitationError;
                     }
                     const fallbackText = fallbackResult.response.text();
+                    recordCostUsage(latency, {
+                        stage: 'grounding', model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', response: fallbackResult.response,
+                        latencyMs: Date.now() - fallbackStartedAt.getTime(), success: true, grounded: false
+                    });
+                    recordGroundingFallbackAttempt(true);
                     progress?.completed('SYNTHESIZING', 'Đã tổng hợp câu trả lời');
                     console.log('[GEMINI RESPONSE MODE]');
                     console.log({
@@ -1171,15 +1375,21 @@ ${compiledPrompt}
                             text: fallbackText,
                             grounded: false,
                             groundingMetadata: null,
-                            model: 'gemini-2.5-flash',
+                            model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash',
                             groundingRescue: groundingRescue ? { ...groundingRescue, rescuedIssueIds: [] } : null
                         }
                         : fallbackText;
 
                 } catch (fbErr) {
+                    recordCostUsage(latency, {
+                        stage: 'grounding', model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash', response: fbErr?.response,
+                        latencyMs: Date.now() - fallbackStartedAt.getTime(), success: false, grounded: false,
+                        failureType: classifyGenerationFailure(fbErr)
+                    });
+                    recordGroundingFallbackAttempt(false, classifyGenerationFailure(fbErr), fbErr.transportMetrics || fallbackTransportMetrics);
                     console.log('[GEMINI GENERATION FAILURE]');
                     console.log({
-                        model: 'gemini-2.5-flash',
+                        model: dependencies.finalLegalRouting === true ? FINAL_LEGAL_FALLBACK_MODEL : 'gemini-2.5-flash',
                         grounded: false,
                         type: classifyGenerationFailure(fbErr)
                     });
@@ -1192,6 +1402,8 @@ ${compiledPrompt}
             }
 
             if (msg.includes("400") || msg.toLowerCase().includes("response mime type")) throw error;
+            const nextModel = fastQueue[modelIndex + 1];
+            if (nextModel) log.line('MODEL FALLBACK', { from: modelName, to: nextModel, reason: failureType });
             continue;
         }
     }
@@ -1200,68 +1412,24 @@ ${compiledPrompt}
 const CITATION_SCHEMA = {
     type: "OBJECT",
     properties: {
-        answer: {
-            type: "STRING",
-            description: "Câu trả lời đầy đủ tuân thủ ngặt nghèo các kịch bản pháp lý và rules của LegAI"
-        },
-        citations: {
+        conclusion: { type: "STRING", description: "Kết luận, không chứa tiêu đề mục" },
+        analysis: {
             type: "ARRAY",
-            description: "Mảng trích dẫn nguồn luật chính xác",
+            description: "Đúng một phần tử cho mỗi issueId; chỉ dùng evidenceIds được cung cấp",
             items: {
                 type: "OBJECT",
                 properties: {
-                    lawName: { type: "STRING" },
-                    dieu: { type: "STRING" },
-                    khoan: { type: "STRING" },
-                    quoteSnippet: { type: "STRING" },
-                    sourceUrl: {
-                        type: "STRING",
-                        description: `
-URL NGUỒN ĐÃ ĐƯỢC XÁC MINH CỦA VĂN BẢN PHÁP LUẬT ĐƯỢC TRÍCH DẪN.
-
-THỨ TỰ ƯU TIÊN:
-
-1. URL detail từ RAG <protected_url>.
-2. URL detail chính thức từ vbpl.vn được Google Search Grounding xác minh.
-3. URL văn bản từ thuvienphapluat.vn được Google Search Grounding xác minh.
-4. URL TOÀN VĂN từ xaydungchinhsach.chinhphu.vn được Google Search Grounding xác minh.
-
-DOMAIN ĐƯỢC PHÉP:
-
-- https://vbpl.vn/
-- https://thuvienphapluat.vn/
-- https://xaydungchinhsach.chinhphu.vn/
-
-ĐỐI VỚI xaydungchinhsach.chinhphu.vn:
-
-Chỉ được sử dụng khi trang thực sự chứa TOÀN VĂN hoặc nội dung
-pháp luật tương ứng với văn bản đang được trích dẫn.
-
-Ví dụ hợp lệ:
-
-https://xaydungchinhsach.chinhphu.vn/toan-van-luat-thu-do-so-02-2026-qh16-11926052309491329.htm
-
-URL phải được Google Search Grounding xác minh.
-
-KHÔNG ĐƯỢC:
-
-- tự tạo URL;
-- tự tạo UUID hoặc ID;
-- sửa đổi URL tìm được;
-- sử dụng homepage;
-- sử dụng trang tìm kiếm;
-- sử dụng URL không được Grounding xác minh.
-
-Nếu không tìm thấy URL hợp lệ đã được xác minh:
-trả về chuỗi rỗng.
-`
-                    }
+                    issueId: { type: "STRING" },
+                    text: { type: "STRING" },
+                    evidenceIds: { type: "ARRAY", items: { type: "STRING" } }
                 },
-                required: ["lawName", "dieu", "sourceUrl"]
+                required: ["issueId", "text", "evidenceIds"]
             }
-        }
+        },
+        legalBasisEvidenceIds: { type: "ARRAY", items: { type: "STRING" } },
+        advice: { type: "STRING", description: "Lời khuyên, không chứa tiêu đề mục" }
     },
-    required: ["answer", "citations"]
+    required: ["conclusion", "analysis", "legalBasisEvidenceIds", "advice"]
 };
 
 
@@ -1335,10 +1503,12 @@ function sanitizeCitations(citations = []) {
 
 function classifyGenerationFailure(error) {
     const message = `${error?.code || ''} ${error?.message || ''}`.toUpperCase();
+    if (isStreamTransportUnsupported(error)) return 'STREAM_TRANSPORT_UNSUPPORTED';
     if (message.includes('TIMEOUT')) return 'TIMEOUT';
     if (message.includes('RECITATION')) return 'RECITATION';
-    if (message.includes('429') || message.includes('QUOTA') || message.includes('DEMAND')) return 'QUOTA';
-    return 'API';
+    if (message.includes('429') || message.includes('QUOTA') || message.includes('RATE_LIMIT')) return 'RATE_LIMIT';
+    if (message.includes('503') || message.includes('SERVICE_UNAVAILABLE') || message.includes('HIGH_DEMAND') || message.includes('HIGH DEMAND')) return 'SERVICE_UNAVAILABLE';
+    return 'API_ERROR';
 }
 
 function normalizeAnswerText(value) {
@@ -1346,7 +1516,9 @@ function normalizeAnswerText(value) {
     return String(value)
         .replace(/\\r\\n/g, '\n')
         .replace(/\\n/g, '\n')
-        .replace(/\\\r?\n/g, '\n');
+        .replace(/\\\r?\n/g, '\n')
+        .replace(/\\([*_`#])/g, '$1')
+        .replace(/\*{3,}/g, '**');
 }
 
 function cleanStructuredJsonResponse(value) {
@@ -1355,6 +1527,21 @@ function cleanStructuredJsonResponse(value) {
         .replace(/^```json\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
+}
+
+function buildComplexIssueContract(expectedIssues = [], documents = []) {
+    if (!expectedIssues.length) return '';
+    return `\n# CẤU TRÚC VẤN ĐỀ ĐÃ XÁC THỰC (GIỮ NGUYÊN TUYỆT ĐỐI)\n${expectedIssues.map(issue => `${issue.id}: ${issue.query}`).join('\n')}\n\n# ÁNH XẠ VẤN ĐỀ → CHỨNG CỨ\n${expectedIssues.map(issue => {
+        const refs = documents.filter(doc => doc.supportedIssueIds?.includes(issue.id)).map(doc => {
+            const evidenceId = doc.id || doc.vector_id || doc.chunk_id || doc.doc_id || `E${documents.indexOf(doc) + 1}`;
+            const role = doc.authorityRoles?.[issue.id] || 'SUPPORTING';
+            return `${evidenceId} ${role}`;
+        });
+        return `${issue.id} → ${refs.join(', ') || 'không có chứng cứ RAG đủ điều kiện'}`;
+    }).join('\n')}\n\n# DANH MỤC CHỨNG CỨ (NỘI DUNG MỖI EVIDENCE CHỈ XUẤT HIỆN MỘT LẦN TRONG RAG CONTEXT)\n${documents.map((doc, index) => {
+        const evidenceId = doc.id || doc.vector_id || doc.chunk_id || doc.doc_id || `E${index + 1}`;
+        return `- ${evidenceId}: law=${doc.title || doc.law_name || doc.doc_id || 'Không xác định'}; article=${doc.dieu || doc.article || doc.article_number || ''}; issues=${(doc.supportedIssueIds || []).join(',')}; roles=${Object.entries(doc.authorityRoles || {}).map(([id, role]) => `${id}:${role}`).join(',')}`;
+    }).join('\n')}\n\nChỉ được trả về evidenceIds trong danh mục E1, E2... ở trên. Không tự viết tên luật, điều luật hoặc URL; backend sẽ dựng cơ sở pháp lý từ evidenceIds đã xác minh. Ưu tiên bắt buộc: (1) trả lời đủ từng issueId đúng một lần; (2) đầy đủ pháp lý; (3) dùng đúng chứng cứ; (4) diễn đạt súc tích. Không được hy sinh bất kỳ vấn đề nào để rút ngắn câu trả lời. Bốn mục trình bày không phải là bốn vấn đề. Trong analysis phải trả về đúng các issueId trên theo thứ tự.\n`;
 }
 
 function extractGroundingCitations(groundingMetadata) {
@@ -1393,7 +1580,70 @@ function extractGroundingCitations(groundingMetadata) {
     return citations;
 }
 
-function normalizeGeminiResponse(responseDetails, expectsStructuredJson = true) {
+function assembleLegalAnswer(structured, citations = []) {
+    const cleanSectionText = value => normalizeAnswerText(value)
+        .replace(/^\s*(?:\*{1,2})?(?:Kết luận|Phân tích|Cơ sở pháp lý|Lời khuyên):(?:\*{1,2})?\s*/gimu, '')
+        .replace(/^\s*(?:\*{1,2})?\d+[.)]\s*(?:\*{1,2})?\s*/gm, '')
+        .replace(/(?:\*{1,2})?\bQ\d+\b\s*:?(?:\*{1,2})?\s*/gimu, '')
+        .trim();
+    const analysis = structured.analysis.map(item => `- ${cleanSectionText(item.content)}`).join('\n');
+    const citationBasis = citations.map(citation => {
+        const citedArticle = normalizeAnswerText(citation.dieu || citation.article || '').trim();
+        const citedLaw = normalizeAnswerText(citation.lawName || citation.title || '').trim();
+        const articleLabel = /^điều\b/iu.test(citedArticle) ? citedArticle : `Điều ${citedArticle}`;
+        const label = `${articleLabel} - ${citedLaw}`;
+        return citation.sourceUrl ? `- [${label}](${citation.sourceUrl})` : `- ${label}`;
+    });
+    const legalBasis = (citationBasis.length
+        ? citationBasis
+        : structured.legalBasis.map(item => `- ${cleanSectionText(typeof item === 'string' ? item : JSON.stringify(item))}`)
+    ).join('\n');
+    return `Kết luận:\n${cleanSectionText(structured.conclusion)}\n\nPhân tích:\n${analysis}\n\nCơ sở pháp lý:\n${legalBasis}\n\nLời khuyên:\n${cleanSectionText(structured.advice)}`;
+}
+
+function deterministicallyFinalizeLegalResponse(normalizedResponse, expectedIssues, documents, userQuestion) {
+    const failures = normalizedResponse.integrity?.failures || [];
+    const invalidCitations = new Set(failures.map(failure => failure.citation).filter(Boolean));
+    const citations = normalizedResponse.citations.filter(citation => !invalidCitations.has(citation));
+    const structuredAnswer = normalizedResponse.structuredAnswer;
+    const integrity = validateLegalAnswerIntegrity({ structuredAnswer, citations, expectedIssues, documents, userQuery: userQuestion });
+    if (!integrity.valid) {
+        const error = new Error(`FINAL_RESPONSE_INTEGRITY_INVALID: ${integrity.failures.map(item => `${item.type}${item.issueId ? `:${item.issueId}` : ''}`).join(', ')}`);
+        error.code = 'FINAL_RESPONSE_INTEGRITY_INVALID';
+        error.failures = integrity.failures;
+        throw error;
+    }
+    return {
+        ...normalizedResponse,
+        answer: assembleLegalAnswer(structuredAnswer, citations),
+        structuredAnswer,
+        citations,
+        integrity,
+        incomplete: false,
+        unresolvedIssueIds: [],
+        verifierCalls: 0,
+        repairCalls: 0,
+        repairTriggered: false
+    };
+}
+
+function validateStructuredLegalResponse(parsed, expectedIssues = []) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Structured response is not a JSON object');
+    if (typeof parsed.conclusion !== 'string' || !Array.isArray(parsed.analysis) || !Array.isArray(parsed.legalBasis) || typeof parsed.advice !== 'string') {
+        throw new Error('Missing required legal presentation sections');
+    }
+    const expectedIds = expectedIssues.map(issue => String(issue.id));
+    if (expectedIds.length) {
+        const actualIds = parsed.analysis.map(item => String(item?.issueId || ''));
+        if (actualIds.length !== expectedIds.length || new Set(actualIds).size !== actualIds.length || expectedIds.some(id => !actualIds.includes(id))) {
+            throw new Error(`Incomplete issue analysis: expected ${expectedIds.join(', ')}, received ${actualIds.join(', ') || 'none'}`);
+        }
+        if (parsed.analysis.some(item => typeof item?.content !== 'string' || !item.content.trim())) throw new Error('Issue analysis content is empty');
+    }
+    return parsed;
+}
+
+function normalizeGeminiResponse(responseDetails, expectsStructuredJson = true, expectedIssues = [], validationContext = {}) {
     const details = typeof responseDetails === 'string'
         ? { text: responseDetails, grounded: false, groundingMetadata: null }
         : (responseDetails || {});
@@ -1402,32 +1652,67 @@ function normalizeGeminiResponse(responseDetails, expectsStructuredJson = true) 
 
     if (details.grounded) {
         normalized = {
-            answer: normalizeAnswerText(details.text),
-            citations: extractGroundingCitations(details.groundingMetadata).map(citation => ({
-                ...citation,
-                supportedIssueIds: details.groundingRescue?.issueIds || []
-            }))
+            answer: String(details.text || ''),
+            citations: extractGroundingCitations(details.groundingMetadata)
         };
     } else if (expectsStructuredJson) {
         try {
             const parsed = JSON.parse(cleanStructuredJsonResponse(details.text));
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-                throw new Error('Structured response is not a JSON object');
-            }
+            validateStructuredLegalResponse(parsed, expectedIssues);
+            const groundingCitations = [];
+            const groundingEvidence = groundingCitations.map(citation => {
+                const document = {
+                    id: citation.evidenceId,
+                    title: citation.lawName,
+                    dieu: citation.dieu,
+                    content: citation.quoteSnippet,
+                    supportedIssueIds: citation.supportedIssueIds
+                };
+                document.authorityRoles = Object.fromEntries(expectedIssues
+                    .filter(issue => document.supportedIssueIds.includes(issue.id))
+                    .map(issue => [issue.id, evaluateLegalEvidence({ issue, userQuery: validationContext.userQuery || '', document }).authorityRole]));
+                return document;
+            });
+            const normalizedCitations = [...sanitizeCitations(Array.isArray(parsed.citations) ? parsed.citations : []), ...groundingCitations];
             normalized = {
-                answer: normalizeAnswerText(parsed.answer),
-                citations: sanitizeCitations(parsed.citations)
+                answer: assembleLegalAnswer(parsed, normalizedCitations),
+                structuredAnswer: parsed,
+                citations: normalizedCitations
             };
+            const validationDocuments = [...(validationContext.documents || []), ...groundingEvidence];
+            if (expectedIssues.length || normalizedCitations.length) {
+                const integrity = validateLegalAnswerIntegrity({
+                    structuredAnswer: parsed,
+                    citations: normalized.citations,
+                    expectedIssues,
+                    documents: validationDocuments,
+                    userQuery: validationContext.userQuery || ''
+                });
+                if (!integrity.valid) {
+                    if (validationContext.deferIntegrityFailure) {
+                        normalized.integrity = integrity;
+                        normalized.validationDocuments = validationDocuments;
+                    } else {
+                        const integrityError = new Error(`LEGAL_ANSWER_INTEGRITY_INVALID: ${integrity.failures.map(item => `${item.type}${item.issueId ? `:${item.issueId}` : ''}`).join(', ')}`);
+                        integrityError.code = 'LEGAL_ANSWER_INTEGRITY_INVALID';
+                        integrityError.failures = integrity.failures;
+                        throw integrityError;
+                    }
+                } else {
+                    normalized.integrity = integrity;
+                    normalized.validationDocuments = validationDocuments;
+                }
+            }
         } catch (error) {
             console.warn('[RESPONSE NORMALIZATION FAILURE]', {
                 mode,
                 type: 'PARSE',
                 reason: error.message
             });
-            normalized = {
-                answer: normalizeAnswerText(details.text),
-                citations: []
-            };
+            if (error?.code === 'LEGAL_ANSWER_INTEGRITY_INVALID') throw error;
+            const structuralError = new Error(`STRUCTURED_LEGAL_RESPONSE_INVALID: ${error.message}`);
+            structuralError.code = 'STRUCTURED_LEGAL_RESPONSE_INVALID';
+            throw structuralError;
         }
     } else {
         normalized = {
@@ -1479,6 +1764,65 @@ function formatProxyCitations(responseText) {
 // ==============================================================================
 async function generateAnswerWithGemini(userQuestion, documents = [], chatHistory = [], useStructuredCitations = true, options = {}) {
     try {
+        const activeModelCall = options.getActiveModel || getActiveModel;
+        const usageLogger = options.logUsage || logUsage;
+        const expectedIssues = Array.isArray(options.expectedIssues) ? options.expectedIssues : [];
+        const optimizedEvidence = expectedIssues.length
+            ? optimizeFinalEvidence(documents, expectedIssues, {
+                cap: options.finalEvidenceCap,
+                preserveVerifiedEvidence: useStructuredCitations
+            })
+            : {
+                documents,
+                telemetry: {
+                    beforeEvidenceCount: documents.length, afterEvidenceCount: documents.length,
+                    beforeEvidenceChars: documents.reduce((sum, document) => sum + String(document.content || document.text || '').length, 0),
+                    afterEvidenceChars: documents.reduce((sum, document) => sum + String(document.content || document.text || '').length, 0),
+                    primaryKept: documents.filter(document => Object.values(document.authorityRoles || {}).includes('PRIMARY')).length,
+                    supportingKept: documents.filter(document => Object.values(document.authorityRoles || {}).includes('SUPPORTING')).length,
+                    estimatedReductionPercent: 0
+                }
+            };
+        const finalEvidencePack = prepareDeterministicEvidence(optimizedEvidence.documents, expectedIssues);
+        for (const document of finalEvidencePack) {
+            for (const issueId of document.supportedIssueIds || []) {
+                const evaluation = document.eligibilityByIssue?.[issueId];
+                log.line('RAG CANDIDATE', {
+                    issue: issueId,
+                    rank: document.retrievalRank || '',
+                    score: Number(document.retrievalScoreByIssue?.[issueId] ?? document.score ?? 0).toFixed(6),
+                    documentId: document.originalEvidenceId || document.id,
+                    article: document.dieu || document.article || '',
+                    selected: true,
+                    regime: evaluation?.scopeSignals?.document?.regime || 'RECOGNIZED_VERIFIED',
+                    issuePurpose: evaluation?.scopeSignals?.issue?.purpose || 'UNMAPPED',
+                    documentIdentitySignal: evaluation?.scopeSignals?.document?.documentIdentitySignal?.join('|') || 'none',
+                    propositionSignals: evaluation?.scopeSignals?.document?.propositionSignals?.join('|') || 'none',
+                    role: document.authorityRoles?.[issueId] || '',
+                    coreAuthorityFit: evaluation?.coreAuthorityFit === true,
+                    eligibility: evaluation?.eligible !== false,
+                    reason: evaluation?.reasons?.join(',') || 'verified',
+                    merged: true,
+                    finalPack: true
+                });
+            }
+        }
+        options.latency?.detail({ type: 'finalEvidenceOptimization', ...optimizedEvidence.telemetry });
+        log.line('FINAL EVIDENCE OPTIMIZATION', optimizedEvidence.telemetry);
+        const promptSchemaVersion = options.promptSchemaVersion || DEFAULT_PROMPT_SCHEMA_VERSION;
+        const cacheEligible = useStructuredCitations && finalEvidencePack.length > 0 && options.allowGrounding !== true &&
+            !(options.groundingContext?.missingIssueIds || []).length && !(options.groundingContext?.targetMismatchedIssueIds || []).length;
+        const cacheKey = cacheEligible ? buildCacheKey({
+            userQuestion, documents: finalEvidencePack, model: FINAL_LEGAL_PRIMARY_MODEL, promptSchemaVersion
+        }) : null;
+        if (cacheKey) {
+            const cached = getCachedAnswer(cacheKey);
+            if (cached) return applyFinalProvenanceGate(
+                { ...cached, cacheHit: true, finalModelCalls: 0, verifierCalls: 0, repairCalls: 0, repairTriggered: false },
+                { documents: finalEvidencePack }
+            );
+        }
+        const issueContract = buildComplexIssueContract(expectedIssues, finalEvidencePack);
         const targetLawInstruction = options.targetLaw
             ? `\n# VĂN BẢN ĐƯỢC NGƯỜI DÙNG CHỈ ĐỊNH\nTên: ${options.targetLaw.name || '(không nêu)'}\nNăm/phiên bản: ${options.targetLaw.year || '(không nêu)'}\nSố hiệu: ${options.targetLaw.number || '(không nêu)'}\nPhải trả lời chủ yếu theo đúng văn bản này. Văn bản phiên bản khác chỉ được nhắc như so sánh lịch sử và phải ghi rõ. Nếu Search cũng không xác minh được văn bản được chỉ định, phải nói rõ chưa thể xác minh; không được âm thầm thay bằng phiên bản cũ.\n`
             : '';
@@ -1512,6 +1856,10 @@ ${historyText}
 
 # YÊU CẦU TRẢ LỜI CÂU HỎI MỚI NHẤT: "${userQuestion}"
 ${targetLawInstruction}
+${issueContract}
+
+# TOÀN VẸN BIÊN SỐ
+Giữ nguyên mọi cận số được nêu rõ trong chứng cứ đã xác minh. Không được biến một khoảng có cả cận dưới và cận trên thành một ngưỡng chỉ còn "trở lên", "trở đi" hoặc tương đương; không được xóa cận trên hoặc cận dưới do chứng cứ cung cấp.
 
 # QUY TẮC TRUY XUẤT KIẾN THỨC PHÁP LÝ (Áp dụng NGHIÊM NGẶT theo thứ tự sau):
 
@@ -1696,10 +2044,10 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
 
 `;
 
-        const responseDetails = await getActiveModel(
+        const responseDetails = await activeModelCall(
             prompt,
             useStructuredCitations,
-            documents,
+            finalEvidencePack,
             documents.length === 0 || options.allowGrounding === true,
             false,
             userQuestion,
@@ -1708,14 +2056,22 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
             options.ragAlreadySelected === true,
             options.groundingContext || {},
             options.latency || null,
-            options.progress || null
+            options.progress || null,
+            { ...(options.finalDependencies || {}), costStage: 'final', serializedEvidenceDocuments: finalEvidencePack, finalLegalRouting: true }
         );
 
-        await logUsage('CHATBOT');
-        const normalizedResponse = timedSync(options.latency, 'normalizationMs', () => normalizeGeminiResponse(responseDetails, useStructuredCitations));
+        await usageLogger('CHATBOT');
+        let normalizedResponse = timedSync(options.latency, 'normalizationMs', () => {
+            if (!useStructuredCitations || responseDetails.grounded) {
+                return normalizeGeminiResponse(responseDetails, useStructuredCitations, expectedIssues, { documents: finalEvidencePack, userQuery: userQuestion, deferIntegrityFailure: expectedIssues.length > 0 });
+            }
+            const parsed = JSON.parse(cleanStructuredJsonResponse(responseDetails.text));
+            const resolved = resolveModelPayload(parsed, finalEvidencePack, expectedIssues);
+            return normalizeGeminiResponse({ ...responseDetails, text: JSON.stringify(resolved) }, true, expectedIssues, { documents: finalEvidencePack, userQuery: userQuestion, deferIntegrityFailure: expectedIssues.length > 0 });
+        });
         if (responseDetails.groundingRescue) normalizedResponse.groundingRescue = responseDetails.groundingRescue;
         if (responseDetails.grounded && responseDetails.groundingRescue && !responseDetails.groundingRescue.fullQueryMode) {
-            const preservedCitations = documents.filter(doc =>
+            const preservedCitations = finalEvidencePack.filter(doc =>
                 doc.supportedIssueIds?.some(issueId => responseDetails.groundingRescue.preservedIssueIds.includes(issueId))
             ).map(doc => {
                 const sourceUrl = doc.sourceUrl || doc.source || '';
@@ -1740,6 +2096,15 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
             }
         }
 
+        if (useStructuredCitations && !responseDetails.grounded) {
+            normalizedResponse = deterministicallyFinalizeLegalResponse(
+                normalizedResponse,
+                expectedIssues,
+                normalizedResponse.validationDocuments || finalEvidencePack,
+                userQuestion
+            );
+        }
+
         if (!responseDetails.grounded) {
             for (const citation of normalizedResponse.citations) {
                 if (citation.sourceUrl) {
@@ -1757,12 +2122,21 @@ NẾU hệ thống KHÔNG yêu cầu Structured Citation:
         if (!useStructuredCitations) {
             normalizedResponse.answer = formatProxyCitations(normalizedResponse.answer);
         }
+        normalizedResponse = applyFinalProvenanceGate(normalizedResponse, {
+            documents: finalEvidencePack,
+            groundingMetadata: responseDetails.groundingMetadata,
+            groundingCallSucceeded: responseDetails.grounded === true
+        });
         log.line('FINAL', { answerChars: normalizedResponse.answer?.length || 0 });
+        normalizedResponse.cacheHit = false;
+        normalizedResponse.finalModelCalls = 1;
+        if (cacheKey && responseDetails.grounded !== true) setCachedAnswer(cacheKey, normalizedResponse);
         return normalizedResponse;
 
     } catch (error) {
         console.error(" Lỗi toàn bộ hệ thống Gemini:", error.message);
         options.progress?.error('Không thể hoàn tất yêu cầu. Vui lòng thử lại sau.');
+        if (['SOURCE_UNAVAILABLE', 'STRUCTURED_LEGAL_RESPONSE_INVALID', 'LEGAL_ANSWER_INTEGRITY_INVALID', 'FINAL_RESPONSE_INTEGRITY_INVALID'].includes(error?.code)) throw error;
         return { answer: "LegAI đang quá tải. Vui lòng thử lại sau.", citations: [] };
     }
 }
@@ -2736,7 +3110,190 @@ async function classifyCategoryWithAI(title) {
         return "Lĩnh vực khác";
     }
 }
+
+async function rerankLegalEvidence(issues, options = {}) {
+    const started = Date.now();
+    const candidateCount = issues.reduce((sum, issue) => sum + issue.candidates.length, 0);
+    const primaryModel = process.env.GEMINI_RERANK_MODEL || 'gemini-3.5-flash';
+    const fallbackModel = process.env.GEMINI_RERANK_FALLBACK_MODEL || 'gemini-3.5-flash-lite';
+    const configuredPrimaryTimeout = Number(process.env.GEMINI_RERANK_PRIMARY_TIMEOUT_MS);
+    const primaryTimeoutMs = Number.isInteger(configuredPrimaryTimeout) && configuredPrimaryTimeout > 0 ? configuredPrimaryTimeout : 10000;
+    const configuredTotalTimeout = Number(process.env.GEMINI_RERANK_TIMEOUT_MS);
+    const totalTimeoutMs = Number.isInteger(configuredTotalTimeout) && configuredTotalTimeout > 0 ? configuredTotalTimeout : 20000;
+    const prompt = `Bạn là bộ chọn chứng cứ pháp lý. Chỉ dùng candidate được cung cấp.
+Cho mỗi issue, chọn zero hoặc one coreSelection trực tiếp điều chỉnh sự kiện; nếu không có thì null. Mỗi coreSelection phải tham chiếu ít nhất một evidenceSpanId được cung cấp cho đúng candidate. Không chép quote và không giải thích. Loại candidate gần nhưng thiếu điều kiện áp dụng. Điểm/rank và numericRelations chỉ là tín hiệu liên quan, không tự thiết lập thẩm quyền pháp lý. Không dùng kiến thức ngoài evidence làm căn cứ được chọn; không phát minh Điều, luật, ID, URL hay span ID.
+Quy định pháp luật thường biểu đạt ngưỡng bằng khoảng. Khi một tỷ lệ phần trăm của sự kiện nằm trong khoảng được candidate nêu rõ, candidate trực tiếp bao phủ ngưỡng số đó dù không lặp lại đúng con số sự kiện. Ví dụ số học thuần túy: 12% nằm trong khoảng bao gồm 11%–30%. Không từ chối candidate chỉ vì nó nêu một khoảng bao phủ thay vì lặp lại đúng giá trị sự kiện. Quy tắc số học này không thiết lập tính liên quan pháp lý nếu candidate và issue không cùng đối tượng điều chỉnh.
+Trả JSON đúng dạng {"issues":[{"issueId":"Q1","coreSelection":{"candidateId":"...","evidenceSpanIds":["...:S1"]},"confidence":"HIGH|MEDIUM|LOW"}]}.
+coreSelection có thể là null. LOW không đủ thiết lập coverage.
+INPUT=${JSON.stringify(issues)}`;
+    const apiKey = process.env.GEMINI_API_KEY || SystemConfig?.geminiApiKey;
+    if (!apiKey) throw new Error('Gemini API key is not configured for evidence reranking');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const selectionSchema = { type: 'OBJECT', nullable: true, properties: { candidateId: { type: 'STRING' }, evidenceSpanIds: { type: 'ARRAY', minItems: 1, items: { type: 'STRING' } } }, required: ['candidateId', 'evidenceSpanIds'] };
+    const responseSchema = { type: 'OBJECT', properties: { issues: { type: 'ARRAY', items: { type: 'OBJECT', properties: { issueId: { type: 'STRING' }, coreSelection: selectionSchema, confidence: { type: 'STRING', enum: ['HIGH', 'MEDIUM', 'LOW'] } }, required: ['issueId', 'coreSelection', 'confidence'] } } }, required: ['issues'] };
+    const request = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, topP: 0.1, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema } };
+    const durations = { PRIMARY: 0, FALLBACK: 0 };
+    const isFallbackEligible = error => {
+        if (['RERANK_TIMEOUT', 'RERANK_TRUNCATED', 'RERANK_INVALID_JSON'].includes(error?.code)) return true;
+        const status = Number(error?.status || error?.statusCode || error?.response?.status);
+        if ([408, 429, 500, 502, 503, 504].includes(status)) return true;
+        if ([400, 401, 403].includes(status)) return false;
+        const value = `${error?.code || ''} ${error?.message || ''}`.toUpperCase();
+        return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|NETWORK|FETCH FAILED|SOCKET|CONNECTION CLOSED/u.test(value);
+    };
+    const runAttempt = async ({ attempt, role, modelName, attemptTimeoutMs, remainingTotalBudgetMs }) => {
+        const attemptStarted = Date.now();
+        let timer;
+        let apiResponseReceived = false;
+        let finishReason = '';
+        let rawLength = 0;
+        let jsonValid = false;
+        let response;
+        let attemptError;
+        const abortController = new AbortController();
+        log.line('RERANK ATTEMPT', { attempt, role, model: modelName, attemptTimeoutMs, remainingTotalBudgetMs, candidateCount });
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const apiPromise = Promise.resolve(model.generateContent(request, { signal: abortController.signal }));
+            const timeoutPromise = new Promise((_, reject) => {
+                timer = setTimeout(() => {
+                    abortController.abort();
+                    const error = new Error(`Evidence reranker timed out after ${attemptTimeoutMs}ms`);
+                    error.code = 'RERANK_TIMEOUT';
+                    reject(error);
+                }, attemptTimeoutMs);
+            });
+            const result = await Promise.race([apiPromise, timeoutPromise]);
+            response = result.response;
+            apiResponseReceived = true;
+            finishReason = String(response.candidates?.[0]?.finishReason || '');
+            const raw = String(response.text() || '');
+            rawLength = raw.length;
+            if (finishReason === 'MAX_TOKENS' || /MAX_TOKENS|incomplete/iu.test(String(response.candidates?.[0]?.finishMessage || ''))) {
+                const error = new Error('Evidence reranker output was truncated');
+                error.code = 'RERANK_TRUNCATED';
+                throw error;
+            }
+            let parsed;
+            try {
+                parsed = JSON.parse(cleanStructuredJsonResponse(raw));
+            } catch (parseError) {
+                const error = new Error(`Evidence reranker returned invalid JSON: ${parseError.message}`);
+                error.code = 'RERANK_INVALID_JSON';
+                throw error;
+            }
+            if (!parsed || !Array.isArray(parsed.issues)) {
+                const error = new Error('Evidence reranker returned invalid JSON contract');
+                error.code = 'RERANK_INVALID_JSON';
+                throw error;
+            }
+            jsonValid = true;
+            return { normalized: { issues: parsed.issues.map(issue => ({ issueId: issue.issueId, coreSelection: issue.coreSelection ?? null, supportingSelection: null, confidence: issue.confidence, rejectedCandidates: [] })) }, response };
+        } catch (error) {
+            attemptError = error;
+            apiResponseReceived = apiResponseReceived || Boolean(error?.status || error?.statusCode || error?.response?.status);
+            throw error;
+        } finally {
+            clearTimeout(timer);
+            durations[role] = Date.now() - attemptStarted;
+            log.line('RERANK ATTEMPT RESULT', { attempt, model: modelName, success: !attemptError, durationMs: durations[role], apiResponseReceived, errorCode: attemptError?.code || attemptError?.status || attemptError?.statusCode || '', finishReason, rawLength, jsonValid });
+            recordCostUsage(options.latency, { stage: 'reranker', model: modelName, response, latencyMs: durations[role], success: !attemptError, grounded: false, failureType: attemptError?.code || null });
+        }
+    };
+    let primaryError;
+    try {
+        const initialRemainingBudgetMs = Math.max(0, totalTimeoutMs - (Date.now() - started));
+        if (initialRemainingBudgetMs === 0) throw Object.assign(new Error('RERANK_TIMEOUT'), { code: 'RERANK_TIMEOUT' });
+        const primaryBudget = Math.min(primaryTimeoutMs, initialRemainingBudgetMs);
+        const primary = await runAttempt({ attempt: 1, role: 'PRIMARY', modelName: primaryModel, attemptTimeoutMs: primaryBudget, remainingTotalBudgetMs: initialRemainingBudgetMs });
+        log.line('RERANK SUMMARY', { primaryModel, fallbackModel, fallbackUsed: false, acceptedModel: primaryModel, primaryDurationMs: durations.PRIMARY, fallbackDurationMs: 0, totalDurationMs: Date.now() - started, result: 'PRIMARY_SUCCESS' });
+        return primary.normalized;
+    } catch (error) {
+        primaryError = error;
+    }
+    const remainingTotalBudgetMs = Math.max(0, totalTimeoutMs - (Date.now() - started));
+    let fallbackAttempted = false;
+    if (isFallbackEligible(primaryError) && fallbackModel !== primaryModel && remainingTotalBudgetMs > 0) {
+        fallbackAttempted = true;
+        try {
+            const fallback = await runAttempt({ attempt: 2, role: 'FALLBACK', modelName: fallbackModel, attemptTimeoutMs: remainingTotalBudgetMs, remainingTotalBudgetMs });
+            log.line('RERANK SUMMARY', { primaryModel, fallbackModel, fallbackUsed: true, acceptedModel: fallbackModel, primaryDurationMs: durations.PRIMARY, fallbackDurationMs: durations.FALLBACK, totalDurationMs: Date.now() - started, result: 'FALLBACK_SUCCESS' });
+            return fallback.normalized;
+        } catch (_) {
+            // The shared budget permits exactly one fallback attempt.
+        }
+    }
+    log.line('RERANK SUMMARY', { primaryModel, fallbackModel, fallbackUsed: fallbackAttempted, acceptedModel: '', primaryDurationMs: durations.PRIMARY, fallbackDurationMs: durations.FALLBACK, totalDurationMs: Date.now() - started, result: 'UNAVAILABLE' });
+    const unavailable = new Error('RERANK_UNAVAILABLE');
+    unavailable.code = 'RERANK_UNAVAILABLE';
+    throw unavailable;
+}
+
+function normalizeProvenanceUrl(sourceUrl) {
+    if (!isAllowedLegalSourceUrl(sourceUrl)) return null;
+    try {
+        const url = new URL(sourceUrl);
+        url.hash = '';
+        url.hostname = url.hostname.toLowerCase();
+        if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/u, '');
+        return url.toString();
+    } catch (_) {
+        return null;
+    }
+}
+
+function removeUnsupportedAnswerUrls(answer, allowedUrls) {
+    return String(answer || '')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/giu, (match, label, url) =>
+            allowedUrls.has(normalizeProvenanceUrl(url)) ? match : label)
+        .replace(/https?:\/\/[^\s<>)\]]+/giu, url =>
+            allowedUrls.has(normalizeProvenanceUrl(url.replace(/[.,;:!?]+$/u, ''))) ? url : '');
+}
+
+function hasBroadenedNumericBoundary(answer, documents = []) {
+    const text = normalizeAnswerText(answer).toLocaleLowerCase('vi-VN');
+    return documents.some(document => {
+        const evidence = normalizeAnswerText(document.content || document.text || '').toLocaleLowerCase('vi-VN');
+        const ranges = [...evidence.matchAll(/(?:từ\s*)?(\d+(?:[.,]\d+)?)\s*%\s*(?:đến|–|-)\s*(\d+(?:[.,]\d+)?)\s*%/giu)];
+        return ranges.some(([, lower]) => new RegExp(`(?:từ\\s*)?${lower.replace('.', '[.,]')}\\s*%\\s*(?:trở lên|trở đi|hoặc hơn)`, 'iu').test(text));
+    });
+}
+
+function applyFinalProvenanceGate(normalizedResponse, { documents = [], groundingMetadata = null, groundingCallSucceeded = false } = {}) {
+    const verifiedRagUrls = documents.map(document => normalizeProvenanceUrl(
+        document.sourceUrl || document.source || document.protected_url || ''
+    )).filter(Boolean);
+    const groundingCitations = extractGroundingCitations(groundingMetadata)
+        .filter(citation => normalizeProvenanceUrl(citation.sourceUrl));
+    const verifiedGroundingUrls = groundingCitations.map(citation => normalizeProvenanceUrl(citation.sourceUrl));
+    const verifiedRagCount = documents.length;
+    const verifiedGroundingCount = groundingCitations.length;
+    const allowedUrls = new Set([...verifiedRagUrls, ...verifiedGroundingUrls]);
+    log.line('LEGAL SAFETY GATE', { requiresLegalRetrieval: true, verifiedRagCount, verifiedGroundingCount, totalVerifiedEvidence: verifiedRagCount + verifiedGroundingCount, decision: verifiedRagCount + verifiedGroundingCount > 0 ? 'VERIFIED_SOURCES' : 'SOURCE_UNAVAILABLE' });
+    if (verifiedRagCount === 0 && verifiedGroundingCount === 0) {
+        const error = new Error('SOURCE_UNAVAILABLE');
+        error.code = 'SOURCE_UNAVAILABLE';
+        throw error;
+    }
+    if (hasBroadenedNumericBoundary(normalizedResponse.answer, documents)) {
+        const error = new Error('FINAL_RESPONSE_INTEGRITY_INVALID: NUMERIC_BOUNDARY_BROADENED');
+        error.code = 'FINAL_RESPONSE_INTEGRITY_INVALID';
+        throw error;
+    }
+    return {
+        ...normalizedResponse,
+        answer: removeUnsupportedAnswerUrls(normalizedResponse.answer, allowedUrls),
+        citations: (normalizedResponse.citations || []).filter(citation => {
+            const normalizedUrl = normalizeProvenanceUrl(citation.sourceUrl);
+            return normalizedUrl && allowedUrls.has(normalizedUrl);
+        }),
+        groundingCallSucceeded,
+        verifiedRagCount,
+        verifiedGroundingCount
+    };
+}
 module.exports = {
+    fetchRuntime,
     getActiveModel,
     generateAnswerWithGemini,
     selectRagChunks,
@@ -2749,8 +3306,12 @@ module.exports = {
     cacheGroundedLawSource,
     scheduleGroundedSourceCache,
     normalizeGeminiResponse,
+    validateStructuredLegalResponse,
+    assembleLegalAnswer,
+    buildComplexIssueContract,
     isRagOutdated,
-
+    classifyGenerationFailure,
+    rerankLegalEvidence,
     analyzeContract,
     generateForm,
     generatePlan,

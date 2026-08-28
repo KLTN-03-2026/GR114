@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     applyProgressEvent, applyStreamChunk, applyStreamComplete, applyStreamError, applyStreamStart,
-    finalizeProgressMessage, setProgressConnectionState
+    finalizeProgressMessage, PROGRESS_VISIBILITY_DELAY_MS, revealProgressMessage, setProgressConnectionState
 } from './chatProgressState.js';
 
 const requestId = '02cb92cc-49c6-4d1b-97bf-5f5151068165';
-const pending = () => [{ id: `ai-${requestId}`, requestId, isBot: true, state: 'progress', progress: [], lastSeq: 0 }];
+const pending = () => [{
+    id: `ai-${requestId}`, requestId, isBot: true, state: 'progress', progress: [],
+    currentProgressStage: null, progressVisible: false, progressTerminal: false,
+    streamStarted: false, lastSeq: 0
+}];
 
 test('unknown requests and stale sequence numbers are ignored', () => {
     const initial = pending();
@@ -21,6 +25,37 @@ test('stage updates replace their earlier status without duplicating rows', () =
     const completed = applyProgressEvent(started, { requestId, seq: 2, stage: 'RAG_SEARCH', status: 'completed', message: 'done' });
     assert.equal(completed[0].progress.length, 1);
     assert.equal(completed[0].progress[0].status, 'completed');
+});
+
+test('sequential progress keeps history but exposes only the current active stage', () => {
+    let messages = applyProgressEvent(pending(), { requestId, seq: 1, stage: 'ANALYZING', status: 'started' });
+    messages = revealProgressMessage(messages, requestId);
+    assert.equal(messages[0].currentProgressStage.stage, 'ANALYZING');
+    assert.equal(messages[0].progressVisible, true);
+    messages = applyProgressEvent(messages, { requestId, seq: 2, stage: 'ANALYZING', status: 'completed' });
+    assert.equal(messages[0].currentProgressStage.stage, 'ANALYZING');
+    messages = applyProgressEvent(messages, { requestId, seq: 3, stage: 'RAG_SEARCH', status: 'started' });
+    assert.equal(messages[0].currentProgressStage.stage, 'RAG_SEARCH');
+    messages = applyProgressEvent(messages, { requestId, seq: 4, stage: 'RAG_SEARCH', status: 'completed' });
+    messages = applyProgressEvent(messages, { requestId, seq: 5, stage: 'RAG_SELECT', status: 'started' });
+    assert.equal(messages[0].currentProgressStage.stage, 'RAG_SELECT');
+    assert.equal(messages[0].progress.length, 3);
+});
+
+test('degraded Grounding replaces the active line and later synthesis replaces it', () => {
+    let messages = applyProgressEvent(pending(), { requestId, seq: 1, stage: 'GROUNDING', status: 'started' });
+    messages = applyProgressEvent(messages, { requestId, seq: 2, stage: 'GROUNDING', status: 'degraded', message: 'Không thể kiểm tra nguồn trực tuyến, đang dùng dữ liệu hiện có...' });
+    assert.equal(messages[0].currentProgressStage.status, 'degraded');
+    messages = applyProgressEvent(messages, { requestId, seq: 3, stage: 'SYNTHESIZING', status: 'started' });
+    assert.equal(messages[0].currentProgressStage.stage, 'SYNTHESIZING');
+});
+
+test('fast completion before the visibility threshold never reveals progress', () => {
+    assert.equal(PROGRESS_VISIBILITY_DELAY_MS, 190);
+    const started = applyProgressEvent(pending(), { requestId, seq: 1, stage: 'ANALYZING', status: 'started' });
+    const finalized = finalizeProgressMessage(started, requestId, { answer: 'Fast answer' });
+    assert.equal(finalized[0].progressVisible, false);
+    assert.equal(revealProgressMessage(finalized, requestId), finalized);
 });
 
 test('terminal progress blocks late socket events', () => {
@@ -59,13 +94,37 @@ test('socket disconnect degrades only pending progress and HTTP still finalizes 
 });
 
 test('stream transitions one pending bubble and appends ordered chunks', () => {
-    const started = applyStreamStart(pending(), { requestId, seq: 1 });
-    const first = applyStreamChunk(started, { requestId, seq: 2, chunkId: 1, delta: 'Theo ' });
-    const second = applyStreamChunk(first, { requestId, seq: 3, chunkId: 2, delta: 'Điều 1' });
+    const withProgress = revealProgressMessage(
+        applyProgressEvent(pending(), { requestId, seq: 1, stage: 'SYNTHESIZING', status: 'started' }),
+        requestId
+    );
+    const started = applyStreamStart(withProgress, { requestId, seq: 2 });
+    assert.equal(started[0].state, 'progress');
+    assert.equal(started[0].progressVisible, true);
+    const first = applyStreamChunk(started, { requestId, seq: 3, chunkId: 1, delta: 'Theo ' });
+    const second = applyStreamChunk(first, { requestId, seq: 4, chunkId: 2, delta: 'Điều 1' });
     assert.equal(second.length, 1);
     assert.equal(second[0].state, 'streaming');
     assert.equal(second[0].text, 'Theo Điều 1');
-    assert.equal(second[0].progress.length, 0);
+    assert.equal(second[0].progressVisible, false);
+    assert.equal(second[0].currentProgressStage, null);
+});
+
+test('sequential requests keep progress and delayed visibility isolated by requestId', () => {
+    const requestB = '67287664-479b-4074-8c9e-838d1e953630';
+    let messages = pending().concat({
+        id: `ai-${requestB}`, requestId: requestB, isBot: true, state: 'progress', progress: [],
+        currentProgressStage: null, progressVisible: false, progressTerminal: false, lastSeq: 0
+    });
+    messages = applyProgressEvent(messages, { requestId, seq: 1, stage: 'GROUNDING', status: 'started' });
+    messages = revealProgressMessage(messages, requestId);
+    messages = applyProgressEvent(messages, { requestId: requestB, seq: 1, stage: 'ANALYZING', status: 'started' });
+    assert.equal(messages[0].currentProgressStage.stage, 'GROUNDING');
+    assert.equal(messages[1].currentProgressStage.stage, 'ANALYZING');
+    assert.equal(messages[1].progressVisible, false);
+    const finalizedB = finalizeProgressMessage(messages, requestB, { answer: 'Chào bạn!' });
+    assert.equal(finalizedB[1].currentProgressStage, null);
+    assert.equal(finalizedB[1].progressVisible, false);
 });
 
 test('duplicate and out-of-order chunks are ignored', () => {
